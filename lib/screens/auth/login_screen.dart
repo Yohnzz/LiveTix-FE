@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_header.dart';
-import '../../widgets/logo_mark.dart';
 import '../../widgets/primary_button.dart';
+import '../../widgets/ribbon_logo.dart';
+import '../home/home_screen.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
@@ -27,26 +28,43 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _login() {
     if (!_formKey.currentState!.validate()) return;
-    // TODO: panggil API login, lalu arahkan sesuai role (admin / produser / user)
+    final emailText = _email.text.trim();
+    final name = emailText.isNotEmpty
+        ? emailText.split('@').first
+        : 'Rafi';
+    final capitalized = name[0].toUpperCase() + name.substring(1);
+
+    // Navigasi ke Home User (Logged-in state)
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HomeScreen(
+          isGuest: false,
+          userName: capitalized,
+          userInitials: capitalized.substring(0, capitalized.length >= 2 ? 2 : 1).toUpperCase(),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Form(
             key: _formKey,
             child: Column(
               children: [
-                const AuthHeader(child: LogoMark(size: 80)),
-                const SizedBox(height: 24),
+                const AuthHeader(height: 180, child: RibbonLogo(size: 84)),
+                const SizedBox(height: 20),
                 const Text('Selamat datang',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textDark)),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textDark)),
                 const SizedBox(height: 4),
                 const Text('Masuk untuk lanjut memesan tiket',
-                    style: TextStyle(fontSize: 12, color: AppColors.textGrey)),
+                    style: TextStyle(fontSize: 13, color: AppColors.textGrey)),
                 const SizedBox(height: 24),
                 AppTextField(
                   label: 'Email',

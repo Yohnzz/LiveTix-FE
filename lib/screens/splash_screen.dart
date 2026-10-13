@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/app_colors.dart';
 import '../widgets/logo_mark.dart';
-import 'auth/login_screen.dart';
+import '../screens/home/home_screen.dart';
 
-/// Splash 1: logo saja + versi. Splash 2: logo + teks "LiveTix". Lalu ke Login.
+/// Splash 1: logo saja + versi. Splash 2: logo + teks "LiveTix". Lalu ke Home Guest.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
   @override
@@ -21,11 +21,11 @@ class _SplashScreenState extends State<SplashScreen> {
     Timer(const Duration(milliseconds: 1500), () {
       if (mounted) setState(() => _showName = true);
     });
-    Timer(const Duration(milliseconds: 3200), () {
+    Timer(const Duration(milliseconds: 3000), () {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        MaterialPageRoute(builder: (_) => const HomeScreen(isGuest: true)),
       );
     });
   }

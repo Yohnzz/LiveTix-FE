@@ -13,7 +13,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _email = TextEditingController();
+  final _email = TextEditingController(text: 'rafi@email.com');
 
   @override
   void dispose() {
@@ -23,7 +23,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    // TODO: panggil API kirim OTP ke email
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => OtpScreen(email: _email.text.trim())),
@@ -33,30 +32,55 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const AuthHeader(
-                  height: 220,
-                  child: Icon(Icons.lock_person_outlined, size: 90, color: Colors.white),
+                AuthHeader(
+                  height: 250,
+                  child: Image.asset(
+                    'assets/images/forgot-password-logo.png',
+                    height: 110,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.lock_person_outlined,
+                      size: 90,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 InkWell(
                   onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.chevron_left, size: 28),
+                  borderRadius: BorderRadius.circular(20),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.chevron_left, size: 28, color: AppColors.textDark),
+                  ),
                 ),
-                const SizedBox(height: 8),
-                const Text('Lupa Kata Sandi',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textDark)),
+                const SizedBox(height: 12),
+                const Text(
+                  'Lupa Kata Sandi',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textDark,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                const Text('Masukkan Email Pemulihan',
-                    style: TextStyle(fontSize: 12, color: AppColors.textGrey)),
-                const SizedBox(height: 20),
+                const Text(
+                  'Masukkan Email Pemulihan',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textGrey,
+                  ),
+                ),
+                const SizedBox(height: 24),
                 AppTextField(
                   label: 'Email',
                   icon: Icons.mail_outline,
@@ -64,7 +88,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) => (v == null || !v.contains('@')) ? 'Email tidak valid' : null,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 28),
                 PrimaryButton(text: 'Masuk', onPressed: _submit),
               ],
             ),

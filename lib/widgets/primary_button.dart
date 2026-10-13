@@ -34,14 +34,35 @@ class GoogleButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       height: 48,
-      child: OutlinedButton.icon(
+      child: OutlinedButton(
         onPressed: onPressed,
-        icon: const Icon(Icons.g_mobiledata, size: 28, color: AppColors.textDark),
-        label: const Text('Lanjutkan dengan Google',
-            style: TextStyle(fontSize: 13, color: AppColors.textDark)),
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: AppColors.border),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/google-logo.png',
+              width: 20,
+              height: 20,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.g_mobiledata,
+                size: 24,
+                color: AppColors.textDark,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Lanjutkan dengan Google',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textDark,
+              ),
+            ),
+          ],
         ),
       ),
     );
