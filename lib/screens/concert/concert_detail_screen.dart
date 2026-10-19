@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/concert_model.dart';
 import '../auth/login_screen.dart';
+import '../checkout/select_ticket_screen.dart';
 
 class ConcertDetailScreen extends StatefulWidget {
   final ConcertModel concert;
@@ -96,14 +97,14 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
         ),
       );
     } else {
-      // User terautentikasi: lanjut ke alur pembayaran
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Tiket ${_selectedTier.name} (${_selectedTier.formattedPrice}) dipilih! Siap lanjut ke pembayaran.',
+      // User terautentikasi: lanjut ke alur pemilihan tiket & pembayaran
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SelectTicketScreen(
+            concert: widget.concert,
+            initialTier: _selectedTier,
           ),
-          backgroundColor: AppColors.primary,
-          duration: const Duration(seconds: 3),
         ),
       );
     }

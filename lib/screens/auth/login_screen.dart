@@ -3,7 +3,7 @@ import '../../core/app_colors.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_header.dart';
 import '../../widgets/primary_button.dart';
-import '../../widgets/ribbon_logo.dart';
+import '../../services/dummy_data_service.dart';
 import '../home/home_screen.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
@@ -29,10 +29,9 @@ class _LoginScreenState extends State<LoginScreen> {
   void _login() {
     if (!_formKey.currentState!.validate()) return;
     final emailText = _email.text.trim();
-    final name = emailText.isNotEmpty
-        ? emailText.split('@').first
-        : 'Rafi';
-    final capitalized = name[0].toUpperCase() + name.substring(1);
+    final passwordText = _password.text.trim();
+
+    final user = DummyDataService().login(emailText, passwordText);
 
     // Navigasi ke Home User (Logged-in state)
     Navigator.pushReplacement(
@@ -40,8 +39,8 @@ class _LoginScreenState extends State<LoginScreen> {
       MaterialPageRoute(
         builder: (_) => HomeScreen(
           isGuest: false,
-          userName: capitalized,
-          userInitials: capitalized.substring(0, capitalized.length >= 2 ? 2 : 1).toUpperCase(),
+          userName: user?.name.split(' ').first ?? 'Rafi',
+          userInitials: user?.initials ?? 'RF',
         ),
       ),
     );
@@ -58,7 +57,14 @@ class _LoginScreenState extends State<LoginScreen> {
             key: _formKey,
             child: Column(
               children: [
-                const AuthHeader(height: 180, child: RibbonLogo(size: 84)),
+                AuthHeader(
+                  height: 190,
+                  child: Image.asset(
+                    'assets/images/livetix-logo.png',
+                    height: 100,
+                    fit: BoxFit.contain,
+                  ),
+                ),
                 const SizedBox(height: 20),
                 const Text('Selamat datang',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textDark)),

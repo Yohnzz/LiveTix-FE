@@ -3,6 +3,7 @@ import '../../core/app_colors.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/custom_checkbox.dart';
 import '../../widgets/primary_button.dart';
+import '../../services/dummy_data_service.dart';
 import '../home/home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -40,26 +41,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
+    final user = DummyDataService().register(
+      name: _name.text.trim(),
+      email: _email.text.trim(),
+      phone: _phone.text.trim(),
+      password: _password.text.trim(),
+      role: _role,
+    );
+
     // Registrasi berhasil -> langsung masuk ke Home User
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
         builder: (_) => HomeScreen(
           isGuest: false,
-          userName: _name.text.split(' ').first,
-          userInitials: _getInitials(_name.text),
+          userName: user.name.split(' ').first,
+          userInitials: user.initials,
         ),
       ),
       (route) => false,
     );
-  }
-
-  String _getInitials(String name) {
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    return name.isNotEmpty ? name[0].toUpperCase() : 'U';
   }
 
   @override
