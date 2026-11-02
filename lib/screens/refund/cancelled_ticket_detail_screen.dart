@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/ticket_order_model.dart';
+import '../../widgets/qr_code_view.dart';
 import 'refund_destination_screen.dart';
 
 class CancelledTicketDetailScreen extends StatelessWidget {
@@ -81,19 +82,20 @@ class CancelledTicketDetailScreen extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final viewTop = MediaQuery.of(context).viewPadding.top;
+    final topSpacing = viewTop > 0 ? viewTop + 14 : 36.0;
+
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
         gradient: AppColors.headerGradient,
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Tombol Back
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, topSpacing, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Tombol Back
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: const Row(
@@ -155,8 +157,7 @@ class CancelledTicketDetailScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildDisabledQrCard() {
@@ -170,21 +171,20 @@ class CancelledTicketDetailScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Kotak Abu-Abu Representasi QR Mati
-          Container(
-            width: 110,
-            height: 110,
-            decoration: BoxDecoration(
-              color: const Color(0xFFD1D5DB),
-              borderRadius: BorderRadius.circular(16),
-            ),
+          AppQrCodeView(
+            qrCodeUrl: ticket.qrCodeUrl,
+            qrCodeBytes: ticket.qrCodeBytes,
+            size: 124,
+            padding: 10,
+            isDisabled: true,
+            semanticLabel: 'Kode QR tidak berlaku karena tiket dibatalkan',
           ),
           const SizedBox(height: 14),
           const Text(
             'QR tidak berlaku · tiket dibatalkan',
             style: TextStyle(
               fontSize: 12.5,
-              color: Color(0xFF6B7280),
+              color: Color(0xFF475467),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -220,7 +220,7 @@ class CancelledTicketDetailScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Tiket ${ticket.category} × ${ticket.quantity}',
+                'Tiket ${ticket.category} x ${ticket.quantity}',
                 style: const TextStyle(fontSize: 13, color: Color(0xFF475467)),
               ),
               Text(

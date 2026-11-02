@@ -1,5 +1,159 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'concert_model.dart';
+
+enum PaymentCategory {
+  qris,
+  ewallet,
+  bank,
+}
+
+class BankPaymentRule {
+  final String code;
+  final String displayName;
+  final String methodTitle;
+  final String badgeText;
+  final Color badgeColor;
+  final String vaPrefix;
+  final String sampleSuffix;
+  final String appName;
+  final String ruleNote;
+  final List<String> steps;
+
+  const BankPaymentRule({
+    required this.code,
+    required this.displayName,
+    required this.methodTitle,
+    required this.badgeText,
+    required this.badgeColor,
+    required this.vaPrefix,
+    required this.sampleSuffix,
+    required this.appName,
+    required this.ruleNote,
+    required this.steps,
+  });
+
+  String buildVaNumber(String orderId) {
+    final digits = orderId.replaceAll(RegExp(r'[^0-9]'), '');
+    final tail = (digits.isEmpty ? sampleSuffix : digits.padRight(12, '4'))
+        .substring(0, 12);
+    return '$vaPrefix ${tail.substring(0, 4)} ${tail.substring(4, 8)} ${tail.substring(8, 12)}';
+  }
+
+  static const Map<String, BankPaymentRule> rules = {
+    'BCA': BankPaymentRule(
+      code: 'BCA',
+      displayName: 'BCA Virtual Account',
+      methodTitle: 'Virtual Account',
+      badgeText: 'BCA',
+      badgeColor: Color(0xFF005EAA),
+      vaPrefix: '8808',
+      sampleSuffix: '123456789012',
+      appName: 'BCA Mobile (m-BCA) / myBCA',
+      ruleNote:
+          'Gunakan menu m-Transfer > BCA Virtual Account. Nominal tagihan terkunci otomatis sesuai pesanan (minimal transaksi Rp10.000).',
+      steps: [
+        'Buka aplikasi BCA Mobile (pilih m-BCA) atau myBCA, lalu masuk dengan Kode Akses Anda.',
+        'Pilih menu m-Transfer > BCA Virtual Account, lalu masukkan Nomor Virtual Account {VA}.',
+        'Periksa nama akun LiveTix Official dan nominal otomatis {TOTAL}, kemudian konfirmasi dengan PIN m-BCA 6 digit.',
+      ],
+    ),
+    'Mandiri': BankPaymentRule(
+      code: 'Mandiri',
+      displayName: 'Mandiri Multipayment (Livin\')',
+      methodTitle: 'Virtual Account',
+      badgeText: 'MANDIRI',
+      badgeColor: Color(0xFF003D79),
+      vaPrefix: '89022',
+      sampleSuffix: '081256789012',
+      appName: 'Livin\' by Mandiri / ATM Mandiri',
+      ruleNote:
+          'Khusus Bank Mandiri gunakan menu Bayar > Multipayment dengan kode penyedia jasa 89022 (bukan menu Transfer antar rekening).',
+      steps: [
+        'Buka aplikasi Livin\' by Mandiri, lalu login ke akun Anda.',
+        'Pilih menu Bayar > Multipayment / E-Commerce, lalu pilih penyedia jasa LiveTix (Kode 89022).',
+        'Masukkan Kode Bayar / Nomor VA {VA}, pastikan nominal tagihan {TOTAL} sesuai, lalu konfirmasi PIN Livin\' 6 digit.',
+      ],
+    ),
+    'BRI': BankPaymentRule(
+      code: 'BRI',
+      displayName: 'BRI Virtual Account (BRIVA)',
+      methodTitle: 'Virtual Account',
+      badgeText: 'BRI',
+      badgeColor: Color(0xFF00529C),
+      vaPrefix: '77889',
+      sampleSuffix: '081256789012',
+      appName: 'BRImo / ATM BRI',
+      ruleNote:
+          'Khusus BRI gunakan menu Tagihan > BRIVA (jangan gunakan menu Transfer Sesama BRI agar pembayaran terverifikasi otomatis).',
+      steps: [
+        'Buka aplikasi BRImo dan login menggunakan username, password, atau sidik jari.',
+        'Pilih menu Tagihan > BRIVA, ketuk Pembayaran Baru, lalu masukkan Nomor Tujuan BRIVA {VA}.',
+        'Tagihan LiveTix sebesar {TOTAL} akan tampil otomatis. Periksa detail pesanan lalu masukkan PIN BRImo 6 digit.',
+      ],
+    ),
+    'SeaBank': BankPaymentRule(
+      code: 'SeaBank',
+      displayName: 'SeaBank Virtual Account',
+      methodTitle: 'Virtual Account',
+      badgeText: 'SEABANK',
+      badgeColor: Color(0xFFB43E0A),
+      vaPrefix: '7821',
+      sampleSuffix: '081256789012',
+      appName: 'Aplikasi SeaBank',
+      ruleNote:
+          'Khusus SeaBank gunakan menu Transfer > Virtual Account pada aplikasi SeaBank. Bebas biaya transfer antar-SeaBank dan verifikasi instan.',
+      steps: [
+        'Buka aplikasi SeaBank dan masuk ke akun Anda.',
+        'Pilih menu Transfer > Virtual Account pada halaman utama aplikasi SeaBank.',
+        'Masukkan Nomor Virtual Account {VA}, periksa nominal tagihan otomatis {TOTAL}, lalu masukkan PIN SeaBank 6 digit.',
+      ],
+    ),
+  };
+
+  static BankPaymentRule of(String provider) {
+    return rules[provider] ?? rules['BCA']!;
+  }
+}
+
+class EWalletProviderRule {
+  final String code;
+  final String displayName;
+  final Color brandColor;
+  final String tagline;
+
+  const EWalletProviderRule({
+    required this.code,
+    required this.displayName,
+    required this.brandColor,
+    required this.tagline,
+  });
+
+  static const Map<String, EWalletProviderRule> providers = {
+    'GoPay': EWalletProviderRule(
+      code: 'GoPay',
+      displayName: 'GoPay',
+      brandColor: Color(0xFF00684A),
+      tagline: 'Pembayaran instan via aplikasi GoPay / Gojek dengan PIN 6 digit',
+    ),
+    'DANA': EWalletProviderRule(
+      code: 'DANA',
+      displayName: 'DANA',
+      brandColor: Color(0xFF0B5CAD),
+      tagline: 'Pembayaran instan via aplikasi DANA dengan PIN DANA 6 digit',
+    ),
+    'ShopeePay': EWalletProviderRule(
+      code: 'ShopeePay',
+      displayName: 'ShopeePay',
+      brandColor: Color(0xFFB83214),
+      tagline: 'Pembayaran instan via aplikasi ShopeePay dengan PIN 6 digit',
+    ),
+  };
+
+  static EWalletProviderRule of(String provider) {
+    return providers[provider] ?? providers['ShopeePay']!;
+  }
+}
 
 class RefundModel {
   final String refundId;
@@ -7,7 +161,7 @@ class RefundModel {
   final String concertTitle;
   final int totalAmount;
   final String methodType; // 'Bank' atau 'E-wallet'
-  final String providerName; // 'BCA', 'Mandiri', 'BNI', 'BRI', 'GoPay', 'OVO', 'DANA', 'ShopeePay'
+  final String providerName;
   final String accountHolderName;
   final String accountNumber;
   final String status; // 'Sedang diproses', 'Refund selesai'
@@ -66,6 +220,17 @@ class UserTicketModel {
   final Color? iconColor;
   final RefundModel? refundData;
 
+  /// URL gambar QR dari backend (saat null, sistem menggunakan sementara assets/images/qrcode.png)
+  final String? qrCodeUrl;
+
+  /// Byte gambar QR dari backend (opsional)
+  final Uint8List? qrCodeBytes;
+
+  /// 1 QR Code berlaku sebanyak jumlah tiket yang dibeli (maksimal 4 kali scan di gate)
+  final int qrScanQuota;
+  final int qrScansUsed;
+  final String paymentMethod;
+
   const UserTicketModel({
     required this.id,
     required this.bookingCode,
@@ -88,12 +253,24 @@ class UserTicketModel {
     this.iconBgColor,
     this.iconColor,
     this.refundData,
-  });
+    this.qrCodeUrl,
+    this.qrCodeBytes,
+    int? qrScanQuota,
+    this.qrScansUsed = 0,
+    this.paymentMethod = 'BCA Virtual Account',
+  }) : qrScanQuota = qrScanQuota ?? quantity;
+
+  int get remainingScans => (qrScanQuota - qrScansUsed).clamp(0, qrScanQuota);
 
   UserTicketModel copyWith({
     String? status,
     bool? isCancelled,
     RefundModel? refundData,
+    String? qrCodeUrl,
+    Uint8List? qrCodeBytes,
+    int? qrScanQuota,
+    int? qrScansUsed,
+    String? paymentMethod,
   }) {
     return UserTicketModel(
       id: id,
@@ -117,6 +294,11 @@ class UserTicketModel {
       iconBgColor: iconBgColor,
       iconColor: iconColor,
       refundData: refundData ?? this.refundData,
+      qrCodeUrl: qrCodeUrl ?? this.qrCodeUrl,
+      qrCodeBytes: qrCodeBytes ?? this.qrCodeBytes,
+      qrScanQuota: qrScanQuota ?? this.qrScanQuota,
+      qrScansUsed: qrScansUsed ?? this.qrScansUsed,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
     );
   }
 
@@ -143,10 +325,17 @@ class OrderModel {
   final int ticketPrice;
   final int serviceFee;
   final int taxAndAdmin;
+  final int transactionFee;
   final int totalAmount;
+  final PaymentCategory paymentCategory;
+  final String paymentProvider;
   final String paymentMethod;
   final String vaNumber;
   final String vaName;
+
+  /// URL/bytes QR dari backend untuk QRIS maupun tiket; jika null memakai assets/images/qrcode.png
+  final String? qrCodeUrl;
+  final Uint8List? qrCodeBytes;
 
   const OrderModel({
     required this.orderId,
@@ -158,11 +347,96 @@ class OrderModel {
     required this.ticketPrice,
     this.serviceFee = 15000,
     required this.taxAndAdmin,
+    this.transactionFee = 0,
     required this.totalAmount,
+    this.paymentCategory = PaymentCategory.bank,
+    this.paymentProvider = 'BCA',
     this.paymentMethod = 'BCA Virtual Account',
     this.vaNumber = '8808 1234 5678 9012',
-    this.vaName = 'a.n. Soundwave Fest Official',
+    this.vaName = 'a.n. LiveTix Official',
+    this.qrCodeUrl,
+    this.qrCodeBytes,
   });
+
+  OrderModel copyWithPayment({
+    required PaymentCategory category,
+    required String provider,
+    int? transactionFee,
+  }) {
+    final fee = transactionFee ?? this.transactionFee;
+    final subtotal = ticketPrice * quantity;
+    final calculatedTotal = subtotal + serviceFee + taxAndAdmin + fee;
+
+    switch (category) {
+      case PaymentCategory.qris:
+        return OrderModel(
+          orderId: orderId,
+          concert: concert,
+          tier: tier,
+          quantity: quantity,
+          customerName: customerName,
+          customerEmail: customerEmail,
+          ticketPrice: ticketPrice,
+          serviceFee: serviceFee,
+          taxAndAdmin: taxAndAdmin,
+          transactionFee: fee,
+          totalAmount: calculatedTotal,
+          paymentCategory: PaymentCategory.qris,
+          paymentProvider: 'QRIS',
+          paymentMethod: 'QRIS',
+          vaNumber: 'ID1026008891204',
+          vaName: 'LiveTix Official',
+          qrCodeUrl: qrCodeUrl,
+          qrCodeBytes: qrCodeBytes,
+        );
+      case PaymentCategory.ewallet:
+        final rule = EWalletProviderRule.of(provider);
+        return OrderModel(
+          orderId: orderId,
+          concert: concert,
+          tier: tier,
+          quantity: quantity,
+          customerName: customerName,
+          customerEmail: customerEmail,
+          ticketPrice: ticketPrice,
+          serviceFee: serviceFee,
+          taxAndAdmin: taxAndAdmin,
+          transactionFee: fee,
+          totalAmount: calculatedTotal,
+          paymentCategory: PaymentCategory.ewallet,
+          paymentProvider: rule.code,
+          paymentMethod: 'E-Wallet (${rule.displayName})',
+          vaNumber: orderId,
+          vaName: 'LiveTix Official',
+          qrCodeUrl: qrCodeUrl,
+          qrCodeBytes: qrCodeBytes,
+        );
+      case PaymentCategory.bank:
+        final bankRule = BankPaymentRule.of(provider);
+        return OrderModel(
+          orderId: orderId,
+          concert: concert,
+          tier: tier,
+          quantity: quantity,
+          customerName: customerName,
+          customerEmail: customerEmail,
+          ticketPrice: ticketPrice,
+          serviceFee: serviceFee,
+          taxAndAdmin: taxAndAdmin,
+          transactionFee: fee,
+          totalAmount: calculatedTotal,
+          paymentCategory: PaymentCategory.bank,
+          paymentProvider: bankRule.code,
+          paymentMethod: bankRule.displayName,
+          vaNumber: bankRule.code == 'BCA'
+              ? '8808 1234 5678 9012'
+              : bankRule.buildVaNumber(orderId),
+          vaName: 'a.n. LiveTix Official',
+          qrCodeUrl: qrCodeUrl,
+          qrCodeBytes: qrCodeBytes,
+        );
+    }
+  }
 
   String formatCurrency(int amount) {
     final buffer = StringBuffer('Rp');

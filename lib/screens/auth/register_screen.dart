@@ -55,7 +55,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       MaterialPageRoute(
         builder: (_) => HomeScreen(
           isGuest: false,
-          userName: user.name.split(' ').first,
+          userName: user.name,
           userInitials: user.initials,
         ),
       ),

@@ -54,12 +54,15 @@ class GoogleButton extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            const Text(
-              'Lanjutkan dengan Google',
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textDark,
+            const Flexible(
+              child: Text(
+                'Lanjutkan dengan Google',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textDark,
+                ),
               ),
             ),
           ],
