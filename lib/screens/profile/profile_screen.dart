@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../auth/login_screen.dart';
+import '../promoter/promoter_main_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool isGuest;
@@ -157,6 +158,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: Icons.notifications_none_rounded,
                 title: 'Notifikasi',
                 onTap: () => _onRestrictedTap('Notifikasi'),
+              ),
+              _buildMenuItem(
+                icon: Icons.campaign_outlined,
+                title: 'Portal Produser / Pengelola Konser',
+                iconColor: AppColors.accent,
+                textColor: AppColors.accent,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PromoterMainScreen(),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 20),
 

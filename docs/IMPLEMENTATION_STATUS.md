@@ -35,4 +35,22 @@
 | **Modal Periksa Data Refund** | `lib/screens/refund/refund_destination_screen.dart` | ✅ | Modal BottomSheet konfirmasi akhir data rekening/e-wallet sebelum diajukan ke sistem |
 | **Tracking Status Refund** | `lib/screens/refund/refund_status_screen.dart` | ✅ | Header status Sedang diproses, nominal refund, vertical stepper timeline 4 tahap, kartu tujuan, dan tombol aksi |
 
+---
 
+## Layar & Fitur Produser / Promotor (`promoter`)
+
+| Fitur / Halaman | File | Status | Catatan |
+|-----------------|------|--------|---------|
+| **Portal Produser (Main Shell)** | `lib/screens/promoter/promoter_main_screen.dart` | ✅ | Navigasi 4 tab: Dasbor, Konser, Keuangan, Profil; status bar transparan adaptif |
+| **Dasbor Produser** | `lib/screens/promoter/promoter_dashboard_screen.dart` | ✅ | Metrik Total Konser, Tiket Terjual, Total Omset (+8.2%), Bar Chart penjualan 7 hari, kartu konser terdekat |
+| **Daftar Konser & Manajemen** | `lib/screens/promoter/promoter_concert_list_screen.dart` | ✅ | Filter status (Semua, Draft, Menunggu, Disetujui, Ditolak), pencarian, kuota sisa pengajuan harian, modal aksi |
+| **Tambah Konser (Wizard 4 Langkah)** | `lib/screens/promoter/add_concert/add_concert_flow.dart` | ✅ | Wizard 4 tahap: Detail & Poster, Peta Venue, Pricing Tier, Ringkasan Pengajuan (otomatis masuk status Menunggu Review) |
+| **Halaman Pembayaran & Saldo** | `lib/screens/promoter/promoter_finance_screen.dart` | ✅ | Hero card Saldo Tersedia (Rp1.845.000.000), total omset, tombol Tarik Dana, filter periode, kartu hasil konser |
+| **Detail Pendapatan Konser** | `lib/screens/promoter/promoter_income_detail_screen.dart` | ✅ | Rincian kotor, biaya sistem 5%, pendapatan bersih (Rp997.500.000), status payout Mandiri, ID Transaksi |
+| **Riwayat Penarikan Dana** | `lib/screens/promoter/promoter_withdrawal_history_screen.dart` | ✅ | Riwayat mutasi status BERHASIL (hijau), MENUNGGU (kuning), dan DITOLAK (merah + alasan penolakan) |
+| **Tarik Saldo & Otorisasi PIN** | `lib/screens/promoter/promoter_withdrawal_screen.dart` | ✅ | Card saldo tersedia, input nominal, dropdown rekening BCA, admin fee Rp6.500, otorisasi keypad PIN 6-Digit |
+| **Profil Mitra & Pengaturan** | `lib/screens/promoter/promoter_profile_screen.dart` | ✅ | Profil PT Harmoni Java Promosindo, modal rekening penerima BCA, dialog status PIN Keamanan, beralih mode user |
+| **Detail Status Konser & Kurasi** | `lib/screens/promoter/concert_status_detail_screen.dart` | ✅ | Tracker 4-tahap dinamis (Menunggu, Disetujui, Ditolak), rincian penolakan/review kurasi, navigasi banding |
+| **Bantuan Customer Service Promotor** | `lib/screens/promoter/producer_customer_service_screen.dart` | ✅ | Live chat interaktif konsultasi kurasi & lampiran dokumen izin keramaian (0 lint issue) |
+| **Verifikasi Produser (Flow & Steps)** | `lib/screens/promoter/verification/producer_verification_flow.dart` | ✅ | Step 1 data diri penanggung jawab, Step 2 unggah KTP, status approval menunggu, status approval ditolak & jeda waktu |
+| **Model Data & Supabase Readiness** | `lib/models/promoter_models.dart` | ✅ | Sinkron dengan skema PostgreSQL Supabase (`concerts`, `ticket_tiers`), dilengkapi `fromJson` & `toJson` |

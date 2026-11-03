@@ -34,12 +34,12 @@ class DummyDataService {
       reviewsCount: 4,
     );
 
-    const adminUser = UserModel(
-      name: 'Admin LiveTix',
-      email: 'admin@livetix.com',
-      phone: '081200000000',
-      password: 'admin123',
-      role: 'Admin',
+    const produserDefault = UserModel(
+      name: 'Rafi Firmansyah',
+      email: 'produser@livetix.com',
+      phone: '081234567890',
+      password: 'produser123',
+      role: 'Produser',
     );
 
     const producerUser = UserModel(
@@ -51,7 +51,7 @@ class DummyDataService {
     );
 
     _users[defaultUser.email.toLowerCase()] = defaultUser;
-    _users[adminUser.email.toLowerCase()] = adminUser;
+    _users[produserDefault.email.toLowerCase()] = produserDefault;
     _users[producerUser.email.toLowerCase()] = producerUser;
 
     // 2. Data Tiket Awal Pengguna (Sesuai Desain Figma Tiket Saya)
@@ -197,6 +197,12 @@ class DummyDataService {
       return user;
     }
     // Jika belum terdaftar, buat akun dinamis agar pengguna mudah mencoba
+    final lowerEmail = email.trim().toLowerCase();
+    final isProducer = lowerEmail.contains('produser') ||
+        lowerEmail.contains('producer') ||
+        lowerEmail.contains('promotor') ||
+        lowerEmail.contains('promoter');
+
     final newUser = UserModel(
       name: email.split('@').first.replaceFirst(
             email[0],
@@ -205,7 +211,7 @@ class DummyDataService {
       email: email.trim(),
       phone: '08123456789',
       password: password,
-      role: 'User',
+      role: isProducer ? 'Produser' : 'User',
     );
     _users[email.trim().toLowerCase()] = newUser;
     currentUserNotifier.value = newUser;

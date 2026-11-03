@@ -5,6 +5,8 @@ import '../../widgets/auth_header.dart';
 import '../../widgets/primary_button.dart';
 import '../../services/dummy_data_service.dart';
 import '../home/home_screen.dart';
+import '../promoter/promoter_main_screen.dart';
+import '../promoter/verification/producer_verification_flow.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
@@ -32,6 +34,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final passwordText = _password.text.trim();
 
     final user = DummyDataService().login(emailText, passwordText);
+
+    // Jika akun terdaftar sebagai Produser, arahkan ke Portal Produser
+    if (user?.role == 'Produser') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PromoterMainScreen()),
+      );
+      return;
+    }
 
     // Navigasi ke Home User (Logged-in state)
     Navigator.pushReplacement(
@@ -116,6 +127,61 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent)),
                     ),
                   ],
+                ),
+                const SizedBox(height: 18),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const PromoterMainScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.campaign_outlined,
+                      size: 18, color: AppColors.accent),
+                  label: const Text(
+                    'Masuk Cepat: Portal Produser (Dasbor Produser)',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.accent),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFFCE7F3)),
+                    backgroundColor: const Color(0xFFFDF2F8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ProducerVerificationFlow(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.verified_user_outlined,
+                      size: 18, color: AppColors.primary),
+                  label: const Text(
+                    'Alur Verifikasi Produser (Lengkapi Profil & KTP)',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFD0D5DD)),
+                    backgroundColor: const Color(0xFFF8FAFC),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
                 ),
               ],
             ),
