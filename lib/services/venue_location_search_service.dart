@@ -239,9 +239,8 @@ class VenueLocationSearchService {
     ),
   ];
 
-  /// Search locations dynamically: queries OSM/Photon geocoder online,
-  /// merges with local venue database, and always provides an instant fallback
-  /// so users can search and select ANY venue/location anywhere without restrictions.
+  /// Search locations dynamically: queries OSM/Nominatim geocoder online,
+  /// merges with local venue database, and always provides an instant fallback.
   Future<List<PromoterVenueLocation>> search(String rawQuery) async {
     final query = rawQuery.trim();
     if (query.isEmpty) {
@@ -289,11 +288,9 @@ class VenueLocationSearchService {
               addressObj?['state'] ??
               'Indonesia';
 
-          // Derive a clean name from the first segment
           final parts = displayName.split(',');
           final cleanName = parts.isNotEmpty ? parts.first.trim() : query;
 
-          // Avoid duplicates
           final isAlreadyLocal = localMatches.any(
             (m) => m.name.toLowerCase() == cleanName.toLowerCase(),
           );
@@ -320,8 +317,7 @@ class VenueLocationSearchService {
       ...onlineResults,
     ];
 
-    // 3. Fallback: If no exact match or user entered a custom name,
-    // inject a custom location choice matching whatever user typed!
+    // 3. Fallback: If no exact match, inject custom location choice
     final hasExact = combined.any(
       (v) => v.name.toLowerCase() == lowerQuery,
     );
@@ -341,7 +337,61 @@ class VenueLocationSearchService {
     return combined;
   }
 
-  /// Get Google Maps direct search URL for opening in browser or map app
+  /// Reverse geocode given coordinates to retrieve real address and venue name.
+  Future<PromoterVenueLocation?> reverseGeocode(double lat, double lon) async {
+    try {
+      final url = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lon&format=json&addressdetails=1',
+      );
+      final response = await http
+          .get(
+            url,
+            headers: {
+              'User-Agent': 'LiveTixApp/1.0 (contact@livetix.id)',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 3));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final displayName = data['display_name']?.toString() ?? '';
+        final addressObj = data['address'] as Map<String, dynamic>?;
+        final name = addressObj?['amenity'] ??
+            addressObj?['building'] ??
+            addressObj?['stadium'] ??
+            addressObj?['leisure'] ??
+            displayName.split(',').first.trim();
+        final city = addressObj?['city'] ??
+            addressObj?['town'] ??
+            addressObj?['municipality'] ??
+            addressObj?['state'] ??
+            'Indonesia';
+
+        return PromoterVenueLocation(
+          name: name.toString(),
+          address: displayName,
+          city: city.toString(),
+          latitude: lat,
+          longitude: lon,
+        );
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Get direct Google Maps Embed URL for iframe or web view.
+  /// [mapType]: 'm' (roadmap / peta), 'k' (satelit), 'p' (terrain)
+  static String getGoogleMapsEmbedUrl(
+    double lat,
+    double lon, {
+    String mapType = 'm',
+    int zoom = 16,
+  }) {
+    return 'https://maps.google.com/maps?q=$lat,$lon&t=$mapType&z=$zoom&output=embed';
+  }
+
+  /// Get Google Maps direct search URL for opening in browser or map app.
   static String getGoogleMapsUrl(String venueName, String address) {
     final query = '$venueName $address';
     return 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(query)}';

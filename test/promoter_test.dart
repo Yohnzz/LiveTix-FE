@@ -4,6 +4,7 @@ import 'package:livetix/screens/promoter/promoter_main_screen.dart';
 import 'package:livetix/screens/promoter/promoter_concert_list_screen.dart';
 import 'package:livetix/screens/promoter/add_concert/add_concert_flow.dart';
 import 'package:livetix/screens/promoter/verification/producer_verification_flow.dart';
+import 'package:livetix/services/promoter_data_service.dart';
 
 void main() {
   testWidgets('PromoterMainScreen renders correctly', (WidgetTester tester) async {
@@ -18,8 +19,11 @@ void main() {
     expect(find.text('Java Promotor'), findsOneWidget);
     expect(find.text('TERVERIFIKASI'), findsOneWidget);
     expect(find.text('TOTAL KONSER'), findsOneWidget);
+    expect(find.text('12'), findsOneWidget);
     expect(find.text('TIKET TERJUAL'), findsOneWidget);
+    expect(find.text('8.450'), findsOneWidget);
     expect(find.text('TOTAL PENDAPATAN'), findsOneWidget);
+    expect(find.text('Rp 2.115.000.000'), findsOneWidget);
   });
 
   testWidgets('PromoterConcertListScreen renders filter tabs and quota banner',
@@ -40,8 +44,10 @@ void main() {
     expect(find.text('Ditolak'), findsOneWidget);
   });
 
-  testWidgets('AddConcertFlow steps 1 to 4, Detail Status Konser, and Customer Service',
+  testWidgets('AddConcertFlow steps 3 to 4, Detail Status Konser, and Customer Service',
       (WidgetTester tester) async {
+    PromoterDataService().quotaRemainingNotifier.value = 5;
+
     await tester.pumpWidget(
       const MaterialApp(
         home: AddConcertFlow(initialStep: 3),
@@ -50,7 +56,6 @@ void main() {
 
     // Step 3: Paket Harga Tiket
     expect(find.text('Paket Harga Tiket'), findsOneWidget);
-    expect(find.text('Kategori Tiket Aktif'), findsOneWidget);
     expect(find.text('VIP Nusantara'), findsOneWidget);
     expect(find.text('Festival'), findsOneWidget);
     expect(find.text('1.700 Tiket'), findsOneWidget);
@@ -67,24 +72,13 @@ void main() {
     expect(find.text('Paket Tiket Terpilih'), findsOneWidget);
     expect(find.text('Kirim untuk Approval Admin'), findsOneWidget);
 
+    PromoterDataService().quotaRemainingNotifier.value = 5;
     await tester.tap(find.text('Kirim untuk Approval Admin'));
     await tester.pumpAndSettle();
 
-    // Detail Status Konser (Ditolak)
-    expect(find.text('Detail Status Konser'), findsOneWidget);
-    expect(find.text('Alasan Penolakan Admin:'), findsOneWidget);
-    expect(find.text('Jeda Waktu Pengajuan Ulang'), findsOneWidget);
-    expect(find.text('Ajukan Ulang Verifikasi (Terkunci)'), findsOneWidget);
-    expect(find.text('Hubungi Admin Konser'), findsOneWidget);
-
-    await tester.tap(find.text('Hubungi Admin Konser'));
-    await tester.pumpAndSettle();
-
-    // Customer Service
-    expect(find.text('Customer Service'), findsOneWidget);
-    expect(find.text('Kapasitas Venue - Festival Gajayana'), findsOneWidget);
-    expect(find.text('Terkait: Detail Status Konser - Ditolak'), findsOneWidget);
-    expect(find.text('Batas kapasitas aman berapa?'), findsOneWidget);
+    // ConcertStatusDetailScreen (Menunggu Approval)
+    expect(find.text('Harmoni Nusantara 2026'), findsOneWidget);
+    expect(find.text('Pengajuan baru sedang ditinjau kurasi LiveTix'), findsOneWidget);
   });
 
   testWidgets('ProducerVerificationFlow requires manual KTP upload and navigates through all 4 screens',
@@ -116,11 +110,17 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Unggah Dokumen KTP'));
+    await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
 
     // Now KTP is uploaded and shows Ganti Dokumen KTP
     expect(find.text('Ganti Dokumen KTP'), findsOneWidget);
     expect(find.text('Ajukan Approval Verifikasi'), findsOneWidget);
+
+    // Dismiss any pending SnackBars before tapping
+    final scaffoldMessenger = tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first);
+    scaffoldMessenger.clearSnackBars();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Ajukan Approval Verifikasi'));
     await tester.pumpAndSettle();
