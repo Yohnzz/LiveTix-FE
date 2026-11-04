@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../data/db_dummy.dart';
 import '../models/concert_model.dart';
+import '../models/gate_model.dart';
 import '../models/ticket_order_model.dart';
 import '../models/user_model.dart';
 import '../utils/local_storage.dart';
@@ -23,6 +24,11 @@ class DataService {
   final ValueNotifier<List<UserTicketModel>> userTicketsNotifier = ValueNotifier<List<UserTicketModel>>([]);
   final ValueNotifier<bool> isDarkModeNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<Set<String>> favoriteConcertIdsNotifier = ValueNotifier<Set<String>>(<String>{});
+
+  // State Gate Kru Lapangan & Riwayat Pemindaian Tiket
+  final ValueNotifier<List<GateModel>> gatesNotifier = ValueNotifier<List<GateModel>>([]);
+  final ValueNotifier<List<GateScanRecord>> gateScansNotifier = ValueNotifier<List<GateScanRecord>>([]);
+  final Set<String> _scannedTicketCodes = <String>{'TIX-SW26-USED-01'};
 
   // Rekening khusus penerimaan refund dengan masa cooldown 1 minggu (7 hari) demi keamanan akun
   final ValueNotifier<UserRefundAccount?> refundAccountNotifier =
@@ -74,6 +80,10 @@ class DataService {
     } else {
       favoriteConcertIdsNotifier.value = {'featured-1', 'c2'};
     }
+
+    // Inisialisasi Gate Kru & Riwayat Scan
+    gatesNotifier.value = List.from(DbDummy.initialGates);
+    gateScansNotifier.value = List.from(DbDummy.initialGateScans);
   }
 
   UserModel? get currentUser => currentUserNotifier.value;
@@ -709,5 +719,200 @@ class UserRefundAccount {
     final start = clean.substring(0, 4);
     final end = clean.substring(clean.length - 4);
     return '$start •••• •••• $end';
+  }
+}
+
+extension DataServiceGateExtension on DataService {
+  /// Mendapatkan gate tugas untuk akun kru lapangan (otomatis dialokasikan jika belum ada)
+  GateModel getGateForCrew(String? crewId) {
+    final gates = gatesNotifier.value;
+    if (gates.isEmpty) {
+      return DbDummy.initialGates.first;
+    }
+    if (crewId != null && crewId.isNotEmpty) {
+      final assigned = gates.where((g) => g.assignedCrewId == crewId).toList();
+      if (assigned.isNotEmpty) {
+        return assigned.first;
+      }
+    }
+    // Pembagian otomatis dari sistem ke gate pertama yang tersedia
+    return gates.first;
+  }
+
+  /// Mendapatkan daftar semua gate untuk konser tertentu (diatur oleh Produser)
+  List<GateModel> getGatesForConcert(String concertId) {
+    final gates = gatesNotifier.value;
+    final filtered = gates.where((g) => g.concertId == concertId).toList();
+    return filtered.isNotEmpty ? filtered : gates;
+  }
+
+  /// Menambahkan gate baru untuk sebuah acara (dikelola oleh Produser)
+  void addGate(GateModel gate) {
+    gatesNotifier.value = [...gatesNotifier.value, gate];
+  }
+
+  /// Memperbarui informasi gate
+  void updateGate(GateModel updatedGate) {
+    final list = List<GateModel>.from(gatesNotifier.value);
+    final index = list.indexWhere((g) => g.id == updatedGate.id);
+    if (index != -1) {
+      list[index] = updatedGate;
+      gatesNotifier.value = list;
+    }
+  }
+
+  /// Mengubah status buka/tutup gate
+  void toggleGateStatus(String gateId) {
+    final list = List<GateModel>.from(gatesNotifier.value);
+    final index = list.indexWhere((g) => g.id == gateId);
+    if (index != -1) {
+      final current = list[index];
+      list[index] = current.copyWith(isOpen: !current.isOpen);
+      gatesNotifier.value = list;
+    }
+  }
+
+  /// Memproses dan memvalidasi scan tiket pada gate aktif
+  GateScanRecord processTicketScan({
+    required String gateId,
+    required String rawTicketCode,
+    String? customAttendeeName,
+    String? customCategory,
+    int quantity = 2,
+  }) {
+    final code = rawTicketCode.trim().toUpperCase();
+    final gates = gatesNotifier.value;
+    final gateIndex = gates.indexWhere((g) => g.id == gateId);
+    final gate = gateIndex != -1 ? gates[gateIndex] : DbDummy.initialGates.first;
+    final now = DateTime.now();
+
+    // Skenario 1: Tiket Refund / Dibatalkan (Status Tiket Tidak Aktif)
+    if (code.contains('REFUND') || code.contains('BATAL') || code.contains('CANCEL')) {
+      final record = GateScanRecord(
+        id: 'scan-${DateTime.now().millisecondsSinceEpoch}',
+        ticketCode: code,
+        bookingCode: code.isEmpty ? 'SWF-8891-2A' : code,
+        attendeeName: customAttendeeName ?? 'Rafi Ahmad',
+        category: customCategory ?? 'Festival - 2 Orang',
+        eventTitle: 'Soundwave Fest 2026',
+        quantity: quantity,
+        gateId: gate.id,
+        gateName: gate.name,
+        doorNumber: gate.doorNumber,
+        scannedAt: now,
+        status: GateScanStatus.refunded,
+        message: 'Jangan izinkan masuk. Arahkan penonton ke aplikasi: Tiket saya › Refund.',
+      );
+      gateScansNotifier.value = [record, ...gateScansNotifier.value];
+      return record;
+    }
+
+    // Skenario 2: Tiket sudah pernah dipakai
+    if (_scannedTicketCodes.contains(code) || code.contains('USED')) {
+      final record = GateScanRecord(
+        id: 'scan-${DateTime.now().millisecondsSinceEpoch}',
+        ticketCode: code,
+        bookingCode: code.isEmpty ? 'SWF-8891-2A' : code,
+        attendeeName: customAttendeeName ?? 'Rafi Ahmad',
+        category: customCategory ?? 'Festival - 2 Orang',
+        quantity: quantity,
+        gateId: gate.id,
+        gateName: gate.name,
+        doorNumber: gate.doorNumber,
+        scannedAt: now,
+        status: GateScanStatus.alreadyUsed,
+        message: 'Tiket ini telah discan pukul 17:15 WIB di Gate A oleh Petugas Budi.',
+        previousScanInfo: '17:15 WIB · Gate A',
+      );
+      gateScansNotifier.value = [record, ...gateScansNotifier.value];
+      return record;
+    }
+
+    // Skenario 3: Salah Gate (misal tiket VIP discan di Gate Festival)
+    if (code.contains('VIP') && !gate.category.toLowerCase().contains('vip')) {
+      final record = GateScanRecord(
+        id: 'scan-${DateTime.now().millisecondsSinceEpoch}',
+        ticketCode: code,
+        bookingCode: code.isEmpty ? 'SWF-8894-2V' : code,
+        attendeeName: customAttendeeName ?? 'Rafi Ahmad',
+        category: customCategory ?? 'VIP - 2 Orang',
+        quantity: 2,
+        gateId: gate.id,
+        gateName: gate.name,
+        doorNumber: gate.doorNumber,
+        scannedAt: now,
+        status: GateScanStatus.wrongGate,
+        targetGate: 'Gate VIP · sisi barat',
+        message: 'Tiket VIP, mohon arahkan penonton ke Gate VIP sebelah barat.',
+        previousScanInfo: null,
+      );
+      gateScansNotifier.value = [record, ...gateScansNotifier.value];
+      return record;
+    }
+
+    // Skenario 4: Tiket Tidak Dikenal / Rusak
+    if (code.contains('INVALID') || code.contains('ERROR')) {
+      final record = GateScanRecord(
+        id: 'scan-${DateTime.now().millisecondsSinceEpoch}',
+        ticketCode: code,
+        attendeeName: customAttendeeName ?? 'Pengunjung',
+        category: 'Tidak Diketahui',
+        quantity: 1,
+        gateId: gate.id,
+        gateName: gate.name,
+        doorNumber: gate.doorNumber,
+        scannedAt: now,
+        status: GateScanStatus.invalid,
+        message: 'Kode tiket tidak valid atau tidak terdaftar dalam sistem LiveTix.',
+      );
+      gateScansNotifier.value = [record, ...gateScansNotifier.value];
+      return record;
+    }
+
+    // Skenario 5: Tiket Valid
+    _scannedTicketCodes.add(code);
+    final validRecord = GateScanRecord(
+      id: 'scan-${DateTime.now().millisecondsSinceEpoch}',
+      ticketCode: code.isEmpty ? 'SWF-8891-2A' : code,
+      bookingCode: 'SWF-8891-2A',
+      attendeeName: customAttendeeName ?? 'Rafi Ahmad',
+      category: customCategory ?? 'Festival - 2 Orang',
+      quantity: quantity,
+      gateId: gate.id,
+      gateName: gate.name,
+      doorNumber: gate.doorNumber,
+      scannedAt: now,
+      status: GateScanStatus.valid,
+    );
+
+    // Perbarui jumlah kehadiran di gate
+    if (gateIndex != -1) {
+      final updatedList = List<GateModel>.from(gates);
+      updatedList[gateIndex] = gate.copyWith(
+        totalCheckedIn: gate.totalCheckedIn + validRecord.quantity,
+      );
+      gatesNotifier.value = updatedList;
+    }
+
+    gateScansNotifier.value = [validRecord, ...gateScansNotifier.value];
+    return validRecord;
+  }
+
+  /// Check-in manual untuk petugas gate saat QR Code tidak terbaca
+  GateScanRecord checkInManual({
+    required String gateId,
+    required String bookingCode,
+    String attendeeName = 'Rafi Ahmad',
+    String category = 'Festival - 2 Orang',
+    String doorNumber = 'FEST-04',
+    int quantity = 2,
+  }) {
+    return processTicketScan(
+      gateId: gateId,
+      rawTicketCode: bookingCode,
+      customAttendeeName: attendeeName,
+      customCategory: category,
+      quantity: quantity,
+    );
   }
 }

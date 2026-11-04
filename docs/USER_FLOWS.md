@@ -111,3 +111,52 @@ Untuk mendukung fitur unggah konser oleh role **Produser**, alur penempatan gamb
    - Mengubah tema di Profil langsung memperbarui seluruh tampilan aplikasi secara instan (Beranda, Jelajah, Tiket, Profil, Dialog, Bottom Navigation Bar / homebar, dan halaman checkout).
    - Preferensi tema tersimpan di `LocalStorage` (`livetix_theme_dark`).
    - Pada data awal (dummy state), tema diatur default ke **Dark** dengan latar gelap `#0B1120`, kartu `#1E293B`, border `#334155`, teks `#F8FAFC`, dan teks sekunder `#94A3B8` yang memenuhi standar kontras WCAG AA.
+
+---
+
+## 7. Alur Peran Gate Kru Lapangan (Login, Pembagian Gate Otomatis, Scanner, & Verifikasi Tiket)
+1. **Login Akun Kru Gate**:
+   - Petugas kru masuk melalui form login yang sama (`LoginScreen`).
+   - Akun kru yang telah disiapkan (contoh akun demo: `budi@livetix.com`, kata sandi `123456`) memiliki peran `GateCrew`.
+   - Setelah otentikasi berhasil, sistem langsung mengarahkan kru ke **Beranda Kru Gate** (`GateCrewHomeScreen`), terpisah dari beranda penonton umum.
+2. **Pembagian Gate Otomatis oleh Sistem**:
+   - Setiap acara/konser memiliki alokasi gerbang masuk yang berbeda (contoh pada Soundwave Fest 2026: Gate A untuk VIP Lounge, Gate B untuk Festival, dan Gate C untuk Tribun).
+   - Sistem secara otomatis memetakan akun kru ke gate tugas aktif miliknya (contoh: Budi Santoso otomatis ditugaskan di **GATE B - FESTIVAL**).
+   - Di sisi backend dan dashboard produser, produser dapat menambah gate baru atau mengatur jumlah gate serta kru yang diperlukan sesuai kapasitas penonton.
+3. **Beranda Tugas Gate (`GateCrewHomeScreen`)**:
+   - **Header**: Avatar inisial ("BS"), nama petugas ("Budi Santoso"), label "Kru Lapangan", serta status pill interaktif "Online".
+   - **Kartu Tugas Gate**: Menampilkan nama konser ("Soundwave Fest 2026"), badge "Hari-H", banner utama **"GATE B - FESTIVAL"**, jam buka ("17.00 WIB"), serta status buka/tutup gate yang dapat di-toggle.
+   - **Statistik Kehadiran**: Menampilkan angka real-time penonton masuk (contoh: `1.420 / 3.000` atau `47%`) lengkap dengan progress bar.
+   - **Peringatan Kesiapan**: Kotak alert pengingat baterai di atas 50% dan senter pendukung pemindaian malam hari.
+   - **Navigasi Tab**: Memuat 3 tab menu yaitu `Gate` (tugas utama), `Riwayat` (daftar pemindaian tiket terfilter), dan `Profil` (info penugasan & tombol keluar akun).
+4. **Layar Pemindai Tiket Kamera (`GateScannerScreen`)**:
+   - Antarmuka bertema gelap (*night mode viewfinder*) dengan top bar informasi gate dan status online.
+   - Viewfinder kotak dengan 4 siku pembatas putih dan animasi laser pemindai kuning naik-turun.
+   - Tombol aksi bawah: **Senter** (*flashlight toggle*), **Input Manual** (modal input kode tiket / pemilihan cepat pengujian), dan **Balik Kamera** (*switch camera angle*).
+5. **Hasil Verifikasi Tiket (`GateScanResultScreen`)**:
+   - **Tiket Valid (Layar Hijau `#00B368`)**:
+     - Menampilkan ikon centang putih, teks "TIKET", rincian nama penonton ("Rafi Ahmad"), kategori & kuota ("Festival - 2 Orang"), nomor pintu ("FEST-04"), dan waktu scan.
+     - Dilengkapi animasi hitung mundur auto-advance 2 detik dan tombol "Scan Berikutnya" untuk melanjutkan pemindaian antrean penonton berikutnya tanpa henti.
+     - Jumlah kehadiran di gate otomatis bertambah sesuai kuota tiket yang divalidasi.
+   - **Tiket Sudah Pernah Dipakai (Layar Merah `#E53935`)**:
+     - Menampilkan ikon silang putih, teks "PERINGATAN TIKET SUDAH PERNAH DIPAKAI! Tolak masuk".
+     - Memperlihatkan rincian tiket beserta informasi riwayat pemindaian sebelumnya ("Discan sebelumnya: 17:15 WIB · Gate A oleh Petugas Budi").
+     - Tombol aksi: "Tutup & Scan Lagi" dan "Hubungi Koordinator".
+   - **Tiket Salah Gate (Layar Oranye `#F59E0B`)**:
+     - Menampilkan tanda seru dalam lingkaran putih, judul "TIDAK BERLAKU DI GATE INI - SALAH GATE!", nama penonton, kategori tiket, gate tujuan yang benar (contoh: "Gate VIP · sisi barat"), dan alert instruksi arah petugas.
+     - Tombol aksi: "Tutup & Scan Lagi".
+   - **Tiket Dibatalkan / Refund (Layar Oranye `#F59E0B`)**:
+     - Menampilkan judul "TIKET TIDAK AKTIF - TIKET DIBATALKAN", subtitle "Telah diajukan refund dana", event konser, status tiket "Refund diproses", dan peringatan: "Jangan izinkan masuk. Arahkan penonton ke aplikasi: Tiket saya › Refund."
+     - Tombol aksi: "Tutup & Scan Lagi".
+6. **Layar Input Manual Tiket (`GateManualCheckinScreen`)**:
+   - Dibuka melalui tombol dock "Input Manual" pada pemindai kamera.
+   - Header ungu "Input Manual - Cari tiket penonton", bilah pencarian tiket (default: `SWF-8891-2A`), dan chip filter ("Kode Booking", "NIK / KTP", "Nama").
+   - Menampilkan kartu identitas penonton (inisial, nama, NIK bertopeng, status belum check-in, nomor pintu, dan gate yang valid).
+   - Pengingat keamanan: "Cocokkan KTP fisik dengan nama penonton sebelum melakukan check-in manual."
+   - Tombol utama: "Check-in Penonton Secara Manual" yang memvalidasi tiket dan memicu layar sukses.
+7. **Pencantuman Kode Tiket di Bawah Gambar QR Code**:
+   - Seluruh tampilan QR Code tiket di sisi pengguna (`TicketScreen`, `PaymentSuccessScreen`, `CancelledTicketDetailScreen`, dan `ShareGateQrSheet`) menyertakan kode tiket resmi di bawah kotak gambar QR.
+   - Dilengkapi ikon QR, tipografi monospace tebal, dan tombol salin cepat ke papan klip (*clipboard*) untuk memudahkan input manual di gerbang masuk.
+8. **Tab Riwayat Scan & Profil Gate Kru**:
+   - **Tab Riwayat Scan**: Header ungu "Riwayat Scan", 3 kartu metrik ringkasan (Valid `1.420`, Ditolak `18`, Belum hadir `1.580`), daftar "20 scan terakhir" dengan badge status (*Valid*, *Duplikat*, *Salah gate*, *Refund*), tautan riwayat lengkap, tombol toggle status gerbang, dan tombol "Selesai Bertugas".
+   - **Tab Profil**: Header ungu "Profil - Kelola akun kru gate", kartu identitas kru lapangan, kartu informasi akun (nama, email, username, tautan ubah profil), kartu penugasan saat ini (badge "Hari-H", banner GATE TUGAS), opsi menu ubah kata sandi dan pusat bantuan, serta tombol keluar akun.

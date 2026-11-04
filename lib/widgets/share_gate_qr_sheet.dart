@@ -319,6 +319,7 @@ class _ShareGateQrSheetState extends State<ShareGateQrSheet> {
                                 size: 164,
                                 padding: 14,
                                 showWatermark: true,
+                                ticketCode: ticket.bookingCode,
                                 semanticLabel:
                                     'QR Gate ${ticket.concertTitle} ber-watermark LiveTix',
                               ),

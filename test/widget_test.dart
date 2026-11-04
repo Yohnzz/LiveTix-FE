@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:livetix/core/app_colors.dart';
 import 'package:livetix/data/db_dummy.dart';
+import 'package:livetix/models/gate_model.dart';
 import 'package:livetix/models/ticket_order_model.dart';
 import 'package:livetix/models/user_model.dart';
 import 'package:livetix/screens/auth/forgot_password_screen.dart';
@@ -22,6 +23,10 @@ import 'package:livetix/screens/explore/explore_screen.dart';
 import 'package:livetix/screens/home/home_screen.dart';
 import 'package:livetix/screens/home/widgets/concert_card.dart';
 import 'package:livetix/screens/home/widgets/featured_concert_card.dart';
+import 'package:livetix/screens/gate/gate_crew_home_screen.dart';
+import 'package:livetix/screens/gate/gate_manual_checkin_screen.dart';
+import 'package:livetix/screens/gate/gate_scanner_screen.dart';
+import 'package:livetix/screens/gate/gate_scan_result_screen.dart';
 import 'package:livetix/screens/profile/edit_profile_screen.dart';
 import 'package:livetix/screens/profile/profile_screen.dart';
 import 'package:livetix/screens/profile/refund_payment_method_screen.dart';
@@ -1267,5 +1272,379 @@ void main() {
     // Sekarang menampilkan semua konser bergenre Rock (lebih dari 1 konser)
     expect(find.text('Hasil Filter (1)'), findsNothing);
     expect(find.text('The Changcuters Rock Party'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Login Role Gate Kru: akun budi@livetix.com berhasil masuk dan otomatis diarahkan ke GateCrewHomeScreen',
+      (tester) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
+    await tester.pumpAndSettle();
+
+    // 1. Verifikasi chip demo Kru Gate hadir pada halaman Login
+    final demoChipFinder = find.text('Akun Demo Kru Gate: budi@livetix.com (123456)');
+    expect(demoChipFinder, findsOneWidget);
+
+    // 2. Klik chip demo untuk mengisi form login
+    await tester.tap(demoChipFinder);
+    await tester.pumpAndSettle();
+
+    // 3. Tekan tombol Masuk
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Masuk'));
+    await tester.pumpAndSettle();
+
+    // 4. Verifikasi pengguna dialihkan ke GateCrewHomeScreen
+    expect(find.byType(GateCrewHomeScreen), findsOneWidget);
+    expect(find.text('Budi Santoso'), findsOneWidget);
+    expect(find.text('Kru Lapangan'), findsOneWidget);
+    expect(find.text('Online'), findsOneWidget);
+  });
+
+  testWidgets(
+      'GateCrewHomeScreen: alokasi gate otomatis (Gate B - Festival, 1.420 / 3.000 Masuk, 47%), toggle status, dan buka scanner',
+      (tester) async {
+    tester.view.physicalSize = const Size(375, 860);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GateCrewHomeScreen(
+          crewUser: UserModel(
+            id: '300001',
+            name: 'Budi Santoso',
+            email: 'budi@livetix.com',
+            phone: '081288887777',
+            password: '123',
+            role: 'GateCrew',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Verifikasi informasi konser aktif & badge Hari-H
+    expect(find.text('Soundwave Fest 2026'), findsOneWidget);
+    expect(find.text('Hari-H'), findsOneWidget);
+
+    // 2. Verifikasi banner GATE TUGAS (GATE B - FESTIVAL)
+    expect(find.text('GATE TUGAS'), findsOneWidget);
+    expect(find.text('GATE B - FESTIVAL'), findsOneWidget);
+
+    // 3. Verifikasi ringkasan: Jam Buka (17.00 WIB) & Status Gate (BUKA)
+    expect(find.text('Jam buka'), findsOneWidget);
+    expect(find.text('17.00 WIB'), findsOneWidget);
+    expect(find.text('Status gate'), findsOneWidget);
+    expect(find.text('BUKA'), findsOneWidget);
+
+    // 4. Verifikasi Kehadiran Gate (1.420 / 3.000, 47%)
+    expect(find.text('Kehadiran Gate B'), findsOneWidget);
+    expect(find.text('47%'), findsOneWidget);
+    expect(find.text('1.420 / 3.000'), findsOneWidget);
+    expect(find.text('masuk lewat gate ini'), findsOneWidget);
+
+    // 5. Verifikasi kotak peringatan baterai di atas 50%
+    expect(find.text('Pastikan baterai di atas 50%'), findsOneWidget);
+    expect(find.text('dan siapkan senter untuk scan malam hari.'), findsOneWidget);
+
+    // 6. Uji toggle status gate buka/tutup
+    await tester.tap(find.text('BUKA'));
+    await tester.pumpAndSettle();
+    expect(find.text('TUTUP'), findsOneWidget);
+
+    await tester.tap(find.text('TUTUP'));
+    await tester.pumpAndSettle();
+    expect(find.text('BUKA'), findsOneWidget);
+
+    // 7. Klik tombol "Mulai Scan Tiket" -> membuka GateScannerScreen
+    await tester.ensureVisible(find.text('Mulai Scan Tiket'));
+    await tester.tap(find.text('Mulai Scan Tiket'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GateScannerScreen), findsOneWidget);
+  });
+
+  testWidgets(
+      'GateScannerScreen & GateScanResultScreen: scan tiket valid (hijau, update kehadiran, auto-advance) & scan tiket bekas (merah)',
+      (tester) async {
+    tester.view.physicalSize = const Size(375, 860);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final dataService = DataService();
+    final gate = dataService.getGateForCrew('300001');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GateScannerScreen(gate: gate),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Verifikasi elemen antarmuka scanner kamera gelap
+    expect(find.text('Gate B · Festival'), findsOneWidget);
+    expect(find.text('Online'), findsOneWidget);
+    expect(find.text('1.420 / 3.000 Masuk'), findsOneWidget);
+    expect(find.text('Arahkan QR tiket ke dalam kotak'), findsOneWidget);
+    expect(find.text('Senter'), findsOneWidget);
+    expect(find.text('Input Manual'), findsOneWidget);
+    expect(find.text('Balik Kamera'), findsOneWidget);
+
+    // 2. Simulasi Scan Tiket Valid
+    await tester.tap(find.text('Simulasi Tiket Valid'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Tampil layar hijau sukses
+    expect(find.byType(GateScanResultScreen), findsOneWidget);
+    expect(find.text('TIKET'), findsOneWidget);
+    expect(find.text('Rafi Ahmad'), findsOneWidget);
+    expect(find.text('Festival - 2 Orang'), findsOneWidget);
+    expect(find.text('FEST-04'), findsOneWidget);
+    expect(find.text('Lanjut scan otomatis dalam 2 detik'), findsOneWidget);
+    expect(find.text('Scan Berikutnya'), findsOneWidget);
+
+    // Klik tombol "Scan Berikutnya" untuk kembali ke scanner
+    await tester.tap(find.text('Scan Berikutnya'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GateScannerScreen), findsOneWidget);
+
+    // 3. Simulasi Scan Tiket yang Sudah Pernah Dipakai (Duplikasi)
+    await tester.ensureVisible(find.text('Simulasi Tiket Bekas'));
+    await tester.tap(find.text('Simulasi Tiket Bekas'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Tampil layar merah penolakan tiket sudah dipakai
+    expect(find.byType(GateScanResultScreen), findsOneWidget);
+    expect(find.text('PERINGATAN'), findsOneWidget);
+    expect(find.text('TIKET SUDAH\nPERNAH DIPAKAI!'), findsOneWidget);
+    expect(find.text('Tolak masuk'), findsOneWidget);
+    expect(find.text('17:15 WIB · Gate A'), findsOneWidget);
+    expect(
+      find.text('Tiket ini telah discan pukul 17:15 WIB di Gate A oleh Petugas Budi.'),
+      findsOneWidget,
+    );
+    expect(find.text('Tutup & Scan Lagi'), findsOneWidget);
+    expect(find.text('Hubungi Koordinator'), findsOneWidget);
+
+    // Klik "Tutup & Scan Lagi"
+    await tester.tap(find.text('Tutup & Scan Lagi'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GateScannerScreen), findsOneWidget);
+  });
+
+  testWidgets(
+      'GateCrewHomeScreen Tab Riwayat & Profil: daftar riwayat scan, mode tampilan, dan logout',
+      (tester) async {
+    tester.view.physicalSize = const Size(375, 860);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GateCrewHomeScreen(
+          crewUser: UserModel(
+            id: '300001',
+            name: 'Budi Santoso',
+            email: 'budi@livetix.com',
+            phone: '081288887777',
+            password: '123',
+            role: 'GateCrew',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Berpindah ke Tab Riwayat (Screenshot 4)
+    await tester.tap(find.text('Riwayat'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Riwayat Scan'), findsOneWidget);
+    expect(find.text('Riwayat Pemindaian'), findsOneWidget);
+    expect(find.text('Rafi Ahmad'), findsWidgets);
+    expect(find.text('Dewi Anggraini'), findsOneWidget);
+    expect(find.text('Valid'), findsWidgets);
+    expect(find.text('Duplikat'), findsWidgets);
+    expect(find.text('Salah gate'), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right_rounded), findsWidgets);
+
+    // 2. Berpindah ke Tab Profil (Screenshot 5)
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Profil'), findsWidgets);
+    expect(find.text('Budi Santoso'), findsWidgets);
+    expect(find.text('Kru Lapangan'), findsOneWidget);
+    expect(find.text('Informasi akun'), findsOneWidget);
+    expect(find.text('Penugasan saat ini'), findsOneWidget);
+    expect(find.text('budi@livetix.com'), findsOneWidget);
+    expect(find.text('Keluar akun'), findsOneWidget);
+
+    // 3. Uji Alert Dialog Konfirmasi Keluar Akun
+    await tester.ensureVisible(find.text('Keluar akun'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Keluar akun'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Keluar Akun Kru?'), findsOneWidget);
+    expect(find.text('Batal'), findsOneWidget);
+    await tester.tap(find.text('Batal'));
+    await tester.pumpAndSettle();
+    expect(find.text('Keluar Akun Kru?'), findsNothing);
+  });
+
+  testWidgets(
+      'AppQrCodeView menampilkan kode tiket di bawah QR code dan mendukung salin',
+      (tester) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: AppQrCodeView(
+              ticketCode: 'SWF-8891-2A',
+              showCodeBelow: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verifikasi teks kode tiket tampil di bawah QR
+    expect(find.text('SWF-8891-2A'), findsOneWidget);
+
+    // Ketuk tombol salin kode tiket
+    await tester.tap(find.text('SWF-8891-2A'));
+    await tester.pump();
+    expect(find.text('Kode tiket SWF-8891-2A berhasil disalin!'), findsOneWidget);
+  });
+
+  testWidgets(
+      'GateManualCheckinScreen: pencarian tiket, info penonton, dan check-in manual',
+      (tester) async {
+    tester.view.physicalSize = const Size(375, 860);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final gate = DbDummy.initialGates.first;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GateManualCheckinScreen(gate: gate),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verifikasi Header Input Manual
+    expect(find.text('Input Manual'), findsOneWidget);
+    expect(find.text('Cari tiket penonton'), findsOneWidget);
+
+    // Verifikasi Default Search Query dan Hasil
+    expect(find.text('SWF-8891-2A'), findsWidgets);
+    expect(find.text('1 hasil ditemukan'), findsOneWidget);
+    expect(find.text('Rafi Ahmad'), findsOneWidget);
+    expect(find.text('NIK 3573 **** **** 0012'), findsOneWidget);
+    expect(find.text('Belum check-in'), findsOneWidget);
+    expect(find.text('Cocokkan KTP fisik dengan nama penonton'), findsOneWidget);
+
+    // Klik tombol Check-in Penonton Secara Manual
+    await tester.ensureVisible(find.text('Check-in Penonton Secara Manual'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Check-in Penonton Secara Manual'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Verifikasi dialihkan ke GateScanResultScreen dengan hasil Valid
+    expect(find.byType(GateScanResultScreen), findsOneWidget);
+    expect(find.text('TIKET'), findsOneWidget);
+    expect(find.text('Rafi Ahmad'), findsWidgets);
+  });
+
+  testWidgets(
+      'GateScanResultScreen: Salah Gate (Screenshot 1) dan Tiket Dibatalkan/Refund (Screenshot 2)',
+      (tester) async {
+    tester.view.physicalSize = const Size(375, 860);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final gate = DbDummy.initialGates.first;
+
+    // 1. Tampilan Salah Gate (Screenshot 1)
+    final wrongGateRecord = GateScanRecord(
+      id: 'scan-wrong-1',
+      ticketCode: 'SWF-8894-2V',
+      attendeeName: 'Rafi Ahmad',
+      category: 'VIP - 2 Orang',
+      targetGate: 'Gate VIP · sisi barat',
+      message: 'Tiket VIP, mohon arahkan penonton ke Gate VIP sebelah barat.',
+      gateId: gate.id,
+      gateName: gate.name,
+      doorNumber: gate.doorNumber,
+      scannedAt: DateTime.now(),
+      status: GateScanStatus.wrongGate,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GateScanResultScreen(
+          record: wrongGateRecord,
+          gate: gate,
+          onScanNext: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('SALAH GATE!'), findsOneWidget);
+    expect(find.text('TIDAK BERLAKU DI GATE INI'), findsOneWidget);
+    expect(find.text('Arahkan penonton ke gate yang benar'), findsOneWidget);
+    expect(find.text('Gate VIP · sisi barat'), findsOneWidget);
+    expect(find.text('Tiket VIP, mohon arahkan penonton ke Gate VIP sebelah barat.'), findsOneWidget);
+    expect(find.text('Tutup & Scan Lagi'), findsOneWidget);
+
+    // 2. Tampilan Tiket Dibatalkan / Refund (Screenshot 2)
+    final refundRecord = GateScanRecord(
+      id: 'scan-refund-1',
+      ticketCode: 'SWF-8899-REFUND',
+      attendeeName: 'Rafi Ahmad',
+      category: 'Festival - 2 Orang',
+      eventTitle: 'Soundwave Fest 2026',
+      message: 'Jangan izinkan masuk. Arahkan penonton ke aplikasi: Tiket saya › Refund.',
+      gateId: gate.id,
+      gateName: gate.name,
+      doorNumber: gate.doorNumber,
+      scannedAt: DateTime.now(),
+      status: GateScanStatus.refunded,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GateScanResultScreen(
+          record: refundRecord,
+          gate: gate,
+          onScanNext: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('TIKET DIBATALKAN'), findsOneWidget);
+    expect(find.text('TIKET TIDAK AKTIF'), findsOneWidget);
+    expect(find.text('Telah diajukan refund dana'), findsOneWidget);
+    expect(find.text('Soundwave Fest 2026'), findsOneWidget);
+    expect(find.text('Refund diproses'), findsOneWidget);
+    expect(find.text('Jangan izinkan masuk. Arahkan penonton ke aplikasi: Tiket saya › Refund.'), findsOneWidget);
+    expect(find.text('Tutup & Scan Lagi'), findsOneWidget);
   });
 }

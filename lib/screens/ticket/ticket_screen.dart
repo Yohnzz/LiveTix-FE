@@ -134,6 +134,7 @@ class _TicketScreenState extends State<TicketScreen> {
                   size: 164,
                   padding: 12,
                   showWatermark: true,
+                  ticketCode: ticket.bookingCode,
                   semanticLabel: 'Kode QR E-Tiket ${ticket.concertTitle}',
                 ),
                 const SizedBox(height: 12),

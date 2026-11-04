@@ -1,10 +1,11 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core/app_colors.dart';
 
 /// Komponen tampilan QR Code terpusat untuk aplikasi LiveTix.
 /// Menggunakan sementara `assets/images/qrcode.png` selama pengujian user,
 /// dan otomatis beralih ke `qrCodeBytes` atau `qrCodeUrl` dari backend saat terhubung.
+/// Mendukung penampilan kode tiket resmi di bawah gambar QR Code.
 class AppQrCodeView extends StatelessWidget {
   static const String defaultTestingAssetPath = 'assets/images/qrcode.png';
 
@@ -15,6 +16,8 @@ class AppQrCodeView extends StatelessWidget {
   final bool isDisabled;
   final bool showWatermark;
   final String semanticLabel;
+  final String? ticketCode;
+  final bool showCodeBelow;
 
   const AppQrCodeView({
     super.key,
@@ -25,6 +28,8 @@ class AppQrCodeView extends StatelessWidget {
     this.isDisabled = false,
     this.showWatermark = false,
     this.semanticLabel = 'Kode QR LiveTix',
+    this.ticketCode,
+    this.showCodeBelow = true,
   });
 
   Widget _buildDefaultAssetImage(double innerSize) {
@@ -102,7 +107,7 @@ class AppQrCodeView extends StatelessWidget {
   Widget build(BuildContext context) {
     final innerSize = (size - (padding * 2)).clamp(48.0, size);
 
-    return Semantics(
+    final qrBox = Semantics(
       image: true,
       label: semanticLabel,
       child: Container(
@@ -173,6 +178,69 @@ class AppQrCodeView extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    if (ticketCode == null || ticketCode!.trim().isEmpty || !showCodeBelow) {
+      return qrBox;
+    }
+
+    final code = ticketCode!.trim();
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        qrBox,
+        const SizedBox(height: 8),
+        InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: code));
+            ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+              SnackBar(
+                content: Text('Kode tiket $code berhasil disalin!'),
+                duration: const Duration(seconds: 1),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFCBD5E1)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.qr_code_2_rounded,
+                  size: 14,
+                  color: Color(0xFF475467),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  code,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                    letterSpacing: 0.8,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                const Icon(
+                  Icons.copy_rounded,
+                  size: 12,
+                  color: Color(0xFF94A3B8),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

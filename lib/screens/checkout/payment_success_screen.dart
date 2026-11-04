@@ -270,6 +270,7 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
                   size: 160,
                   padding: 12,
                   showWatermark: true,
+                  ticketCode: _issuedTicket.bookingCode,
                   semanticLabel: 'Kode QR E-Tiket ${order.concert.title}',
                 ),
                 const SizedBox(height: 12),

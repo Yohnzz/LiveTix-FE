@@ -32,6 +32,15 @@ class UserModel {
   /// Menjamin ID pengguna selalu tepat 6 karakter alfanumerik/angka.
   String get displayId => normalizeSixCharId(id);
 
+  /// Cek apakah peran akun merupakan Kru Gate lapangan
+  bool get isGateCrew {
+    final lower = role.toLowerCase().trim();
+    return lower == 'gatecrew' ||
+        lower == 'gate_crew' ||
+        lower == 'kru gate' ||
+        lower == 'kru lapangan';
+  }
+
   static String normalizeSixCharId(String raw) {
     final cleaned = raw.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
     if (cleaned.isEmpty) return '123456';

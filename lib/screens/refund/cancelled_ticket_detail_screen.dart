@@ -177,6 +177,7 @@ class CancelledTicketDetailScreen extends StatelessWidget {
             size: 124,
             padding: 10,
             isDisabled: true,
+            ticketCode: ticket.bookingCode,
             semanticLabel: 'Kode QR tidak berlaku karena tiket dibatalkan',
           ),
           const SizedBox(height: 14),

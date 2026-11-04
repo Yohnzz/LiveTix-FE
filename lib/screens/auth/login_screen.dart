@@ -4,6 +4,7 @@ import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_header.dart';
 import '../../widgets/primary_button.dart';
 import '../../services/dummy_data_service.dart';
+import '../gate/gate_crew_home_screen.dart';
 import '../home/home_screen.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
@@ -38,6 +39,15 @@ class _LoginScreenState extends State<LoginScreen> {
           content: Text('Email atau kata sandi tidak sesuai'),
           backgroundColor: Color(0xFFB91C1C),
         ),
+      );
+      return;
+    }
+
+    // Jika akun terdaftar sebagai Gate Kru, arahkan ke GateCrewHomeScreen
+    if (user.role.toLowerCase() == 'gatecrew' || user.isGateCrew) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const GateCrewHomeScreen()),
       );
       return;
     }
@@ -127,6 +137,31 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent)),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () {
+                    _email.text = 'budi@livetix.com';
+                    _password.text = '123456';
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEEF2FF),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFC7D2FE)),
+                    ),
+                    child: const Text(
+                      'Akun Demo Kru Gate: budi@livetix.com (123456)',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF3730A3),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

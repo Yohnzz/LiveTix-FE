@@ -23,6 +23,7 @@ Alur utama pengguna (Guest & User terautentikasi) telah berjalan di atas lapisan
 | **User** | Mencari konser, memfilter jadwal/harga, membeli tiket, mengelola profil & refund |
 | **Admin** | Pengelola operasional platform |
 | **Produser** | Pengelola jadwal konser beserta unggahan aset visual konser miliknya |
+| **Gate Kru** | Petugas lapangan verifikasi tiket masuk konser melalui pemindai QR gate |
 
 > Role Admin tidak boleh bisa didaftarkan dari form publik.
 > Role diverifikasi oleh backend, bukan hanya oleh frontend.
@@ -49,6 +50,7 @@ Setiap entitas konser pada `ConcertModel` (`lib/models/concert_model.dart`) mend
 - Selama masa pengujian sebelum backend aktif, `AppQrCodeView` otomatis merender aset `assets/images/qrcode.png` dengan `FilterQuality.none` agar piksel QR tetap tajam.
 - Saat backend terhubung, cukup isi field `qrCodeUrl` (`String?`) atau `qrCodeBytes` (`Uint8List?`) pada `OrderModel` / `UserTicketModel` tanpa mengubah kode UI.
 - **Aturan Multi-Scan Gate**: Pembelian hingga maksimal 4 tiket per transaksi menerbitkan **1 QR Code** dengan `qrScanQuota = quantity` (dapat dipindai hingga 4 kali di gate). Fitur **`Bagikan QR`** menghasilkan gambar PNG ber-watermark `LiveTix` yang memuat nama konser dan tanggal konser melalui `GateQrImageGenerator` dan membagikannya lewat Web Share API perangkat (`QrShare`).
+- **Pencantuman Kode Tiket di Bawah QR Code**: Setiap tampilan QR Code tiket otomatis merender kode tiket unik di bawah gambar QR Code lengkap dengan badge visual dan tombol salin cepat ke clipboard untuk memudahkan penonton maupun petugas gate saat pemeriksaan.
 
 ---
 
@@ -63,6 +65,34 @@ Setiap entitas konser pada `ConcertModel` (`lib/models/concert_model.dart`) mend
 3. **Metode Pembayaran di Profil Khusus Penerimaan Refund & Cooldown 1 Minggu**:
    - Menu metode pembayaran pada profil pengguna (`RefundPaymentMethodScreen`) khusus difungsikan untuk mendaftarkan rekening bank atau akun e-wallet penerima pencairan dana refund tiket.
    - Demi perlindungan akun pengguna dari penarikan dana tanpa izin, penambahan atau perubahan rekening refund menerapkan masa cooldown selama 1 minggu (7 hari) pasca pembaruan terakhir. Pengguna baru dapat memperbarui rekening setelah masa cooldown selesai.
+
+---
+
+## Spesifikasi & Arsitektur Gate Kru (Kru Lapangan)
+
+1. **Tugas & Autentikasi Gate Kru**:
+   - Gate Kru bertugas memvalidasi tiket masuk penonton di gate acara (pintu masuk fisik).
+   - Login menggunakan halaman masuk utama (`LoginScreen`). Sistem mendeteksi role pengguna dan otomatis mengarahkan akun petugas ke `GateCrewHomeScreen`. Akun demo pengujian: `budi@livetix.com` / `123456`.
+2. **Pembagian Gate Otomatis & Konfigurasi Produser**:
+   - Sistem menetapkan penugasan gate secara otomatis berdasarkan data akun petugas (`DataService().getGateForCrew(user.id)`).
+   - Struktur gate (`GateModel`) menampung `gateId`, `concertId`, `gateName` (contoh: `GATE B - FESTIVAL`), `assignedCrewId`, jam buka, dan status gate (`buka`/`tutup`).
+   - Pihak **Produser** memegang kendali untuk menentukan jumlah gate yang dibutuhkan serta pembagian gate ketika membuat atau memperbarui acara konser.
+3. **Pemindai Kamera Viewfinder Gelap (`GateScannerScreen`)**:
+   - Menampilkan viewfinder kamera gelap dengan garis laser animasi, corner bracket, ringkasan kuota kehadiran, dan dock kontrol cepat (Senter/Flash, Input Manual Kode Tiket, Balik Kamera).
+   - Dilengkapi tombol simulasi instan untuk menguji hasil scan tiket valid, tiket duplikat (sudah dipakai), tiket salah gate, dan format tiket tidak valid tanpa kamera fisik.
+4. **Hasil Validasi Tiket (`GateScanResultScreen`)**:
+   - **Tiket Valid** (Hijau `#00B368`): Menampilkan rincian penonton, kategori tiket, nomor pintu, dan waktu scan, dengan auto-advance 2 detik disertai progress bar menuju pemindaian berikutnya.
+   - **Tiket Sudah Pernah Dipakai** (Merah `#E53935`): Menolak masuk, menampilkan waktu dan gate tempat tiket pertama kali dipindai beserta nama petugas pencatat, serta opsi kontak koordinator gate.
+   - **Tiket Salah Gate** (Oranye `#F59E0B`): Memberitahukan gate yang seharusnya dituju penonton.
+   - **Tiket Tidak Valid** (Merah `#DC2626`): Menolak kode barcode yang tidak terdaftar.
+5. **Dukungan Multi-Scan untuk Pembelian Rombongan**:
+   - Sesuai spesifikasi pembelian tiket (1 QR untuk 1 sampai 4 tiket), gate scanner mencatat sisa pemindaian (`scannedCount` vs `qrScanQuota`). Tiket tetap berstatus valid hingga kuota seluruh penonton terpenuhi.
+6. **Layar Input Manual (`GateManualCheckinScreen`)**:
+   - Mendukung pencarian tiket manual berdasarkan Kode Booking (`SWF-8891-2A`), NIK/KTP, atau Nama, disertai verifikasi KTP fisik dan tombol check-in manual penonton.
+7. **Layar Peringatan Salah Gate & Tiket Dibatalkan (`GateScanResultScreen`)**:
+   - Menampilkan layar oranye tegas dengan petunjuk gate tujuan resmi penonton atau instruksi penolakan tiket yang telah dibatalkan karena refund dana.
+8. **Tab Riwayat Scan & Profil Gate Kru**:
+   - Tab Riwayat menyajikan 3 metrik kehadiran (Valid, Ditolak, Belum hadir) dan daftar 20 scan terakhir; Tab Profil menyediakan informasi akun kru, penugasan konser, dan aksi keluar akun.
 
 ---
 

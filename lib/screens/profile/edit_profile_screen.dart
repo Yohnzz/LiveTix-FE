@@ -9,10 +9,12 @@ import '../auth/forgot_password_screen.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final bool isDarkMode;
+  final bool initialOpenPasswordForm;
 
   const EditProfileScreen({
     super.key,
     this.isDarkMode = false,
+    this.initialOpenPasswordForm = false,
   });
 
   @override
@@ -61,6 +63,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _isPasswordFormOpen = widget.initialOpenPasswordForm;
     final user = _dataService.currentUser ??
         _dataService.ensureSessionForLoggedInView(
           name: 'Pengguna LiveTix',
