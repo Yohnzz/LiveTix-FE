@@ -4,6 +4,7 @@ import '../../models/user_model.dart';
 import '../../services/data_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
+import '../promoter/promoter_main_screen.dart';
 import 'edit_profile_screen.dart';
 import 'refund_payment_method_screen.dart';
 
@@ -252,8 +253,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 fontSize: 13,
                 color: _subtitleColor,
               ),
-            ),
-            const SizedBox(height: 20),
+              _buildMenuItem(
+                icon: Icons.campaign_outlined,
+                title: 'Portal Produser / Pengelola Konser',
+                iconColor: AppColors.accent,
+                textColor: AppColors.accent,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PromoterMainScreen(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
 
             _buildLoggedInProfileCard(),
             const SizedBox(height: 14),

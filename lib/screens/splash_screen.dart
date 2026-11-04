@@ -14,20 +14,29 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   bool _showName = false;
+  Timer? _t1;
+  Timer? _t2;
 
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(milliseconds: 1500), () {
+    _t1 = Timer(const Duration(milliseconds: 1500), () {
       if (mounted) setState(() => _showName = true);
     });
-    Timer(const Duration(milliseconds: 3000), () {
+    _t2 = Timer(const Duration(milliseconds: 3000), () {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen(isGuest: true)),
       );
     });
+  }
+
+  @override
+  void dispose() {
+    _t1?.cancel();
+    _t2?.cancel();
+    super.dispose();
   }
 
   @override

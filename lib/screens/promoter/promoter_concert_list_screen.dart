@@ -1,0 +1,708 @@
+import 'package:flutter/material.dart';
+import '../../models/promoter_models.dart';
+import '../../services/promoter_data_service.dart';
+import 'add_concert/add_concert_flow.dart';
+import 'concert_status_detail_screen.dart';
+import 'promoter_manage_concert_screen.dart';
+
+class PromoterConcertListScreen extends StatefulWidget {
+  final VoidCallback? onAddConcertPressed;
+
+  const PromoterConcertListScreen({
+    super.key,
+    this.onAddConcertPressed,
+  });
+
+  @override
+  State<PromoterConcertListScreen> createState() =>
+      _PromoterConcertListScreenState();
+}
+
+class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
+  ConcertStatus _selectedStatus = ConcertStatus.semua;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _openAddConcertWizard() {
+    if (widget.onAddConcertPressed != null) {
+      widget.onAddConcertPressed!();
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AddConcertFlow()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final service = PromoterDataService();
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: service.isDarkModeNotifier,
+      builder: (context, isDarkMode, _) {
+        final textColor =
+            isDarkMode ? Colors.white : const Color(0xFF101828);
+        final subtextColor =
+            isDarkMode ? Colors.white70 : const Color(0xFF667085);
+        final cardBg =
+            isDarkMode ? const Color(0xFF1B2232) : Colors.white;
+        final cardBorder =
+            isDarkMode ? Colors.white12 : const Color(0xFFE4E7EC);
+
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: _openAddConcertWizard,
+            backgroundColor: const Color(0xFF1B2A8C),
+            elevation: 3,
+            icon: const Icon(Icons.add, color: Colors.white, size: 20),
+            label: const Text(
+              'Tambah Konser',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Header Row
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Daftar Konser',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: textColor,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Kelola seluruh pertunjukan dan pengajuan Anda',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: subtextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        isDarkMode
+                            ? Icons.dark_mode_outlined
+                            : Icons.wb_sunny_outlined,
+                        size: 22,
+                        color: textColor,
+                      ),
+                      tooltip: 'Ganti Tema',
+                      onPressed: service.toggleTheme,
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+
+                // Quota Alert Banner (Pink border & pink text)
+                ValueListenableBuilder<int>(
+                  valueListenable: service.quotaRemainingNotifier,
+                  builder: (context, remainingQuota, _) {
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isDarkMode
+                            ? const Color(0xFF2A1525)
+                            : const Color(0xFFFDF2F8),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFFC2185B).withValues(alpha: 0.5),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Text(
+                        'Sisa kuota pengajuan: $remainingQuota dari maksimal ${service.quotaMax} konser per hari.',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFC2185B),
+                          height: 1.35,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // Horizontal Filter Chips
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterChip(
+                        status: ConcertStatus.semua,
+                        label: 'Semua',
+                        isDarkMode: isDarkMode,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(
+                        status: ConcertStatus.draft,
+                        label: 'Draft',
+                        isDarkMode: isDarkMode,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(
+                        status: ConcertStatus.menunggu,
+                        label: 'Menunggu',
+                        isDarkMode: isDarkMode,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(
+                        status: ConcertStatus.disetujui,
+                        label: 'Disetujui',
+                        isDarkMode: isDarkMode,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(
+                        status: ConcertStatus.ditolak,
+                        label: 'Ditolak',
+                        isDarkMode: isDarkMode,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Search Bar
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: cardBorder),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (val) =>
+                        setState(() => _searchQuery = val.trim().toLowerCase()),
+                    style: TextStyle(fontSize: 13.5, color: textColor),
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Cari konser Anda...',
+                      hintStyle: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF98A2B3),
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // List of Concert Cards
+                ValueListenableBuilder<List<PromoterConcertItem>>(
+                  valueListenable: service.concertsNotifier,
+                  builder: (context, allConcerts, _) {
+                    final filtered = allConcerts.where((item) {
+                      final matchesStatus =
+                          _selectedStatus == ConcertStatus.semua ||
+                              item.status == _selectedStatus;
+                      final matchesSearch = _searchQuery.isEmpty ||
+                          item.title.toLowerCase().contains(_searchQuery) ||
+                          item.venueName
+                              .toLowerCase()
+                              .contains(_searchQuery);
+                      return matchesStatus && matchesSearch;
+                    }).toList();
+
+                    if (filtered.isEmpty) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(vertical: 40),
+                        alignment: Alignment.center,
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.event_busy_rounded,
+                              size: 48,
+                              color: subtextColor.withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Tidak ada konser ditemukan',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: subtextColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return LayoutBuilder(
+                      builder: (context, listConstraints) {
+                        final isDesktop = listConstraints.maxWidth >= 900;
+                        final isWideDesktop = listConstraints.maxWidth >= 1350;
+
+                        if (isDesktop) {
+                          return GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: isWideDesktop ? 3 : 2,
+                              mainAxisExtent: 110,
+                              crossAxisSpacing: 14,
+                              mainAxisSpacing: 14,
+                            ),
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final concert = filtered[index];
+                              return _buildConcertCard(
+                                concert: concert,
+                                cardBg: cardBg,
+                                cardBorder: cardBorder,
+                                textColor: textColor,
+                                subtextColor: subtextColor,
+                              );
+                            },
+                          );
+                        }
+
+                        return ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final concert = filtered[index];
+                            return _buildConcertCard(
+                              concert: concert,
+                              cardBg: cardBg,
+                              cardBorder: cardBorder,
+                              textColor: textColor,
+                              subtextColor: subtextColor,
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 70), // Spacing for FAB
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFilterChip({
+    required ConcertStatus status,
+    required String label,
+    required bool isDarkMode,
+  }) {
+    final isSelected = _selectedStatus == status;
+
+    return InkWell(
+      onTap: () => setState(() => _selectedStatus = status),
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF1B2A8C) // Active Navy
+              : (isDarkMode ? const Color(0xFF1B2232) : Colors.white),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF1B2A8C)
+                : (isDarkMode ? Colors.white12 : const Color(0xFFE4E7EC)),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: isSelected
+                ? Colors.white
+                : (isDarkMode ? Colors.white70 : const Color(0xFF344054)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showConcertDetailModal(
+      BuildContext context, PromoterConcertItem concert) {
+    if (concert.status == ConcertStatus.disetujui) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PromoterManageConcertScreen(
+            concert: concert,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (concert.status == ConcertStatus.ditolak) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ConcertStatusDetailScreen(
+            concertTitle: concert.title,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final service = PromoterDataService();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    concert.title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF101828),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: concert.status.badgeBgColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    concert.status.badgeText,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: concert.status.badgeTextColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${concert.date} · ${concert.time}',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFC2185B),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${concert.venueName}\n${concert.venueAddress}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF667085),
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            const Text(
+              'Tier Penjualan Tiket',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF101828),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...concert.tiers.map((t) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('${t.name} (${t.formattedQuota})',
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF475467))),
+                      Text(t.formattedPrice,
+                          style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1B2A8C))),
+                    ],
+                  ),
+                )),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ConcertStatusDetailScreen(
+                        concertTitle: concert.title,
+                        status: concert.status,
+                      ),
+                    ),
+                  );
+                },
+                icon: Icon(
+                  concert.status == ConcertStatus.ditolak
+                      ? Icons.report_problem_outlined
+                      : (concert.status == ConcertStatus.menunggu
+                          ? Icons.hourglass_top_rounded
+                          : Icons.visibility_outlined),
+                  size: 18,
+                ),
+                label: Text(
+                  concert.status == ConcertStatus.ditolak
+                      ? 'Lihat Alasan Penolakan & Ajukan Banding'
+                      : (concert.status == ConcertStatus.menunggu
+                          ? 'Pantau Status Peninjauan'
+                          : 'Lihat Status Kelayakan Konser'),
+                  style: const TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: concert.status == ConcertStatus.ditolak
+                      ? const Color(0xFFC2185B)
+                      : const Color(0xFF1B2A8C),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Tutup'),
+                  ),
+                ),
+                if (concert.status == ConcertStatus.draft ||
+                    concert.status == ConcertStatus.menunggu) ...[
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      service.deleteConcert(concert.id);
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content:
+                              Text('Konser "${concert.title}" telah dihapus.'),
+                          backgroundColor: const Color(0xFFC2185B),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFD92D20),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Hapus'),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConcertCard({
+    required PromoterConcertItem concert,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color textColor,
+    required Color subtextColor,
+  }) {
+    return InkWell(
+      onTap: () => _showConcertDetailModal(context, concert),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cardBorder),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Soft pink rounded thumbnail placeholder
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFCE7F3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.music_note_rounded,
+                  color: Color(0xFFC2185B),
+                  size: 26,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            // Details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    concert.title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    concert.dateAndVenue,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: subtextColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Status Badge & Cancellation Badge
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: concert.cancellationStatus ==
+                                  ConcertCancellationStatus.disetujui
+                              ? const Color(0xFFFEE4E2)
+                              : (concert.cancellationStatus ==
+                                      ConcertCancellationStatus.menungguAdmin
+                                  ? const Color(0xFFFDF2FA)
+                                  : concert.status.badgeBgColor),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          concert.cancellationStatus ==
+                                  ConcertCancellationStatus.disetujui
+                              ? 'DIBATALKAN'
+                              : (concert.cancellationStatus ==
+                                      ConcertCancellationStatus.menungguAdmin
+                                  ? 'BATAL: DITINJAU'
+                                  : concert.status.badgeText),
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            color: concert.cancellationStatus ==
+                                    ConcertCancellationStatus.disetujui
+                                ? const Color(0xFFD92D20)
+                                : (concert.cancellationStatus ==
+                                        ConcertCancellationStatus.menungguAdmin
+                                    ? const Color(0xFF9333EA)
+                                    : concert.status.badgeTextColor),
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Likes on right
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.favorite_border_rounded,
+                  size: 16,
+                  color: Color(0xFFC2185B),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  concert.likesCount,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFC2185B),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
