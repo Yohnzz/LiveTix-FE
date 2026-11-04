@@ -53,7 +53,28 @@ Dokumen ini mencatat seluruh desain Figma, revisi antarmuka terbaru, dan kompone
 
 | Frame / Desain | File Implementasi | Status | Catatan Analisis & Detail Desain |
 |----------------|-------------------|--------|-----------------------------------|
-| **Tiket Saya Status Aktif & Refund** | `lib/screens/ticket/ticket_screen.dart` | ✅ | Kartu tiket dengan indikator status Aktif & Refund serta navigasi detail. |
-| **Detail Tiket Dibatalkan & Rincian Refund** | `lib/screens/refund/cancelled_ticket_detail_screen.dart` | ✅ | Header status pembatalan, QR dinonaktifkan, rincian pengembalian dana 100%, tombol "Ajukan refund". |
-| **Pilih Tujuan Refund & Modal Konfirmasi** | `lib/screens/refund/refund_destination_screen.dart` | ✅ | Pilihan Bank vs E-wallet, chips provider, validasi rekening, dan bottom sheet konfirmasi akhir. |
-| **Tracking Status Refund** | `lib/screens/refund/refund_status_screen.dart` | ✅ | Timeline stepper 4 tahap, rincian rekening tujuan, dan akses pusat bantuan. |
+| **Tiket Saya Status Aktif & Reffund** (`media_1792409324480_443089ec.png`) | `lib/screens/ticket/ticket_screen.dart` | ✅ | Segmented toggle Aktif/Riwayat; kartu tiket dengan left stripe (biru/magenta), icon konsentris, badge status "Aktif" (hijau) & "Reffund" (pink/merah), sisa hari, tombol "Lihat tiket", serta empty state box putus-putus. |
+| **Detail Tiket Dibatalkan & Rincian Refund** (`media_1792409375620_fe2db6f1.png`) | `lib/screens/refund/cancelled_ticket_detail_screen.dart` | ✅ | Header ungu-magenta, badge amber "Event dibatalkan", kotak QR dinonaktifkan, rincian biaya tiket dasar + biaya layanan, total refund 100%, batas pengajuan, dan tombol magenta "Ajukan refund". |
+| **Pilih Tujuan Refund (Bank & E-wallet)** (`media_1792409442282_71a4fb1e.png` / `media_1792409450696_6a525c2c.png`) | `lib/screens/refund/refund_destination_screen.dart` | ✅ | Tab Bank vs E-wallet, chips provider (BCA, Mandiri, BNI, BRI / GoPay, OVO, DANA, ShopeePay), form rekening/e-wallet, box peringatan kuning, checkbox konfirmasi, dan tombol "Lanjutkan". |
+| **Modal Periksa Data Refund** (`media_1792409484624_447c7600.png` kiri) | `lib/screens/refund/refund_destination_screen.dart` (BottomSheet) | ✅ | Bottom sheet konfirmasi akhir dengan detail provider, nomor rekening, nominal refund, banner peringatan data permanen, tombol "Ya, data sudah benar" & "Ubah data". |
+| **Tracking Status Refund** (`media_1792409484624_447c7600.png` kanan) | `lib/screens/refund/refund_status_screen.dart` | ✅ | Header status badge "Sedang diproses", ID Transaksi, vertical timeline stepper 4 langkah, info rekening tujuan transfer, tombol "Kembali Ke Beranda" & "Hubungi bantuan". |
+
+---
+
+## 5. Flow Portal Produser & Manajemen Konser
+
+| Frame / Desain | File Implementasi | Status | Catatan Analisis & Detail Desain |
+|----------------|-------------------|--------|-----------------------------------|
+| **Portal Produser (Main 4 Tab)** | `lib/screens/promoter/promoter_main_screen.dart` | ✅ | Navigasi 4 Tab: Dasbor, Konser, Keuangan, Profil dengan tema adaptif Light/Dark dan status bar transparan bersih. |
+| **Dasbor Produser** | `lib/screens/promoter/promoter_dashboard_screen.dart` | ✅ | Kartu metrik responsif (Total Konser, Tiket Terjual, Total Pendapatan +8.2%), Bar Chart Penjualan 7 Hari, dan kartu konser mendatang. |
+| **Daftar Konser & Filter Status** | `lib/screens/promoter/promoter_concert_list_screen.dart` | ✅ | Banner kuota harian (2 dari 3), filter status pills (Semua, Draft, Menunggu, Disetujui, Ditolak), pencarian real-time, grid/list responsif, modal aksi, dan FAB Tambah Konser. |
+| **Tambah Konser Step 1-4 (Wizard)** | `lib/screens/promoter/add_concert/` | ✅ | 4 langkah: (1) Detail & Poster, (2) Peta Venue interaktif & Pin, (3) Pricing & Tier tiket dinamis, (4) Ringkasan pengajuan konser. |
+| **Halaman Pembayaran & Saldo** (`media_1793678812506_b4f7243d.png`) | `lib/screens/promoter/promoter_finance_screen.dart` | ✅ | Hero card Saldo Tersedia (Rp1.845.000.000), total pendapatan (Rp2.115.000.000), tombol magenta "Tarik Dana", filter "Semua Periode ▾", dan kartu hasil konser (Soundwave Fest & Java Jazz). |
+| **Detail Pendapatan Konser** (`media_1793678823826_82c20640.png`) | `lib/screens/promoter/promoter_income_detail_screen.dart` | ✅ | Hero card pendapatan bersih (Rp997.500.000), status Payout Sukses Mandiri (***8842), rincian penjualan kotor & fee 5%, ID Transaksi Payout (#TX-PY9088312), dan tombol navigasi ke Riwayat Penarikan. |
+| **Riwayat Penarikan Dana** (`media_1793678834544_f904a10c.png`) | `lib/screens/promoter/promoter_withdrawal_history_screen.dart` | ✅ | Daftar transaksi penarikan dana lengkap dengan 3 status: BERHASIL (hijau), MENUNGGU (kuning), dan DITOLAK (merah) dengan rincian alasan penolakan. |
+| **Tarik Saldo & Otorisasi PIN** (`media_1793678844277_92da6327.png`) | `lib/screens/promoter/promoter_withdrawal_screen.dart` | ✅ | Card saldo tersedia, field nominal penarikan, dropdown rekening tujuan (BCA - Rafi Firmansyah), biaya admin Rp6.500, total dana diterima dinamis, serta otorisasi PIN Keamanan 6-Digit. |
+| **Profil Mitra & Keamanan** | `lib/screens/promoter/promoter_profile_screen.dart` | ✅ | Info PT Harmoni Java Promosindo, modal rincian rekening BCA escrow, dialog info PIN 6-digit, switch tema tampilan, dan switch ke mode Attendee. |
+| **Detail Status Konser & Kurasi** | `lib/screens/promoter/concert_status_detail_screen.dart` | ✅ | Dynamic 4-stage dots tracker (Draft -> Diajukan -> Ditinjau -> Disetujui/Ditolak), card alasan penolakan & cooldown, card proses review kurasi, dan integrasi CS. |
+| **Live Chat Bantuan Kurasi Promotor** | `lib/screens/promoter/producer_customer_service_screen.dart` | ✅ | Ruang konsultasi kurasi & banding konser dengan upload lampiran izin keramaian / layout venue. |
+| **Alur Verifikasi Produser** | `lib/screens/promoter/verification/` | ✅ | 4 tahap: Form data diri penanggung jawab, unggah KTP & dokumen legalitas, layar menunggu approval, dan layar approval ditolak beserta jeda waktu. |
+

@@ -11,18 +11,45 @@
 
 | Fitur / Halaman | File | Status | Catatan |
 |-----------------|------|--------|---------|
-| **Splash Screen** | `lib/screens/splash_screen.dart` | ✅ | Menggunakan logo `livetix-logo.png`, berpindah ke Home Guest |
-| **Persetujuan Sekali Tampil (Agreement)** | `lib/screens/home/widgets/agreement_dialog.dart`, `lib/utils/local_storage.dart` | ✅ | Status persetujuan disimpan ke `LocalStorage` & `DataService` sehingga tidak muncul lagi setelah pernah disetujui |
-| **Home / Dashboard (Beranda)** | `lib/screens/home/home_screen.dart`, `lib/widgets/user_avatar.dart` | ✅ | Kartu profil header: **Guest** (`Guest`, `ID : -`, tombol `Masuk` di kanan dalam card) & **User** (nama lengkap + `ID : 6 karakter`). Relokasi notifikasi ke kartu profil header (sebelah kiri `>` dengan badge angka 3 belum dibaca membuka sheet notifikasi). Search & filter kategori ("Disukai" dual-filter), **Konser Trending** maks 5 item terfilter + tombol **"Lihat Semua konser yang ada"** ke tab Jelajah |
-| **Highlight Carousel Beranda** | `lib/screens/home/widgets/featured_concert_card.dart` | ✅ | Geser manual & otomatis tiap 4 detik, indikator titik horizontal sebaris (*inline*) rata tengah (*center*), tanpa teks `1/5` dan tanpa tombol *pause*. Tombol favorit love interaktif (berubah pink `#E91E8C` saat disukai dan tersimpan di `DataService`) |
-| **Komponen QR Code & Bagikan QR Gate Ber-Watermark** | `lib/widgets/qr_code_view.dart`, `lib/widgets/share_gate_qr_sheet.dart`, `lib/utils/gate_qr_image_generator.dart`, `lib/utils/qr_share.dart` | ✅ | Sementara memakai `assets/images/qrcode.png` dan siap menerima `qrCodeUrl`/`qrCodeBytes` dari backend; mendukung 1 QR untuk maks 4x scan + fitur Bagikan gambar PNG ber-watermark `LiveTix` ke aplikasi HP |
-| **Sistem Media Konser (Banner & Logo Produser)** | `lib/widgets/concert_media.dart`, `lib/models/concert_model.dart` | 🚧 | Model & UI siap merender foto `bannerImage` (persegi panjang di Carousel & Header Detail) serta `logoImage` (persegi 1:1 di list Beranda & Jelajah); menunggu form unggah role Produser |
-| **Halaman Jelajah (Explore)** | `lib/screens/explore/explore_screen.dart` | ✅ | Filter Tanggal (kalender penuh + `Today` & `Hapus`) & Harga (rentang lengkap), Kota Populer tanpa jumlah event dengan shadow `#C654C3`, filter "Disukai" ganda dengan genre (limit hasil maks 10 konser), thumbnail persegi |
-| **Halaman Detail Konser** | `lib/screens/concert/concert_detail_screen.dart` | ✅ | Header paling atas diubah ke **Banner Highlight Persegi Panjang**, tombol love favorit pink `#E91E8C` sinkron dengan Beranda, info jadwal/lokasi aktual konser, kategori tiket, login guard untuk Guest |
-| **Halaman Akun (Profile) & Global Dark Mode** | `lib/screens/profile/profile_screen.dart` | ✅ | Mode Guest hanya menampilkan kartu Guest + tombol "Masuk ke Akun". Mode User: Bahasa & Notifikasi dihapus (notifikasi pindah ke Beranda), switch "Mode tampilan" mengubah tema global ke seluruh aplikasi (Beranda, Jelajah, Tiket, Profil, Dialog, Bottom Nav), tersimpan di `LocalStorage`, dengan nilai awal tema Dark |
-| **Metode Pembayaran di Profil (Khusus Refund & Cooldown 1 Minggu)** | `lib/screens/profile/refund_payment_method_screen.dart` | ✅ | Khusus menetapkan rekening/e-wallet penerima pencairan refund; menerapkan masa cooldown 1 minggu (7 hari) pasca pembaruan demi keamanan akun, dilengkapi tombol simulasi testing |
-| **Halaman Edit Profil User** | `lib/screens/profile/edit_profile_screen.dart`, `lib/utils/photo_picker.dart` | ✅ | Edit Nama reaktif, Ganti Foto Profil (file perangkat & tema warna avatar), serta Ganti Password (alur password lama & alur Lupa Password via email + OTP) |
-| **Login, Register, Forgot Password, OTP, Reset Password** | `lib/screens/auth/*.dart` | ✅ | Terintegrasi dengan `DataService`; alur Lupa Password mendukung pemulihan dari Login maupun langsung dari dalam halaman Edit Profil |
-| **Alur Checkout Multi-Metode Pembayaran (QRIS, E-Wallet, Bank)** | `lib/screens/checkout/*.dart` | ✅ | Pilih Tiket, Ringkasan Pesanan, Pilih Metode (QRIS, E-Wallet, Bank). Setiap opsi mencantumkan perkiraan biaya admin transaksi dan otomatis menambahkannya ke total tagihan (biaya admin aman diatur dinamis oleh Admin). Simulasi E-Wallet dipakai untuk debug frontend sebelum integrasi Midtrans deeplink redirect di backend. Batas waktu 1 jam & penerbitan E-Tiket ke menu Tiket |
-| **Alur Tiket Saya & Pengajuan Refund** | `lib/screens/ticket/ticket_screen.dart`, `lib/screens/refund/*.dart` | ✅ | Daftar tiket Aktif/Riwayat/Refund, detail pembatalan, form rekening bank/e-wallet, dan pelacakan status refund |
-| **Data Access Layer & Dummy Database** | `lib/services/data_service.dart`, `lib/data/db_dummy.dart` | ✅ | Penyimpanan state reaktif terpusat untuk Konser, Kota, Akun User, Persetujuan, Tiket, dan pembaruan media konser |
+| **Splash Screen** | `lib/screens/splash_screen.dart` | ✅ | Menggunakan logo `livetix-logo.png`, otomatis berpindah ke Home Guest |
+| **Modal Persetujuan (Agreement)** | `lib/screens/home/widgets/agreement_dialog.dart` | ✅ | Dialog interaktif dengan checkbox validasi, auto-popup di Home Guest |
+| **Home (Beranda)** | `lib/screens/home/home_screen.dart` | ✅ | Search TextField interaktif dengan live filtering judul & venue; kategori filter; featured card |
+| **Halaman Jelajah (Explore)** | `lib/screens/explore/explore_screen.dart` | ✅ | Sesuai desain: Search bar + filter, chip dropdown, kota populer, genre, trending konser |
+| **Halaman Tiket Saya (Tickets)** | `lib/screens/ticket/ticket_screen.dart` | ✅ | Tab Aktif/Riwayat; dashed box untuk Guest dengan login link href; e-ticket card untuk User |
+| **Halaman Akun (Profile)** | `lib/screens/profile/profile_screen.dart` | ✅ | Mode User (stats 12/9/4, switch mode tampilan, logout) & Mode Guest (stats 0/0/0, tombol instan Masuk Akun) |
+| **Halaman Detail Konser** | `lib/screens/concert/concert_detail_screen.dart` | ✅ | Header fest, kartu jadwal/lokasi, pilihan kategori tiket, tombol Pesan Tiket dengan login guard |
+| **Login Screen** | `lib/screens/auth/login_screen.dart` | ✅ | Form dimulai bersih/kosong, Google button `google-logo.png`, validasi form, navigasi ke Home User |
+| **Register Screen** | `lib/screens/auth/register_screen.dart` | ✅ | Form dimulai bersih/kosong, dropdown role, checkbox syarat ketentuan, Google logo aset asli |
+| **Lupa Kata Sandi** | `lib/screens/auth/forgot_password_screen.dart` | ✅ | Menggunakan `forgot-password-logo.png`, form email bersih, navigasi ke OTP |
+| **Verifikasi OTP** | `lib/screens/auth/otp_screen.dart` | ✅ | Menggunakan `verification-otp-logo.png`, 5 underline field, auto-fokus, lanjut ke Reset Password |
+| **Kata Sandi Baru (Reset Password)** | `lib/screens/auth/reset_password_screen.dart` | ✅ | Form sandi baru & konfirmasi, tombol "Kirim data", navigasi kembali ke login |
+| **Pilih Tiket (Checkout Step 1)** | `lib/screens/checkout/select_ticket_screen.dart` | ✅ | Denah venue (Panggung, Festival, Tribun A/B), counter kuota, data pemesan, kalkulasi harga |
+| **Ringkasan Pesanan (Checkout Step 2)** | `lib/screens/checkout/order_summary_screen.dart` | ✅ | Stepper 3-tahap, info konser + badge OKT 12, rincian biaya lengkap, banner proteksi |
+| **Selesaikan Pembayaran (Checkout Step 3)** | `lib/screens/checkout/payment_screen.dart` | ✅ | Live countdown timer (23:59:12), kartu BCA VA + tombol salin, petunjuk bayar, simulasi verifikasi |
+| **E-Tiket Berhasil (Checkout Step 4)** | `lib/screens/checkout/payment_success_screen.dart` | ✅ | Aura centang hijau, tiket notch cutout & dashed line, QR Code & booking code, auto-simpan ke akun |
+| **Layanan Dummy Terpusat** | `lib/services/dummy_data_service.dart` | ✅ | In-memory singleton reactive store untuk User, Konser, Tiket riil, dan submission Refund |
+| **Tiket Saya (Status Aktif & Reffund)** | `lib/screens/ticket/ticket_screen.dart` | ✅ | Kartu tiket dengan left stripe warna, badge status Aktif (hijau) & Reffund (pink), hari tersisa, dan tombol Lihat tiket |
+| **Detail Tiket Dibatalkan** | `lib/screens/refund/cancelled_ticket_detail_screen.dart` | ✅ | Event dibatalkan badge, placeholder QR mati, rincian pengembalian dana 100%, batas pengajuan, dan tombol Ajukan refund |
+| **Pilih Tujuan Refund** | `lib/screens/refund/refund_destination_screen.dart` | ✅ | Segmented Bank vs E-wallet, chips provider, form nama & nomor rekening/HP, box peringatan, dan checkbox konfirmasi |
+| **Modal Periksa Data Refund** | `lib/screens/refund/refund_destination_screen.dart` | ✅ | Modal BottomSheet konfirmasi akhir data rekening/e-wallet sebelum diajukan ke sistem |
+| **Tracking Status Refund** | `lib/screens/refund/refund_status_screen.dart` | ✅ | Header status Sedang diproses, nominal refund, vertical stepper timeline 4 tahap, kartu tujuan, dan tombol aksi |
+
+---
+
+## Layar & Fitur Produser / Promotor (`promoter`)
+
+| Fitur / Halaman | File | Status | Catatan |
+|-----------------|------|--------|---------|
+| **Portal Produser (Main Shell)** | `lib/screens/promoter/promoter_main_screen.dart` | ✅ | Navigasi 4 tab: Dasbor, Konser, Keuangan, Profil; status bar transparan adaptif |
+| **Dasbor Produser** | `lib/screens/promoter/promoter_dashboard_screen.dart` | ✅ | Metrik Total Konser, Tiket Terjual, Total Omset (+8.2%), Bar Chart penjualan 7 hari, kartu konser terdekat |
+| **Daftar Konser & Manajemen** | `lib/screens/promoter/promoter_concert_list_screen.dart` | ✅ | Filter status (Semua, Draft, Menunggu, Disetujui, Ditolak), pencarian, kuota sisa pengajuan harian, modal aksi |
+| **Tambah Konser (Wizard 4 Langkah)** | `lib/screens/promoter/add_concert/add_concert_flow.dart` | ✅ | Wizard 4 tahap: Detail & Poster, Peta Venue, Pricing Tier, Ringkasan Pengajuan (otomatis masuk status Menunggu Review) |
+| **Halaman Pembayaran & Saldo** | `lib/screens/promoter/promoter_finance_screen.dart` | ✅ | Hero card Saldo Tersedia (Rp1.845.000.000), total omset, tombol Tarik Dana, filter periode, kartu hasil konser |
+| **Detail Pendapatan Konser** | `lib/screens/promoter/promoter_income_detail_screen.dart` | ✅ | Rincian kotor, biaya sistem 5%, pendapatan bersih (Rp997.500.000), status payout Mandiri, ID Transaksi |
+| **Riwayat Penarikan Dana** | `lib/screens/promoter/promoter_withdrawal_history_screen.dart` | ✅ | Riwayat mutasi status BERHASIL (hijau), MENUNGGU (kuning), dan DITOLAK (merah + alasan penolakan) |
+| **Tarik Saldo & Otorisasi PIN** | `lib/screens/promoter/promoter_withdrawal_screen.dart` | ✅ | Card saldo tersedia, input nominal, dropdown rekening BCA, admin fee Rp6.500, otorisasi keypad PIN 6-Digit |
+| **Profil Mitra & Pengaturan** | `lib/screens/promoter/promoter_profile_screen.dart` | ✅ | Profil PT Harmoni Java Promosindo, modal rekening penerima BCA, dialog status PIN Keamanan, beralih mode user |
+| **Detail Status Konser & Kurasi** | `lib/screens/promoter/concert_status_detail_screen.dart` | ✅ | Tracker 4-tahap dinamis (Menunggu, Disetujui, Ditolak), rincian penolakan/review kurasi, navigasi banding |
+| **Bantuan Customer Service Promotor** | `lib/screens/promoter/producer_customer_service_screen.dart` | ✅ | Live chat interaktif konsultasi kurasi & lampiran dokumen izin keramaian (0 lint issue) |
+| **Verifikasi Produser (Flow & Steps)** | `lib/screens/promoter/verification/producer_verification_flow.dart` | ✅ | Step 1 data diri penanggung jawab, Step 2 unggah KTP, status approval menunggu, status approval ditolak & jeda waktu |
+| **Model Data & Supabase Readiness** | `lib/models/promoter_models.dart` | ✅ | Sinkron dengan skema PostgreSQL Supabase (`concerts`, `ticket_tiers`), dilengkapi `fromJson` & `toJson` |

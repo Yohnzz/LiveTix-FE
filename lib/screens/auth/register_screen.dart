@@ -5,6 +5,7 @@ import '../../widgets/custom_checkbox.dart';
 import '../../widgets/primary_button.dart';
 import '../../services/dummy_data_service.dart';
 import '../home/home_screen.dart';
+import '../promoter/verification/producer_verification_flow.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -48,6 +49,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
       password: _password.text.trim(),
       role: _role,
     );
+
+    // Jika mendaftar sebagai Produser / Promotor, arahkan ke alur Lengkapi Profil & Verifikasi Produser
+    if (user.role == 'Produser') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProducerVerificationFlow(
+            initialName: user.name,
+            initialPhone: user.phone,
+          ),
+        ),
+      );
+      return;
+    }
 
     // Registrasi berhasil -> langsung masuk ke Home User
     Navigator.pushAndRemoveUntil(
