@@ -172,10 +172,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bg(context),
-      body: _buildCurrentTabBody(),
-      bottomNavigationBar: _buildBottomNav(),
+    return ValueListenableBuilder<bool>(
+      valueListenable: _dataService.isDarkModeNotifier,
+      builder: (context, isDark, _) {
+        return Scaffold(
+          backgroundColor: AppColors.bg(context),
+          body: _buildCurrentTabBody(),
+          bottomNavigationBar: _buildBottomNav(),
+        );
+      },
     );
   }
 

@@ -4,6 +4,7 @@ import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_header.dart';
 import '../../widgets/primary_button.dart';
 import '../../services/dummy_data_service.dart';
+import '../admin/admin_shell.dart';
 import '../home/home_screen.dart';
 import '../promoter/promoter_main_screen.dart';
 import '../promoter/verification/producer_verification_flow.dart';
@@ -44,6 +45,15 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    if (user.role == 'Admin') {
+      AdminNavigation.reset();
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          settings: const RouteSettings(name: AdminShell.routeName),
+          builder: (_) => const AdminShell(),
+        ),
+        (route) => false,
     // Jika akun terdaftar sebagai Produser, arahkan ke Portal Produser
     if (user?.role == 'Produser') {
       Navigator.pushReplacement(

@@ -514,6 +514,12 @@ class DataService {
     currentUserNotifier.value = null;
   }
 
+  void resetUsersForTesting() {
+    _users
+      ..clear()
+      ..addAll(DbDummy.users);
+  }
+
   // --- API Tiket & Pemesanan ---
 
   /// Menandai order pembayaran e-wallet/QRIS/bank telah terbayar pada sesi berjalan

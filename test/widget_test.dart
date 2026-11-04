@@ -1273,4 +1273,58 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
   });
+
+  testWidgets(
+      'HomeScreen Tab Akun: Toggle Mode Tampilan benar-benar berfungsi mengubah tema gelap terang pada Scaffold dan Bottom Nav',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(375, 860);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final dataService = DataService();
+    dataService.loginSync('rafi@email.com', '123456');
+    dataService.setDarkMode(true);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: HomeScreen(
+          isGuest: false,
+          userName: 'Rafi Firmansyah',
+          userInitials: 'RF',
+          initialNavIndex: 3,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Verifikasi berada di tab Akun dan default tema Dark aktif
+    expect(find.text('Akun'), findsWidgets);
+    expect(find.text('Mode tampilan'), findsOneWidget);
+    expect(find.text('Dark'), findsOneWidget);
+    expect(dataService.isDarkModeNotifier.value, isTrue);
+
+    // Verifikasi Scaffold HomeScreen memiliki background dark
+    var homeScaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    expect(homeScaffold.backgroundColor, equals(AppColors.darkBg));
+
+    // 2. Toggle Mode Tampilan ke Light
+    await tester.tap(find.text('Mode tampilan'));
+    await tester.pumpAndSettle();
+
+    expect(dataService.isDarkModeNotifier.value, isFalse);
+    expect(find.text('Light'), findsOneWidget);
+
+    // Verifikasi Scaffold HomeScreen segera berubah ke tema Light (Colors.white)
+    homeScaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    expect(homeScaffold.backgroundColor, equals(Colors.white));
+
+    // 3. Toggle kembali ke Dark
+    await tester.tap(find.text('Mode tampilan'));
+    await tester.pumpAndSettle();
+
+    expect(dataService.isDarkModeNotifier.value, isTrue);
+    expect(find.text('Dark'), findsOneWidget);
+    homeScaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    expect(homeScaffold.backgroundColor, equals(AppColors.darkBg));
+  });
 }
