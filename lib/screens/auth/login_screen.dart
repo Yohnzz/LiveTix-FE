@@ -4,6 +4,7 @@ import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_header.dart';
 import '../../widgets/primary_button.dart';
 import '../../services/dummy_data_service.dart';
+import '../admin/admin_shell.dart';
 import '../home/home_screen.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
@@ -38,6 +39,19 @@ class _LoginScreenState extends State<LoginScreen> {
           content: Text('Email atau kata sandi tidak sesuai'),
           backgroundColor: Color(0xFFB91C1C),
         ),
+      );
+      return;
+    }
+
+    if (user.role == 'Admin') {
+      AdminNavigation.reset();
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          settings: const RouteSettings(name: AdminShell.routeName),
+          builder: (_) => const AdminShell(),
+        ),
+        (route) => false,
       );
       return;
     }
