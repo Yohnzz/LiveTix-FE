@@ -256,21 +256,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 fontSize: 13,
                 color: _subtitleColor,
               ),
-              _buildMenuItem(
-                icon: Icons.campaign_outlined,
-                title: 'Portal Produser / Pengelola Konser',
-                iconColor: AppColors.accent,
-                textColor: AppColors.accent,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const PromoterMainScreen(),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
+            ),
+            const SizedBox(height: 12),
+            _buildMenuItem(
+              icon: Icons.campaign_outlined,
+              title: 'Portal Produser / Pengelola Konser',
+              iconColor: AppColors.accent,
+              textColor: AppColors.accent,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const PromoterMainScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
 
             _buildLoggedInProfileCard(),
             const SizedBox(height: 14),

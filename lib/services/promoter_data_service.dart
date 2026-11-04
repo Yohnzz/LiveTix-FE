@@ -389,7 +389,7 @@ class PromoterDataService {
   }
 
   String get formattedTotalRevenue {
-    final buffer = StringBuffer('Rp');
+    final buffer = StringBuffer('Rp ');
     final str = totalRevenue.toString();
     for (int i = 0; i < str.length; i++) {
       if (i > 0 && (str.length - i) % 3 == 0) {
@@ -405,7 +405,7 @@ class PromoterDataService {
     final str = ticketsSold.toString();
     for (int i = 0; i < str.length; i++) {
       if (i > 0 && (str.length - i) % 3 == 0) {
-        buffer.write(',');
+        buffer.write('.');
       }
       buffer.write(str[i]);
     }

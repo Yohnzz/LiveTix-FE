@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         (route) => false,
     // Jika akun terdaftar sebagai Produser, arahkan ke Portal Produser
-    if (user?.role == 'Produser') {
+    if (user.role == 'Produser') {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const PromoterMainScreen()),

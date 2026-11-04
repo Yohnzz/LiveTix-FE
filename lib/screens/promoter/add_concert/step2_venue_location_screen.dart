@@ -193,6 +193,63 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
     );
   }
 
+  void _selectPreset(String keyword) {
+    final lower = keyword.toLowerCase();
+    final match = VenueLocationSearchService.popularVenues.firstWhere(
+      (v) =>
+          v.name.toLowerCase().contains(lower) ||
+          v.city.toLowerCase().contains(lower),
+      orElse: () => VenueLocationSearchService.popularVenues.first,
+    );
+    _selectVenue(match);
+  }
+
+  Widget _buildPresetChip({
+    required String label,
+    required bool isSelected,
+    required bool isDarkMode,
+    required Color textColor,
+    required Color cardBorder,
+  }) {
+    return InkWell(
+      onTap: () => _selectPreset(label),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF1B2A8C)
+              : (isDarkMode
+                  ? const Color(0xFF1F2937)
+                  : const Color(0xFFF2F4F7)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF1B2A8C) : cardBorder,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.place_rounded,
+              size: 13,
+              color: isSelected ? Colors.white : const Color(0xFFEA4335),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                color: isSelected ? Colors.white : textColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = PromoterDataService();
@@ -581,6 +638,64 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
 
               const SizedBox(height: 18),
 
+                            // Rekomendasi Pilihan Venue Populer (1-Tap Selection)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    _buildPresetChip(
+                      label: 'Stadion Gajayana',
+                      isSelected: _currentVenueName.contains('Gajayana'),
+                      isDarkMode: isDarkMode,
+                      textColor: textColor,
+                      cardBorder: cardBorder,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPresetChip(
+                      label: 'GBK Senayan',
+                      isSelected: _currentVenueName.contains('GBK'),
+                      isDarkMode: isDarkMode,
+                      textColor: textColor,
+                      cardBorder: cardBorder,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPresetChip(
+                      label: 'ICE BSD Tangerang',
+                      isSelected: _currentVenueName.contains('ICE BSD'),
+                      isDarkMode: isDarkMode,
+                      textColor: textColor,
+                      cardBorder: cardBorder,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPresetChip(
+                      label: 'GBT Surabaya',
+                      isSelected: _currentVenueName.contains('Bung Tomo'),
+                      isDarkMode: isDarkMode,
+                      textColor: textColor,
+                      cardBorder: cardBorder,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPresetChip(
+                      label: 'Manahan Solo',
+                      isSelected: _currentVenueName.contains('Manahan'),
+                      isDarkMode: isDarkMode,
+                      textColor: textColor,
+                      cardBorder: cardBorder,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPresetChip(
+                      label: 'GWK Bali',
+                      isSelected: _currentVenueName.contains('GWK'),
+                      isDarkMode: isDarkMode,
+                      textColor: textColor,
+                      cardBorder: cardBorder,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 14),
               // Interactive Google Maps Canvas View
               InteractiveMapView(
                 venueName: _currentVenueName,
