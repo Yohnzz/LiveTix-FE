@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/ticket_order_model.dart';
-import '../../services/dummy_data_service.dart';
+import '../../services/data_service.dart';
+import '../../widgets/qr_code_view.dart';
+import '../../widgets/share_gate_qr_sheet.dart';
 import '../home/home_screen.dart';
 import 'widgets/checkout_stepper.dart';
 
-class PaymentSuccessScreen extends StatelessWidget {
+class PaymentSuccessScreen extends StatefulWidget {
   final OrderModel order;
 
   const PaymentSuccessScreen({
@@ -13,38 +15,29 @@ class PaymentSuccessScreen extends StatelessWidget {
     required this.order,
   });
 
-  void _returnHome(BuildContext context) {
-    // 1. Simpan tiket baru ke DummyDataService
-    final bookingCode = 'SWF-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}-2A';
-    final newTicket = UserTicketModel(
-      id: order.orderId,
-      bookingCode: bookingCode,
-      concertTitle: order.concert.title,
-      concertSubtitle: '${order.concert.tag} · ${order.quantity} tiket',
-      category: order.tier.name,
-      date: order.concert.date.contains('Oktober') ? order.concert.date : '12 Okt 2026',
-      time: order.concert.time.isNotEmpty ? order.concert.time : '17.00 WIB',
-      gate: 'Gate B',
-      block: 'FEST-04',
-      venue: order.concert.venue,
-      quantity: order.quantity,
-      totalPrice: order.totalAmount,
-      status: 'Siap Digunakan',
-      isCompleted: false,
-    );
+  @override
+  State<PaymentSuccessScreen> createState() => _PaymentSuccessScreenState();
+}
 
-    DummyDataService().addPurchasedTicket(newTicket);
+class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
+  late final UserTicketModel _issuedTicket;
 
-    final currentUser = DummyDataService().currentUserNotifier.value;
+  @override
+  void initState() {
+    super.initState();
+    _issuedTicket = DataService().completeOrderPayment(widget.order);
+  }
 
-    // 2. Navigasi kembali ke HomeScreen User
+  void _openUserHome({required int initialNavIndex}) {
+    final currentUser = DataService().currentUser;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
         builder: (_) => HomeScreen(
           isGuest: false,
-          userName: currentUser?.name.split(' ').first ?? 'Rafi',
-          userInitials: currentUser?.initials ?? 'RF',
+          userName: currentUser?.name ?? widget.order.customerName,
+          userInitials: currentUser?.initials ?? 'U',
+          initialNavIndex: initialNavIndex,
         ),
       ),
       (route) => false,
@@ -53,7 +46,7 @@ class PaymentSuccessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bookingCode = 'SWF-${order.orderId.replaceAll('ORD-', '')}-2A';
+    final bookingCode = _issuedTicket.bookingCode;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -74,23 +67,16 @@ class PaymentSuccessScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 3-Step Stepper (Step 3 Complete)
             const CheckoutStepper(currentStep: 3),
             const Divider(height: 1, color: AppColors.border),
-
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               child: Column(
                 children: [
-                  // Icon Sukses & Aura Hijau
                   _buildSuccessHeader(),
                   const SizedBox(height: 24),
-
-                  // Kartu E-Ticket dengan Cutout Notch & Dashed Separator
                   _buildTicketCard(context, bookingCode),
                   const SizedBox(height: 20),
-
-                  // Tombol Unduh & Bagikan
                   _buildActionButtons(context),
                   const SizedBox(height: 24),
                 ],
@@ -99,7 +85,7 @@ class PaymentSuccessScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomHomeButton(context),
+      bottomNavigationBar: _buildBottomButtons(context),
     );
   }
 
@@ -117,7 +103,7 @@ class PaymentSuccessScreen extends StatelessWidget {
           child: const Center(
             child: Icon(
               Icons.check_rounded,
-              color: Color(0xFF10B981),
+              color: Color(0xFF065F46),
               size: 40,
             ),
           ),
@@ -133,15 +119,19 @@ class PaymentSuccessScreen extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         const Text(
-          'Tiket resmi telah diterbitkan dan tersimpan di akun Anda',
+          'Tiket resmi telah diterbitkan dan tersimpan di menu Tiket akun Anda',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12.5, color: AppColors.textGrey),
+          style: TextStyle(fontSize: 12.5, color: Color(0xFF475467)),
         ),
       ],
     );
   }
 
   Widget _buildTicketCard(BuildContext context, String bookingCode) {
+    final order = widget.order;
+    final concertTime =
+        order.concert.time.isNotEmpty ? order.concert.time : '19.00 WIB';
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -158,52 +148,57 @@ class PaymentSuccessScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Bagian Atas Tiket
           Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Tag Tiket Resmi
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFECFDF5),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0xFFA7F3D0)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.verified, size: 13, color: Color(0xFF059669)),
-                          SizedBox(width: 4),
-                          Text(
-                            'TIKET RESMI',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF059669),
+                SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.verified, size: 13, color: Color(0xFF065F46)),
+                            SizedBox(width: 4),
+                            Text(
+                              'TIKET RESMI',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF065F46),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const Text(
-                      'LiveTix Pass',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textGrey,
+                      const Text(
+                        'LiveTix Pass',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF475467),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
-
-                // Judul Konser & Waktu
                 Text(
                   order.concert.title,
                   style: const TextStyle(
@@ -214,23 +209,28 @@ class PaymentSuccessScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  order.concert.date.contains('Oktober')
-                      ? '${order.concert.date} · 19.00 WIB'
-                      : 'Minggu, 12 Oktober 2026 · 19.00 WIB',
-                  style: const TextStyle(fontSize: 12.5, color: AppColors.textGrey),
+                  '${order.concert.date} · $concertTime',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF475467),
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   order.concert.venue,
-                  style: const TextStyle(fontSize: 12.5, color: AppColors.textGrey),
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF475467),
+                  ),
                 ),
                 const SizedBox(height: 18),
-
-                // Grid 2x2 Info Tiket
                 Row(
                   children: [
                     Expanded(
-                      child: _buildTicketInfoColumn('Nama Pemesan', order.customerName),
+                      child: _buildTicketInfoColumn(
+                        'Nama Pemesan',
+                        order.customerName,
+                      ),
                     ),
                     Expanded(
                       child: _buildTicketInfoColumn(
@@ -244,10 +244,13 @@ class PaymentSuccessScreen extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildTicketInfoColumn('Gate', 'Gate B'),
+                      child: _buildTicketInfoColumn('Gate', _issuedTicket.gate),
                     ),
                     Expanded(
-                      child: _buildTicketInfoColumn('Sektor / Blok', 'FEST-04'),
+                      child: _buildTicketInfoColumn(
+                        'Sektor / Blok',
+                        _issuedTicket.block,
+                      ),
                     ),
                   ],
                 ),
@@ -255,16 +258,42 @@ class PaymentSuccessScreen extends StatelessWidget {
             ),
           ),
 
-          // Notch Potongan Tiket & Garis Putus-putus
           _buildTicketNotchSeparator(),
 
-          // Bagian Bawah: QR Code & Kode Booking
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
             child: Column(
               children: [
-                _buildQrCodeGraphic(),
-                const SizedBox(height: 14),
+                AppQrCodeView(
+                  qrCodeUrl: _issuedTicket.qrCodeUrl,
+                  qrCodeBytes: _issuedTicket.qrCodeBytes,
+                  size: 160,
+                  padding: 12,
+                  showWatermark: true,
+                  semanticLabel: 'Kode QR E-Tiket ${order.concert.title}',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFA7F3D0)),
+                  ),
+                  child: Text(
+                    '1 QR Berlaku untuk ${_issuedTicket.qrScanQuota}x Scan di Gate (${order.quantity} Tiket)',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF065F46),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                   decoration: BoxDecoration(
@@ -282,10 +311,16 @@ class PaymentSuccessScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Tunjukkan kode QR ini kepada petugas di pintu masuk saat gate dibuka.',
+                Text(
+                  order.quantity > 1
+                      ? 'Satu kode QR ini berlaku untuk ${order.quantity} orang di gerbang masuk. Gunakan tombol Bagikan QR untuk mengirimkannya ke temanmu.'
+                      : 'Tunjukkan kode QR ini kepada petugas di pintu masuk saat gate dibuka.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11.5, color: AppColors.textGrey, height: 1.35),
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: Color(0xFF475467),
+                    height: 1.35,
+                  ),
                 ),
               ],
             ),
@@ -301,7 +336,7 @@ class PaymentSuccessScreen extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 11.5, color: AppColors.textGrey),
+          style: const TextStyle(fontSize: 11.5, color: Color(0xFF475467)),
         ),
         const SizedBox(height: 3),
         Text(
@@ -322,7 +357,6 @@ class PaymentSuccessScreen extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Garis Putus-putus
           Positioned(
             left: 20,
             right: 20,
@@ -331,7 +365,6 @@ class PaymentSuccessScreen extends StatelessWidget {
               painter: _DashedLinePainter(color: const Color(0xFFD1D5DB)),
             ),
           ),
-          // Setengah lingkaran kiri
           Positioned(
             left: -12,
             child: Container(
@@ -344,7 +377,6 @@ class PaymentSuccessScreen extends StatelessWidget {
               ),
             ),
           ),
-          // Setengah lingkaran kanan
           Positioned(
             right: -12,
             child: Container(
@@ -362,132 +394,61 @@ class PaymentSuccessScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildQrCodeGraphic() {
-    return Container(
-      width: 140,
-      height: 140,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Stack(
-        children: [
-          // Simulasi visual pola QR Code
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _qrCorner(),
-                    _qrSmallBox(),
-                    _qrCorner(),
-                  ],
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _qrSmallBox(),
-                    Container(width: 16, height: 16, color: AppColors.primary),
-                    _qrSmallBox(),
-                    _qrSmallBox(),
-                  ],
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _qrCorner(),
-                    _qrSmallBox(),
-                    _qrSmallBox(),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _qrCorner() {
-    return Container(
-      width: 32,
-      height: 32,
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.textDark, width: 3),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Container(
-        color: AppColors.textDark,
-      ),
-    );
-  }
-
-  Widget _qrSmallBox() {
-    return Container(
-      width: 8,
-      height: 8,
-      color: AppColors.textDark,
-    );
-  }
-
   Widget _buildActionButtons(BuildContext context) {
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('E-Tiket berhasil diunduh ke perangkat Anda'),
-                  backgroundColor: AppColors.primary,
-                ),
-              );
-            },
-            icon: const Icon(Icons.download_rounded, size: 18, color: AppColors.textDark),
-            label: const Text(
-              'Unduh',
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textDark,
+          child: SizedBox(
+            height: 46,
+            child: OutlinedButton.icon(
+              onPressed: () => ShareGateQrSheet.show(context, _issuedTicket),
+              icon: const Icon(
+                Icons.share_rounded,
+                size: 18,
+                color: AppColors.primary,
               ),
-            ),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              side: const BorderSide(color: AppColors.border),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              label: const Text(
+                'Bagikan QR',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.primary, width: 1.2),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
             ),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Tautan e-tiket disalin ke clipboard'),
-                  backgroundColor: AppColors.primary,
-                ),
-              );
-            },
-            icon: const Icon(Icons.share_outlined, size: 18, color: AppColors.textDark),
-            label: const Text(
-              'Bagikan',
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
+          child: SizedBox(
+            height: 46,
+            child: OutlinedButton.icon(
+              onPressed: () => _openUserHome(initialNavIndex: 0),
+              icon: const Icon(
+                Icons.home_outlined,
+                size: 18,
                 color: AppColors.textDark,
               ),
-            ),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              side: const BorderSide(color: AppColors.border),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              label: const Text(
+                'Ke Beranda',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textDark,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
             ),
           ),
         ),
@@ -495,7 +456,7 @@ class PaymentSuccessScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomHomeButton(BuildContext context) {
+  Widget _buildBottomButtons(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: const BoxDecoration(
@@ -507,7 +468,7 @@ class PaymentSuccessScreen extends StatelessWidget {
           width: double.infinity,
           height: 48,
           child: ElevatedButton(
-            onPressed: () => _returnHome(context),
+            onPressed: () => _openUserHome(initialNavIndex: 2),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -517,7 +478,7 @@ class PaymentSuccessScreen extends StatelessWidget {
               ),
             ),
             child: const Text(
-              'Kembali ke Home',
+              'Lihat di Menu Tiket',
               style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
             ),
           ),

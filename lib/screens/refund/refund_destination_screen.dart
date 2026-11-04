@@ -33,7 +33,7 @@ class _RefundDestinationScreenState extends State<RefundDestinationScreen> {
     super.initState();
     final currentUser = DummyDataService().currentUserNotifier.value;
     _nameController = TextEditingController(
-      text: currentUser?.name ?? 'Rafi Ardiansyah',
+      text: currentUser?.name ?? '',
     );
     _accountNumberController = TextEditingController(text: '8808 1234 5678 9012');
   }

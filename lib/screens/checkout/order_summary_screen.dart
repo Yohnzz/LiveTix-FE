@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/ticket_order_model.dart';
-import 'payment_screen.dart';
+import 'payment_method_screen.dart';
 import 'widgets/checkout_stepper.dart';
 
 class OrderSummaryScreen extends StatelessWidget {
@@ -35,6 +35,7 @@ class OrderSummaryScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
+          tooltip: 'Kembali',
           icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
           onPressed: () => Navigator.pop(context),
         ),
@@ -82,6 +83,11 @@ class OrderSummaryScreen extends StatelessWidget {
   }
 
   Widget _buildConcertCard() {
+    final shortParts = order.concert.shortDate.split(' ');
+    final dayLabel = shortParts.isNotEmpty ? shortParts[0] : '12';
+    final monthLabel =
+        shortParts.length > 1 ? shortParts[1].toUpperCase() : 'OKT';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -107,22 +113,22 @@ class OrderSummaryScreen extends StatelessWidget {
               gradient: AppColors.headerGradient,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Column(
+            child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'OKT',
-                  style: TextStyle(
+                  monthLabel,
+                  style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: Colors.white70,
                     letterSpacing: 0.5,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
-                  '12',
-                  style: TextStyle(
+                  dayLabel,
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
@@ -254,22 +260,29 @@ class OrderSummaryScreen extends StatelessWidget {
 
           // Baris Total Tagihan
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Total tagihan',
-                style: TextStyle(
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textDark,
+              const Expanded(
+                child: Text(
+                  'Total tagihan',
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textDark,
+                  ),
                 ),
               ),
-              Text(
-                _formatCurrency(total),
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.primary,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  _formatCurrency(total),
+                  textAlign: TextAlign.end,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
             ],
@@ -281,18 +294,23 @@ class OrderSummaryScreen extends StatelessWidget {
 
   Widget _buildDetailRow(String label, String value) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, color: AppColors.textGrey),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: AppColors.textGrey),
+          ),
         ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textDark,
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textDark,
+            ),
           ),
         ),
       ],
@@ -350,27 +368,29 @@ class OrderSummaryScreen extends StatelessWidget {
       ),
       child: SafeArea(
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Total tagihan',
-                  style: TextStyle(fontSize: 12, color: AppColors.textGrey),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _formatCurrency(total),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textDark,
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Total tagihan',
+                    style: TextStyle(fontSize: 12, color: AppColors.textGrey),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatCurrency(total),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(width: 12),
             SizedBox(
               height: 48,
               child: ElevatedButton(
@@ -378,7 +398,7 @@ class OrderSummaryScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => PaymentScreen(order: order),
+                      builder: (_) => PaymentMethodScreen(order: order),
                     ),
                   );
                 },
@@ -386,7 +406,7 @@ class OrderSummaryScreen extends StatelessWidget {
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),

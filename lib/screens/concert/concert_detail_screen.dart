@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
+import '../../data/db_dummy.dart';
 import '../../models/concert_model.dart';
+import '../../services/data_service.dart';
+import '../../widgets/concert_media.dart';
 import '../auth/login_screen.dart';
 import '../checkout/select_ticket_screen.dart';
 
@@ -20,7 +24,6 @@ class ConcertDetailScreen extends StatefulWidget {
 
 class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
   int _selectedTierIndex = 0;
-  bool _isFavorite = false;
 
   late final List<TicketTierModel> _tiers;
 
@@ -30,35 +33,14 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
     if (widget.concert.ticketTiers.isNotEmpty) {
       _tiers = widget.concert.ticketTiers;
     } else {
-      // Default tiers sesuai desain Figma Soundwave Fest 2026
-      _tiers = const [
-        TicketTierModel(
-          id: '1',
-          name: 'Festival',
-          description: 'Berdiri, area depan panggung',
-          price: 350000,
-        ),
-        TicketTierModel(
-          id: '2',
-          name: 'Tribun',
-          description: 'Tempat duduk bernomor',
-          price: 220000,
-        ),
-        TicketTierModel(
-          id: '3',
-          name: 'VIP Lounge',
-          description: 'Sold out',
-          price: 750000,
-          isSoldOut: true,
-        ),
-      ];
+      _tiers = DbDummy.concerts.first.ticketTiers;
     }
   }
 
   TicketTierModel get _selectedTier => _tiers[_selectedTierIndex];
 
   void _onOrderTicketPressed() {
-    if (widget.isGuest) {
+    if (widget.isGuest || DataService().isGuest) {
       // Guest dibatasi: wajib login sebelum memesan tiket
       showDialog(
         context: context,
@@ -71,12 +53,19 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
           ),
           content: const Text(
             'Untuk memesan tiket konser ini, silakan masuk dengan akun LiveTix terlebih dahulu.',
-            style: TextStyle(fontSize: 13.5, color: AppColors.textGrey, height: 1.4),
+            style: TextStyle(
+              fontSize: 13.5,
+              color: AppColors.textGrey,
+              height: 1.4,
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Nanti saja', style: TextStyle(color: AppColors.textGrey)),
+              child: const Text(
+                'Nanti saja',
+                style: TextStyle(color: AppColors.textGrey),
+              ),
             ),
             ElevatedButton(
               onPressed: () {
@@ -89,7 +78,9 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
               child: const Text('Masuk Sekarang'),
             ),
@@ -112,158 +103,218 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Konser Bergradasi Ungu-Magenta
-            _buildHeaderBanner(),
-
-            // Konten Detail
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 16),
-
-                  // Kartu Info Tanggal & Lokasi
-                  _buildScheduleLocationCard(),
-                  const SizedBox(height: 24),
-
-                  // Kategori Tiket
-                  const Text(
-                    'Kategori tiket',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Daftar Pilihan Kategori Tiket
-                  ...List.generate(_tiers.length, (index) {
-                    final tier = _tiers[index];
-                    final isSelected = _selectedTierIndex == index;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildTicketTierCard(tier, isSelected, index),
-                    );
-                  }),
-
-                  const SizedBox(height: 100), // Spacing untuk bottom bar
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _buildBottomBar(),
-    );
-  }
-
-  Widget _buildHeaderBanner() {
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: AppColors.headerGradient,
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
+        },
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Baris Navigasi Atas (Back & Favorite)
+              // Bagian Paling Atas: Banner Highlight Persegi Panjang (Landscape)
+              _buildHighlightHeaderBanner(),
+
+              // Konten Detail
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 18),
+
+                    // Kartu Info Tanggal & Lokasi
+                    _buildScheduleLocationCard(),
+                    const SizedBox(height: 24),
+
+                    // Kategori Tiket
+                    const Text(
+                      'Kategori tiket',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Daftar Pilihan Kategori Tiket
+                    ...List.generate(_tiers.length, (index) {
+                      final tier = _tiers[index];
+                      final isSelected = _selectedTierIndex == index;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildTicketTierCard(tier, isSelected, index),
+                      );
+                    }),
+
+                    const SizedBox(height: 100),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        bottomNavigationBar: _buildBottomBar(),
+      ),
+    );
+  }
+
+  /// Menampilkan Banner Highlight Persegi Panjang di bagian paling atas Detail Konser.
+  /// Otomatis merender foto banner penuh unggahan Produser jika tersedia,
+  /// atau visual panggung highlight persegi panjang milik konser tersebut.
+  Widget _buildHighlightHeaderBanner() {
+    final viewTop = MediaQuery.of(context).viewPadding.top;
+    final topSpacing = viewTop > 0 ? viewTop + 14 : 34.0;
+    final bannerHeight = topSpacing + 206.0;
+
+    return SizedBox(
+      width: double.infinity,
+      height: bannerHeight,
+      child: ConcertHighlightBannerSurface(
+        concert: widget.concert,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(20, topSpacing, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Baris Navigasi Atas (Back & Favorite dengan ukuran sentuh 44x44)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(
+                  Semantics(
+                    button: true,
+                    label: 'Kembali',
+                    child: Tooltip(
+                      message: 'Kembali',
+                      child: Material(
                         color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.chevron_left_rounded,
-                        color: AppColors.textDark,
-                        size: 28,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          onTap: () => Navigator.pop(context),
+                          customBorder: const CircleBorder(),
+                          child: const SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Icon(
+                              Icons.chevron_left_rounded,
+                              color: AppColors.textDark,
+                              size: 28,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () => setState(() => _isFavorite = !_isFavorite),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        _isFavorite ? Icons.favorite : Icons.favorite_border_rounded,
-                        color: _isFavorite ? AppColors.accent : AppColors.accent,
-                        size: 22,
-                      ),
-                    ),
+                  ValueListenableBuilder<Set<String>>(
+                    valueListenable: DataService().favoriteConcertIdsNotifier,
+                    builder: (context, favIds, _) {
+                      final isFav = favIds.contains(widget.concert.id);
+                      return Semantics(
+                        button: true,
+                        label: isFav
+                            ? 'Hapus dari favorit'
+                            : 'Simpan ke favorit',
+                        child: Tooltip(
+                          message: isFav
+                              ? 'Hapus dari favorit'
+                              : 'Simpan ke favorit',
+                          child: Material(
+                            color: Colors.white,
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              onTap: () =>
+                                  DataService().toggleFavorite(widget.concert.id),
+                              customBorder: const CircleBorder(),
+                              child: SizedBox(
+                                width: 44,
+                                height: 44,
+                                child: Icon(
+                                  isFav
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_border_rounded,
+                                  color: isFav
+                                      ? AppColors.favoritePink
+                                      : const Color(0xFF64748B),
+                                  size: 22,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
 
-              // Pita Kuning "★ Festival • 17+"
-              ClipPath(
-                clipper: _RibbonClipper(),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(10, 6, 18, 6),
-                  color: AppColors.bannerYellow,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.star, size: 14, color: Color(0xFF78350F)),
-                      const SizedBox(width: 4),
-                      Text(
-                        widget.concert.tag,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF78350F),
-                        ),
+              // Bagian Bawah Banner Highlight: Pita Kategori + Judul + Subtitle
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ClipPath(
+                    clipper: _RibbonClipper(),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(10, 6, 18, 6),
+                      color: AppColors.bannerYellow,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 14,
+                            color: Color(0xFF451A03),
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              widget.concert.tag,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF451A03),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Judul Konser
-              Text(
-                widget.concert.title,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              const SizedBox(height: 4),
-
-              // Subtitle
-              Text(
-                widget.concert.subtitle.isNotEmpty
-                    ? widget.concert.subtitle
-                    : 'Panggung utama, 12 jam nonstop',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Colors.white70,
-                ),
+                  const SizedBox(height: 10),
+                  Text(
+                    widget.concert.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: -0.2,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.concert.subtitle.isNotEmpty
+                        ? widget.concert.subtitle
+                        : '${widget.concert.category} · Mulai ${widget.concert.formattedPrice}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -305,7 +356,7 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.concert.date.contains('Oktober')
+                        widget.concert.date.isNotEmpty
                             ? widget.concert.date
                             : 'Minggu, 12 Oktober 2026',
                         style: const TextStyle(
@@ -345,9 +396,7 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
                 const SizedBox(width: 14),
                 Expanded(
                   child: Text(
-                    widget.concert.venue.contains('Malang')
-                        ? widget.concert.venue
-                        : '${widget.concert.venue}, Malang',
+                    widget.concert.venue,
                     style: const TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600,
@@ -363,7 +412,11 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
     );
   }
 
-  Widget _buildTicketTierCard(TicketTierModel tier, bool isSelected, int index) {
+  Widget _buildTicketTierCard(
+    TicketTierModel tier,
+    bool isSelected,
+    int index,
+  ) {
     return GestureDetector(
       onTap: tier.isSoldOut
           ? null
@@ -384,27 +437,33 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tier.name,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: tier.isSoldOut ? AppColors.textGrey : AppColors.textDark,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tier.name,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          tier.isSoldOut ? AppColors.textGrey : AppColors.textDark,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  tier.description,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: tier.isSoldOut ? Colors.redAccent : AppColors.textGrey,
+                  const SizedBox(height: 4),
+                  Text(
+                    tier.description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: tier.isSoldOut
+                          ? const Color(0xFFB91C1C)
+                          : AppColors.textGrey,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            const SizedBox(width: 12),
             Text(
               tier.formattedPrice,
               style: TextStyle(
@@ -430,25 +489,28 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Total',
-                  style: TextStyle(fontSize: 12, color: AppColors.textGrey),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _selectedTier.formattedPrice,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textDark,
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Total',
+                    style: TextStyle(fontSize: 12, color: AppColors.textGrey),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    _selectedTier.formattedPrice,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(width: 12),
             SizedBox(
               height: 48,
               child: ElevatedButton(
@@ -457,7 +519,7 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),

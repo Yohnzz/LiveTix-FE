@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/ticket_order_model.dart';
 import '../../services/dummy_data_service.dart';
+import '../../widgets/qr_code_view.dart';
+import '../../widgets/share_gate_qr_sheet.dart';
 import '../auth/login_screen.dart';
 import '../refund/cancelled_ticket_detail_screen.dart';
 import '../refund/refund_status_screen.dart';
@@ -59,93 +61,159 @@ class _TicketScreenState extends State<TicketScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD0D5DD),
-                  borderRadius: BorderRadius.circular(10),
+        return SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD0D5DD),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
-                      borderRadius: BorderRadius.circular(6),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'TIKET RESMI AKTIF',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF065F46),
+                        ),
+                      ),
                     ),
-                    child: const Text(
-                      'TIKET RESMI AKTIF',
-                      style: TextStyle(
-                        fontSize: 11,
+                    Text(
+                      ticket.bookingCode,
+                      style: const TextStyle(
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF10B981),
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  ticket.concertTitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${ticket.date} · ${ticket.venue}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF475467),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                AppQrCodeView(
+                  qrCodeUrl: ticket.qrCodeUrl,
+                  qrCodeBytes: ticket.qrCodeBytes,
+                  size: 164,
+                  padding: 12,
+                  showWatermark: true,
+                  semanticLabel: 'Kode QR E-Tiket ${ticket.concertTitle}',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFA7F3D0)),
+                  ),
+                  child: Text(
+                    '1 QR Berlaku ${ticket.qrScanQuota}x Scan di Gate (${ticket.quantity} Tiket · ${ticket.gate})',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF065F46),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  ticket.quantity > 1
+                      ? 'Satu QR Code ini dapat digunakan sebanyak ${ticket.qrScanQuota} kali sesuai jumlah tiket. Bagikan ke teman rombonganmu melalui tombol di bawah.'
+                      : 'Tunjukkan QR ini saat scan di gerbang masuk.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF475467),
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      ShareGateQrSheet.show(context, ticket);
+                    },
+                    icon: const Icon(Icons.share_rounded, size: 18),
+                    label: const Text(
+                      'Bagikan QR',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
                   ),
-                  Text(
-                    ticket.bookingCode,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textDark,
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textDark,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Tutup',
+                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                ticket.concertTitle,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textDark),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${ticket.date} · ${ticket.venue}',
-                style: const TextStyle(fontSize: 12.5, color: AppColors.textGrey),
-              ),
-              const SizedBox(height: 20),
-              // QR Code
-              Container(
-                width: 140,
-                height: 140,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.border),
                 ),
-                child: const Center(
-                  child: Icon(Icons.qr_code_2_rounded, size: 110, color: Color(0xFF1D2939)),
-                ),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                'Tunjukkan QR ini saat scan di gerbang masuk.',
-                style: TextStyle(fontSize: 12, color: AppColors.textGrey),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B2A8C),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.w600)),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -154,49 +222,53 @@ class _TicketScreenState extends State<TicketScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+    final viewTop = MediaQuery.of(context).viewPadding.top;
+    final topSpacing = viewTop > 0 ? viewTop + 16 : 38.0;
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Judul Sesuai Figma
-              const Text(
-                'Tiket saya',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textDark,
-                  letterSpacing: -0.3,
-                ),
+      backgroundColor: AppColors.bg(context),
+      body: Padding(
+        padding: EdgeInsets.fromLTRB(20, topSpacing, 20, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Judul Sesuai Figma
+            Text(
+              'Tiket saya',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: isDark ? AppColors.darkText : AppColors.textDark,
+                letterSpacing: -0.3,
               ),
-              const SizedBox(height: 18),
+            ),
+            const SizedBox(height: 18),
 
-              // Segmented Tab Toggle: "Aktif" & "Riwayat"
-              _buildSegmentedTab(),
-              const SizedBox(height: 20),
+            // Segmented Tab Toggle: "Aktif" & "Riwayat"
+            _buildSegmentedTab(),
+            const SizedBox(height: 20),
 
-              // Konten Berdasarkan Role (Guest vs Logged-In User)
-              Expanded(
-                child: widget.isGuest
-                    ? _buildGuestEmptyTicketView()
-                    : _buildUserTicketView(),
-              ),
-            ],
-          ),
+            // Konten Berdasarkan Role (Guest vs Logged-In User)
+            Expanded(
+              child: widget.isGuest
+                  ? _buildGuestEmptyTicketView()
+                  : _buildUserTicketView(),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildSegmentedTab() {
+    final isDark = AppColors.isDark(context);
+
     return Container(
       height: 48,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF2F4F7),
+        color: isDark ? AppColors.darkSurfaceVariant : const Color(0xFFF2F4F7),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -207,7 +279,9 @@ class _TicketScreenState extends State<TicketScreen> {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 decoration: BoxDecoration(
-                  color: _selectedTabIndex == 0 ? Colors.white : Colors.transparent,
+                  color: _selectedTabIndex == 0
+                      ? (isDark ? AppColors.darkSurface : Colors.white)
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: _selectedTabIndex == 0
                       ? const [
@@ -224,8 +298,11 @@ class _TicketScreenState extends State<TicketScreen> {
                   'Aktif',
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: _selectedTabIndex == 0 ? FontWeight.w700 : FontWeight.w500,
-                    color: _selectedTabIndex == 0 ? AppColors.textDark : AppColors.textGrey,
+                    fontWeight:
+                        _selectedTabIndex == 0 ? FontWeight.w700 : FontWeight.w500,
+                    color: _selectedTabIndex == 0
+                        ? (isDark ? AppColors.darkText : AppColors.textDark)
+                        : (isDark ? AppColors.darkTextSecondary : AppColors.textGrey),
                   ),
                 ),
               ),
@@ -237,7 +314,9 @@ class _TicketScreenState extends State<TicketScreen> {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 decoration: BoxDecoration(
-                  color: _selectedTabIndex == 1 ? Colors.white : Colors.transparent,
+                  color: _selectedTabIndex == 1
+                      ? (isDark ? AppColors.darkSurface : Colors.white)
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: _selectedTabIndex == 1
                       ? const [
@@ -254,8 +333,11 @@ class _TicketScreenState extends State<TicketScreen> {
                   'Riwayat',
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: _selectedTabIndex == 1 ? FontWeight.w700 : FontWeight.w500,
-                    color: _selectedTabIndex == 1 ? AppColors.textDark : AppColors.textGrey,
+                    fontWeight:
+                        _selectedTabIndex == 1 ? FontWeight.w700 : FontWeight.w500,
+                    color: _selectedTabIndex == 1
+                        ? (isDark ? AppColors.darkText : AppColors.textDark)
+                        : (isDark ? AppColors.darkTextSecondary : AppColors.textGrey),
                   ),
                 ),
               ),
@@ -345,17 +427,21 @@ class _TicketScreenState extends State<TicketScreen> {
     final iconColor = ticket.iconColor ??
         (isRefund ? const Color(0xFFC2185B) : const Color(0xFF1B2A8C));
 
+    final isDark = AppColors.isDark(context);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.border,
+        ),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
+            color: isDark ? const Color(0x33000000) : const Color(0x06000000),
             blurRadius: 8,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -420,18 +506,18 @@ class _TicketScreenState extends State<TicketScreen> {
                               children: [
                                 Text(
                                   ticket.concertTitle,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
-                                    color: AppColors.textDark,
+                                    color: isDark ? AppColors.darkText : AppColors.textDark,
                                   ),
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
                                   ticket.concertSubtitle,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
-                                    color: Color(0xFF667085),
+                                    color: isDark ? AppColors.darkTextSecondary : const Color(0xFF667085),
                                   ),
                                 ),
                                 const SizedBox(height: 3),
@@ -440,7 +526,7 @@ class _TicketScreenState extends State<TicketScreen> {
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w600,
-                                    color: stripeColor,
+                                    color: isDark ? AppColors.primaryDark : stripeColor,
                                   ),
                                 ),
                               ],
@@ -473,40 +559,91 @@ class _TicketScreenState extends State<TicketScreen> {
                       const _CardDashedLine(),
                       const SizedBox(height: 10),
 
-                      // Bagian Bawah: Sisa Hari & Tombol "Lihat tiket"
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${ticket.daysLeft} hari lagi',
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              color: Color(0xFF667085),
-                            ),
-                          ),
-                          SizedBox(
-                            height: 36,
-                            child: ElevatedButton(
-                              onPressed: () => _onViewTicketPressed(ticket),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1D2939), // Tombol gelap
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              child: const Text(
-                                'Lihat tiket',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                      // Bagian Bawah: Sisa Hari & Tombol Aksi ("Bagikan QR" & "Lihat tiket")
+                      SizedBox(
+                        width: double.infinity,
+                        child: Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            Text(
+                              isRefund
+                                  ? '${ticket.daysLeft} hari lagi'
+                                  : '${ticket.daysLeft} hari lagi · ${ticket.qrScanQuota}x scan',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? AppColors.darkTextSecondary : const Color(0xFF475467),
                               ),
                             ),
-                          ),
-                        ],
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                if (!isRefund && !ticket.isCompleted)
+                                  SizedBox(
+                                    height: 44,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () =>
+                                          ShareGateQrSheet.show(context, ticket),
+                                      icon: const Icon(
+                                        Icons.share_rounded,
+                                        size: 15,
+                                        color: AppColors.primary,
+                                      ),
+                                      label: const Text(
+                                        'Bagikan QR',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                        ),
+                                        side: const BorderSide(
+                                          color: AppColors.primary,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                SizedBox(
+                                  height: 44,
+                                  child: ElevatedButton(
+                                    onPressed: () =>
+                                        _onViewTicketPressed(ticket),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF1D2939),
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Lihat tiket',
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -525,13 +662,13 @@ class _TicketScreenState extends State<TicketScreen> {
 
     if (status == 'Aktif') {
       bg = const Color(0xFFECFDF5);
-      text = const Color(0xFF10B981);
+      text = const Color(0xFF065F46);
     } else if (status == 'Reffund' || status.toLowerCase().contains('refund')) {
       bg = const Color(0xFFFEE2E2);
-      text = const Color(0xFFEF4444);
+      text = const Color(0xFF991B1B);
     } else {
       bg = const Color(0xFFF2F4F7);
-      text = const Color(0xFF667085);
+      text = const Color(0xFF475467);
     }
 
     return Container(
@@ -594,29 +731,50 @@ class _CardDashedLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final boxWidth = constraints.constrainWidth();
-        const dashWidth = 5.0;
-        const dashHeight = 1.0;
-        const dashSpace = 4.0;
-        final dashCount = (boxWidth / (dashWidth + dashSpace)).floor();
-        return Flex(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          direction: Axis.horizontal,
-          children: List.generate(dashCount, (_) {
-            return const SizedBox(
-              width: dashWidth,
-              height: dashHeight,
-              child: DecoratedBox(
-                decoration: BoxDecoration(color: Color(0xFFE4E7EC)),
-              ),
-            );
-          }),
-        );
-      },
+    return const SizedBox(
+      height: 1,
+      width: double.infinity,
+      child: CustomPaint(
+        painter: _HorizontalDashedLinePainter(
+          color: Color(0xFFE4E7EC),
+          dashWidth: 5.0,
+          dashSpace: 4.0,
+        ),
+      ),
     );
   }
+}
+
+class _HorizontalDashedLinePainter extends CustomPainter {
+  final Color color;
+  final double dashWidth;
+  final double dashSpace;
+
+  const _HorizontalDashedLinePainter({
+    required this.color,
+    this.dashWidth = 5.0,
+    this.dashSpace = 4.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.0;
+
+    double startX = 0;
+    while (startX < size.width) {
+      canvas.drawLine(
+        Offset(startX, 0.5),
+        Offset(startX + dashWidth, 0.5),
+        paint,
+      );
+      startX += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _HorizontalDashedLinePainter oldDelegate) => false;
 }
 
 class _DashedRectPainter extends CustomPainter {

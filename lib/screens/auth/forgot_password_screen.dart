@@ -1,19 +1,34 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../services/data_service.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_header.dart';
 import '../../widgets/primary_button.dart';
 import 'otp_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  final String? initialEmail;
+  final bool returnToCaller;
+
+  const ForgotPasswordScreen({
+    super.key,
+    this.initialEmail,
+    this.returnToCaller = false,
+  });
+
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _email = TextEditingController();
+  late final TextEditingController _email;
+
+  @override
+  void initState() {
+    super.initState();
+    _email = TextEditingController(text: widget.initialEmail ?? '');
+  }
 
   @override
   void dispose() {
@@ -21,16 +36,36 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    final emailText = _email.text.trim();
+
+    if (widget.returnToCaller) {
+      final result = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OtpScreen(
+            email: emailText,
+            returnToCaller: true,
+          ),
+        ),
+      );
+      if (result == true && mounted) {
+        Navigator.pop(context, true);
+      }
+      return;
+    }
+
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => OtpScreen(email: _email.text.trim())),
+      MaterialPageRoute(builder: (_) => OtpScreen(email: emailText)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final activeUserEmail = DataService().currentUser?.email;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -42,7 +77,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 AuthHeader(
-                  height: 250,
+                  height: 240,
                   child: Image.asset(
                     'assets/images/forgot-password-logo.png',
                     height: 110,
@@ -54,13 +89,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                InkWell(
-                  onTap: () => Navigator.pop(context),
-                  borderRadius: BorderRadius.circular(20),
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.chevron_left, size: 28, color: AppColors.textDark),
+                const SizedBox(height: 16),
+                IconButton(
+                  tooltip: 'Kembali',
+                  onPressed: () => Navigator.pop(context),
+                  constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF2F4F7),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(
+                    Icons.chevron_left,
+                    size: 26,
+                    color: AppColors.textDark,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -73,9 +116,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Masukkan Email Pemulihan',
-                  style: TextStyle(
+                Text(
+                  widget.returnToCaller
+                      ? 'Verifikasi email akunmu untuk menerima kode verifikasi 5 digit'
+                      : 'Masukkan Email Pemulihan',
+                  style: const TextStyle(
                     fontSize: 13,
                     color: AppColors.textGrey,
                   ),
@@ -86,10 +131,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   icon: Icons.mail_outline,
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
-                  validator: (v) => (v == null || !v.contains('@')) ? 'Email tidak valid' : null,
+                  validator: (v) {
+                    if (v == null || !v.trim().contains('@')) {
+                      return 'Email tidak valid';
+                    }
+                    if (widget.returnToCaller &&
+                        activeUserEmail != null &&
+                        activeUserEmail.isNotEmpty &&
+                        v.trim().toLowerCase() != activeUserEmail.toLowerCase()) {
+                      return 'Email harus sesuai akun aktif ($activeUserEmail)';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 28),
-                PrimaryButton(text: 'Masuk', onPressed: _submit),
+                PrimaryButton(
+                  text: widget.returnToCaller ? 'Kirim Kode Verifikasi' : 'Masuk',
+                  onPressed: _submit,
+                ),
               ],
             ),
           ),

@@ -104,19 +104,20 @@ class RefundStatusScreen extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final viewTop = MediaQuery.of(context).viewPadding.top;
+    final topSpacing = viewTop > 0 ? viewTop + 14 : 36.0;
+
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
         gradient: AppColors.headerGradient,
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Back Button
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, topSpacing, 20, 28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Back Button
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: const Row(
@@ -178,8 +179,7 @@ class RefundStatusScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildTimelineStepper() {

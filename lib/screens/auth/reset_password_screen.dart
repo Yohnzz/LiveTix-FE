@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../services/data_service.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_header.dart';
 import '../../widgets/primary_button.dart';
@@ -7,8 +8,13 @@ import 'login_screen.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   final String email;
+  final bool returnToCaller;
 
-  const ResetPasswordScreen({super.key, required this.email});
+  const ResetPasswordScreen({
+    super.key,
+    required this.email,
+    this.returnToCaller = false,
+  });
 
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
@@ -33,20 +39,30 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Konfirmasi kata sandi tidak cocok'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: Color(0xFFB91C1C),
         ),
       );
+      return;
+    }
+
+    DataService().resetPasswordByEmail(
+      email: widget.email,
+      newPassword: _newPassword.text,
+    );
+
+    if (widget.returnToCaller) {
+      Navigator.pop(context, true);
       return;
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Kata sandi berhasil diperbarui! Silakan masuk kembali.'),
-        backgroundColor: Colors.green,
+        backgroundColor: Color(0xFF166534),
       ),
     );
 
-    // Navigasi kembali ke halaman Login
+    // Navigasi kembali ke halaman Login jika diakses dari luar sesi profil
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -67,7 +83,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 AuthHeader(
-                  height: 230,
+                  height: 220,
                   child: Image.asset(
                     'assets/images/forgot-password-logo.png',
                     height: 100,
@@ -79,13 +95,21 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                InkWell(
-                  onTap: () => Navigator.pop(context),
-                  borderRadius: BorderRadius.circular(20),
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.chevron_left, size: 28, color: AppColors.textDark),
+                const SizedBox(height: 16),
+                IconButton(
+                  tooltip: 'Kembali',
+                  onPressed: () => Navigator.pop(context),
+                  constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF2F4F7),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(
+                    Icons.chevron_left,
+                    size: 26,
+                    color: AppColors.textDark,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -133,7 +157,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 ),
                 const SizedBox(height: 28),
 
-                PrimaryButton(text: 'Kirim data', onPressed: _submit),
+                PrimaryButton(
+                  text: widget.returnToCaller ? 'Simpan Kata Sandi' : 'Kirim data',
+                  onPressed: _submit,
+                ),
               ],
             ),
           ),

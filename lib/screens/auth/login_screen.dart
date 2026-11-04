@@ -32,6 +32,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final passwordText = _password.text.trim();
 
     final user = DummyDataService().login(emailText, passwordText);
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Email atau kata sandi tidak sesuai'),
+          backgroundColor: Color(0xFFB91C1C),
+        ),
+      );
+      return;
+    }
 
     // Navigasi ke Home User (Logged-in state)
     Navigator.pushReplacement(
@@ -39,8 +48,8 @@ class _LoginScreenState extends State<LoginScreen> {
       MaterialPageRoute(
         builder: (_) => HomeScreen(
           isGuest: false,
-          userName: user?.name.split(' ').first ?? 'Rafi',
-          userInitials: user?.initials ?? 'RF',
+          userName: user.name,
+          userInitials: user.initials,
         ),
       ),
     );
@@ -48,12 +57,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final viewTop = MediaQuery.of(context).viewPadding.top;
+    final topSpacing = viewTop > 0 ? viewTop + 12 : 32.0;
+
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Form(
+      body: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(20, topSpacing, 20, 16),
+        child: Form(
             key: _formKey,
             child: Column(
               children: [
@@ -121,7 +132,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }
