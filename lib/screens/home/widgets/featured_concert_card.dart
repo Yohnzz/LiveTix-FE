@@ -1,182 +1,445 @@
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../core/app_colors.dart';
+import '../../../models/concert_model.dart';
+import '../../../services/data_service.dart';
+import '../../../widgets/concert_media.dart';
 
-class FeaturedConcertCard extends StatelessWidget {
-  final VoidCallback? onTap;
+class FeaturedConcertCarousel extends StatefulWidget {
+  final List<ConcertModel> concerts;
+  final ValueChanged<ConcertModel> onConcertTap;
 
-  const FeaturedConcertCard({super.key, this.onTap});
+  const FeaturedConcertCarousel({
+    super.key,
+    required this.concerts,
+    required this.onConcertTap,
+  });
+
+  @override
+  State<FeaturedConcertCarousel> createState() => _FeaturedConcertCarouselState();
+}
+
+class _FeaturedConcertCarouselState extends State<FeaturedConcertCarousel> {
+  static const List<List<Color>> _stageGradients = [
+    [Color(0xFF271C80), Color(0xFF971C91)],
+    [Color(0xFF0F3D5E), Color(0xFF1B2A8C)],
+    [Color(0xFF4A154B), Color(0xFF971C91)],
+    [Color(0xFF1E1B4B), Color(0xFF6B1D5C)],
+    [Color(0xFF1B2A8C), Color(0xFF6B1D5C)],
+  ];
+
+  static const List<String> _ribbonLabels = [
+    'Pilihan',
+    'Tur Spesial',
+    'Reuni',
+    'Populer',
+    'Konser Tunggal',
+  ];
+
+  late final PageController _pageController;
+  Timer? _autoSlideTimer;
+  int _currentIndex = 0;
+  bool _isUserDragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 0.91);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (reduceMotion) {
+      _autoSlideTimer?.cancel();
+    } else {
+      _startOrResetAutoSlide();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant FeaturedConcertCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.concerts.length != widget.concerts.length) {
+      if (_currentIndex >= widget.concerts.length) {
+        _currentIndex = 0;
+      }
+      _startOrResetAutoSlide();
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoSlideTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _startOrResetAutoSlide() {
+    _autoSlideTimer?.cancel();
+    if (widget.concerts.length <= 1) return;
+    final reduceMotion =
+        mounted ? (MediaQuery.maybeDisableAnimationsOf(context) ?? false) : false;
+    if (reduceMotion) return;
+
+    _autoSlideTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || _isUserDragging || !_pageController.hasClients) {
+        return;
+      }
+      final nextPage = (_currentIndex + 1) % widget.concerts.length;
+      _pageController.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 480),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  void _jumpToSlide(int index) {
+    if (!_pageController.hasClients) return;
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutCubic,
+    );
+    _startOrResetAutoSlide();
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.concerts.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Kartu Utama Bergradasi
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: double.infinity,
-            height: 190,
-            decoration: BoxDecoration(
-              gradient: AppColors.headerGradient,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x1F1B2A8C),
-                  blurRadius: 16,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                // Pita Kuning "★ Pilihan" di kiri atas
-                Positioned(
-                  top: 18,
-                  left: 16,
-                  child: ClipPath(
-                    clipper: _RibbonClipper(),
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(10, 6, 18, 6),
-                      color: AppColors.bannerYellow,
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.star, size: 14, color: Color(0xFF78350F)),
-                          SizedBox(width: 4),
-                          Text(
-                            'Pilihan',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF78350F),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+        SizedBox(
+          height: 196,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification is ScrollStartNotification &&
+                  notification.dragDetails != null) {
+                _isUserDragging = true;
+                _autoSlideTimer?.cancel();
+              } else if (notification is ScrollEndNotification) {
+                if (_isUserDragging) {
+                  _isUserDragging = false;
+                  _startOrResetAutoSlide();
+                }
+              }
+              return false;
+            },
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: const {
+                  PointerDeviceKind.touch,
+                  PointerDeviceKind.mouse,
+                  PointerDeviceKind.trackpad,
+                },
+              ),
+              child: ValueListenableBuilder<Set<String>>(
+                valueListenable: DataService().favoriteConcertIdsNotifier,
+                builder: (context, favoriteIds, _) {
+                  return PageView.builder(
+                    controller: _pageController,
+                    padEnds: false,
+                    physics: const PageScrollPhysics(),
+                    itemCount: widget.concerts.length,
+                    onPageChanged: (index) {
+                      setState(() => _currentIndex = index);
+                    },
+                    itemBuilder: (context, index) {
+                      final concert = widget.concerts[index];
+                      final gradientColors = concert.highlightGradientColors.isNotEmpty
+                          ? concert.highlightGradientColors
+                          : _stageGradients[index % _stageGradients.length];
+                      final ribbonText = _ribbonLabels[index % _ribbonLabels.length];
+                      final isLast = index == widget.concerts.length - 1;
+                      final isFav = favoriteIds.contains(concert.id);
 
-                // Ikon Bintang & Heart di kanan atas
-                Positioned(
-                  top: 18,
-                  right: 16,
-                  child: Row(
-                    children: [
-                      const Icon(Icons.star_border, color: Colors.white70, size: 20),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        icon: const Icon(Icons.favorite_border, color: Colors.white, size: 20),
-                        onPressed: () {},
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Dekorasi partikel (bintang, titik, segitiga)
-                const Positioned(top: 60, left: 28, child: Icon(Icons.star_border, color: Colors.amber, size: 16)),
-                const Positioned(top: 50, left: 110, child: _Dot(size: 6, color: Colors.purpleAccent)),
-                const Positioned(top: 65, left: 88, child: _Dot(size: 5, color: Colors.amber)),
-                const Positioned(top: 62, right: 90, child: Icon(Icons.star_border, color: Colors.amber, size: 16)),
-                const Positioned(top: 58, right: 36, child: _Dot(size: 5, color: Colors.amber)),
-                const Positioned(top: 88, right: 38, child: _Dot(size: 5, color: Colors.white)),
-                const Positioned(top: 96, right: 8, child: _Triangle(size: 6, color: Colors.white70)),
-                const Positioned(top: 110, right: 10, child: _Triangle(size: 6, color: Colors.white70)),
-                const Positioned(top: 120, right: 48, child: _Triangle(size: 6, color: Colors.purpleAccent)),
-                const Positioned(bottom: 22, left: 32, child: _Dot(size: 4, color: Colors.purpleAccent)),
-                const Positioned(bottom: 30, left: 44, child: _Dot(size: 6, color: Colors.amber)),
-                const Positioned(bottom: 40, left: 66, child: _Triangle(size: 6, color: Colors.amber)),
-                const Positioned(bottom: 24, left: 108, child: _Triangle(size: 6, color: Colors.purpleAccent)),
-                const Positioned(bottom: 35, right: 120, child: _Dot(size: 5, color: Colors.amber)),
-                const Positioned(bottom: 26, right: 108, child: _Dot(size: 4, color: Colors.amber)),
-                const Positioned(bottom: 30, right: 44, child: _Dot(size: 4, color: Colors.white)),
-                const Positioned(bottom: 20, right: 52, child: Icon(Icons.star_border, color: Colors.purpleAccent, size: 14)),
-
-                // Teks Utama Konser di bagian bawah
-                const Positioned(
-                  left: 16,
-                  bottom: 20,
-                  right: 16,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '• Soundwave Fest 2026',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: -0.2,
+                      return Padding(
+                        padding: EdgeInsets.only(right: isLast ? 0 : 12),
+                        child: FeaturedConcertCard(
+                          concert: concert,
+                          gradientColors: gradientColors,
+                          ribbonLabel: ribbonText,
+                          isFavorite: isFav,
+                          onFavoriteToggle: () =>
+                              DataService().toggleFavorite(concert.id),
+                          onTap: () => widget.onConcertTap(concert),
                         ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        '12 Okt · Stadion Gajayana',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 10),
-
-        // Indikator Pemesan di bawah kartu
-        const Row(
-          children: [
-            SizedBox(
-              width: 48,
-              height: 20,
-              child: Stack(
-                children: [
-                  _AvatarCircle(left: 0, color: Color(0xFFFCE7F3)),
-                  _AvatarCircle(left: 12, color: Color(0xFFE0F2FE)),
-                  _AvatarCircle(left: 24, color: Color(0xFFFEF3C7)),
-                ],
+        if (widget.concerts.length > 1) ...[
+          // Indikator titik posisi slide berjajar horizontal (inline) tepat di tengah tanpa penomoran & tombol jeda
+          Center(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(widget.concerts.length, (index) {
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      right: index == widget.concerts.length - 1 ? 0 : 2,
+                    ),
+                    child: _CarouselDotIndicator(
+                      index: index,
+                      isActive: index == _currentIndex,
+                      onTap: () => _jumpToSlide(index),
+                    ),
+                  );
+                }),
               ),
             ),
-            SizedBox(width: 8),
-            Text(
-              '128 orang sudah pesan tiket ini',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textGrey,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ],
     );
   }
 }
 
-class _AvatarCircle extends StatelessWidget {
-  final double left;
-  final Color color;
+class _CarouselDotIndicator extends StatefulWidget {
+  final int index;
+  final bool isActive;
+  final VoidCallback onTap;
 
-  const _AvatarCircle({required this.left, required this.color});
+  const _CarouselDotIndicator({
+    required this.index,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  State<_CarouselDotIndicator> createState() => _CarouselDotIndicatorState();
+}
+
+class _CarouselDotIndicatorState extends State<_CarouselDotIndicator> {
+  bool _isHovered = false;
+  bool _isFocused = false;
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      left: left,
+    final isDark = AppColors.isDark(context);
+    final dotColor = widget.isActive
+        ? (isDark ? AppColors.primaryDark : AppColors.primary)
+        : (_isHovered
+            ? (isDark ? const Color(0xFF64748B) : const Color(0xFF98A2B3))
+            : (isDark ? const Color(0xFF334155) : const Color(0xFFD0D5DD)));
+
+    return Semantics(
+      button: true,
+      selected: widget.isActive,
+      excludeSemantics: true,
+      label: 'Slide highlight ${widget.index + 1}',
+      child: InkWell(
+        onTap: widget.onTap,
+        onHover: (hovered) => setState(() => _isHovered = hovered),
+        onFocusChange: (focused) => setState(() => _isFocused = focused),
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: widget.isActive ? 32 : 16,
+          height: 44,
+          child: Center(
+            widthFactor: 1.0,
+            heightFactor: 1.0,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              width: widget.isActive ? 24 : 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: dotColor,
+                borderRadius: BorderRadius.circular(8),
+                border: _isFocused
+                    ? Border.all(color: AppColors.primary, width: 1.5)
+                    : null,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class FeaturedConcertCard extends StatelessWidget {
+  final ConcertModel? concert;
+  final List<Color>? gradientColors;
+  final String ribbonLabel;
+  final bool isFavorite;
+  final VoidCallback? onFavoriteToggle;
+  final VoidCallback? onTap;
+
+  const FeaturedConcertCard({
+    super.key,
+    this.concert,
+    this.gradientColors,
+    this.ribbonLabel = 'Pilihan',
+    this.isFavorite = false,
+    this.onFavoriteToggle,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final title = concert?.title ?? 'Soundwave Fest 2026';
+    final dateVenue = concert != null
+        ? '${concert!.shortDate} · ${concert!.venue}'
+        : '12 Okt 2026 · Stadion Gajayana, Malang';
+    final categoryPrice = concert != null
+        ? '${concert!.category} · Mulai ${concert!.formattedPrice}'
+        : 'Pop · Mulai Rp220.000';
+
+    return Semantics(
+      button: true,
+      label: 'Highlight konser $title, $dateVenue',
       child: Container(
-        width: 18,
-        height: 18,
+        width: double.infinity,
+        height: 196,
         decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 1.5),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1F1B2A8C),
+              blurRadius: 14,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: ConcertHighlightBannerSurface(
+              concert: concert,
+              gradientOverride: gradientColors,
+              borderRadius: BorderRadius.circular(20),
+              child: Stack(
+                children: [
+                  // Pita kuning di kiri atas
+                  Positioned(
+                    top: 16,
+                    left: 16,
+                    child: ClipPath(
+                      clipper: _RibbonClipper(),
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(10, 6, 18, 6),
+                        color: AppColors.bannerYellow,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 14,
+                              color: Color(0xFF451A03),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              ribbonLabel,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF451A03),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Tombol favorit interaktif di kanan atas (44x44 tap target)
+                  if (onFavoriteToggle != null)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: IconButton(
+                        tooltip:
+                            isFavorite ? 'Hapus dari favorit' : 'Simpan ke favorit',
+                        onPressed: onFavoriteToggle,
+                        constraints: const BoxConstraints(
+                          minWidth: 44,
+                          minHeight: 44,
+                        ),
+                        icon: Icon(
+                          isFavorite
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          color:
+                              isFavorite ? AppColors.favoritePink : Colors.white,
+                          size: 22,
+                        ),
+                      ),
+                    ),
+
+                  // Informasi utama konser di bagian bawah kartu
+                  Positioned(
+                    left: 16,
+                    bottom: 18,
+                    right: 16,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.34),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            categoryPrice,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          dateVenue,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -197,51 +460,4 @@ class _RibbonClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
-class _Dot extends StatelessWidget {
-  final double size;
-  final Color color;
-  const _Dot({required this.size, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
-  }
-}
-
-class _Triangle extends StatelessWidget {
-  final double size;
-  final Color color;
-  const _Triangle({required this.size, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size),
-      painter: _TriangleCustomPainter(color),
-    );
-  }
-}
-
-class _TriangleCustomPainter extends CustomPainter {
-  final Color color;
-  _TriangleCustomPainter(this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path()
-      ..moveTo(size.width / 2, 0)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(path, Paint()..color = color);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

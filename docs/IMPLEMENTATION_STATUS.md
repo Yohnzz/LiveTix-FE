@@ -1,14 +1,13 @@
-# IMPLEMENTATION STATUS — LiveTix
+# IMPLEMENTATION STATUS - LiveTix
 
 ## Legenda
-- ✅ Selesai & dapat dijalankan
-- 🚧 Sebagian — UI ada, integrasi API belum
+- ✅ Selesai & teruji otomatis
+- 🚧 Sebagian - UI & kontrak model siap, menunggu modul Produser / integrasi API backend
 - ⏳ Belum dimulai
-- ❌ Bermasalah / perlu perbaikan
 
 ---
 
-## Layar & Fitur Pengguna
+## Layar, Komponen, & Fitur Pengguna
 
 | Fitur / Halaman | File | Status | Catatan |
 |-----------------|------|--------|---------|

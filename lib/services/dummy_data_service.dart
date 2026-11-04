@@ -2,24 +2,15 @@ import 'package:flutter/material.dart';
 import '../models/concert_model.dart';
 import '../models/ticket_order_model.dart';
 import '../models/user_model.dart';
+import 'data_service.dart';
 
+/// Adapter kompatibilitas ke DataService.
+/// Memastikan seluruh layar yang mengimpor DummyDataService tetap berjalan mulus
+/// sambil mengonsumsi data terpusat dari DataService dan DbDummy.
 class DummyDataService {
-  // Singleton pattern
   static final DummyDataService _instance = DummyDataService._internal();
   factory DummyDataService() => _instance;
-  DummyDataService._internal() {
-    _initData();
-  }
-
-  // Notifiers untuk reaktivitas UI
-  final ValueNotifier<UserModel?> currentUserNotifier = ValueNotifier<UserModel?>(null);
-  final ValueNotifier<List<UserTicketModel>> userTicketsNotifier = ValueNotifier<List<UserTicketModel>>([]);
-
-  // Penyimpanan Data Pengguna
-  final Map<String, UserModel> _users = {};
-
-  // Penyimpanan Data Konser
-  final List<ConcertModel> _concerts = [];
+  DummyDataService._internal();
 
   void _initData() {
     // 1. Data Akun Default
@@ -187,8 +178,10 @@ class DummyDataService {
       ),
     ]);
   }
+  final DataService _dataService = DataService();
 
-  // --- API Autentikasi Dummy ---
+  ValueNotifier<UserModel?> get currentUserNotifier => _dataService.currentUserNotifier;
+  ValueNotifier<List<UserTicketModel>> get userTicketsNotifier => _dataService.userTicketsNotifier;
 
   UserModel? login(String email, String password) {
     final user = _users[email.trim().toLowerCase()];
@@ -225,65 +218,33 @@ class DummyDataService {
     required String password,
     String role = 'User',
   }) {
-    final newUser = UserModel(
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
+    return _dataService.registerSync(
+      name: name,
+      email: email,
+      phone: phone,
       password: password,
       role: role,
     );
-    _users[email.trim().toLowerCase()] = newUser;
-    currentUserNotifier.value = newUser;
-    return newUser;
   }
 
   void logout() {
-    currentUserNotifier.value = null;
+    _dataService.logout();
   }
 
-  // --- API Konser Dummy ---
-
-  List<ConcertModel> getConcerts() => List.unmodifiable(_concerts);
-
-  ConcertModel? getConcertById(String id) {
-    try {
-      return _concerts.firstWhere((c) => c.id == id);
-    } catch (_) {
-      return null;
-    }
+  List<ConcertModel> getConcerts() {
+    return _dataService.rawConcerts;
   }
 
-  // --- API Tiket Dummy ---
-
-  List<UserTicketModel> getUserTickets() => userTicketsNotifier.value;
+  void submitOrder(OrderModel order) {
+    _dataService.submitOrder(order);
+  }
 
   void addPurchasedTicket(UserTicketModel ticket) {
-    final updatedList = List<UserTicketModel>.from(userTicketsNotifier.value);
-    updatedList.insert(0, ticket); // tambahkan ke posisi teratas
-    userTicketsNotifier.value = updatedList;
-
-    // Perbarui counter tiket pengguna jika login
-    final current = currentUserNotifier.value;
-    if (current != null) {
-      currentUserNotifier.value = UserModel(
-        name: current.name,
-        email: current.email,
-        phone: current.phone,
-        password: current.password,
-        role: current.role,
-        ticketsBought: current.ticketsBought + ticket.quantity,
-        concertsAttended: current.concertsAttended,
-        reviewsCount: current.reviewsCount,
-      );
-    }
+    _dataService.addPurchasedTicket(ticket);
   }
 
-  UserTicketModel? getTicketById(String id) {
-    try {
-      return userTicketsNotifier.value.firstWhere((t) => t.id == id);
-    } catch (_) {
-      return null;
-    }
+  UserTicketModel completeOrderPayment(OrderModel order) {
+    return _dataService.completeOrderPayment(order);
   }
 
   RefundModel submitRefund({
@@ -296,7 +257,8 @@ class DummyDataService {
     final tickets = List<UserTicketModel>.from(userTicketsNotifier.value);
     final index = tickets.indexWhere((t) => t.id == ticketId);
 
-    final refundId = 'RFD-${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}-0042';
+    final refundId =
+        'RFD-${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}-0042';
     final maskAccount = accountNumber.length >= 4
         ? '••${accountNumber.substring(accountNumber.length - 4)}'
         : '••$accountNumber';
