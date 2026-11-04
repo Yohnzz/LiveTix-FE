@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../data/admin_dummy.dart';
 import '../models/approval_models.dart';
+import 'data_service.dart';
 
 enum AdminLoadState { loading, ready, error }
 
@@ -160,6 +161,48 @@ class AdminService {
       list[index] = list[index].copyWith(isActive: !list[index].isActive);
       usersNotifier.value = list;
     }
+  }
+
+  ManagedUserModel? updateUserName(String userId, String newName) {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) return null;
+    final list = List<ManagedUserModel>.from(usersNotifier.value);
+    final index = list.indexWhere((u) => u.id == userId);
+    if (index == -1) return null;
+    final updated = list[index].copyWith(name: trimmed);
+    list[index] = updated;
+    usersNotifier.value = list;
+
+    final dataService = DataService();
+    final active = dataService.currentUser;
+    if (active != null &&
+        (active.email.toLowerCase() == updated.email.toLowerCase() ||
+            active.id == updated.id)) {
+      dataService.updateProfile(name: trimmed);
+    }
+    return updated;
+  }
+
+  ManagedUserModel? updateUserPassword(String userId, String newPassword) {
+    final trimmed = newPassword.trim();
+    if (trimmed.isEmpty) return null;
+    final list = List<ManagedUserModel>.from(usersNotifier.value);
+    final index = list.indexWhere((u) => u.id == userId);
+    if (index == -1) return null;
+    final updated = list[index].copyWith(password: trimmed);
+    list[index] = updated;
+    usersNotifier.value = list;
+
+    final dataService = DataService();
+    dataService.resetPasswordByEmail(email: updated.email, newPassword: trimmed);
+    final active = dataService.currentUser;
+    if (active != null &&
+        (active.email.toLowerCase() == updated.email.toLowerCase() ||
+            active.id == updated.id)) {
+      dataService.currentUserNotifier.value =
+          active.copyWith(password: trimmed);
+    }
+    return updated;
   }
 
   /// Mengembalikan model terbaru, atau null bila id tidak ada atau sudah diputuskan.

@@ -6,6 +6,7 @@ import 'admin_concert_detail_screen.dart';
 import 'admin_notification_screen.dart';
 import 'admin_producer_detail_screen.dart';
 import 'admin_refund_monitoring_screen.dart';
+import 'admin_shell.dart';
 import 'widgets/admin_theme.dart';
 import 'widgets/admin_widgets.dart';
 
@@ -31,17 +32,9 @@ class AdminDashboardScreen extends StatelessWidget {
                 (user?.name ?? 'Admin').trim().split(RegExp(r'\s+')).first;
             return Column(
               children: [
-                AdminHeader(
-                  eyebrow: 'Dashboard Utama',
-                  title: 'Halo, $firstName',
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const _NotificationButton(),
-                      const SizedBox(width: 8),
-                      _HeaderAvatar(initials: user?.initials ?? 'AD'),
-                    ],
-                  ),
+                _DashboardHeader(
+                  firstName: firstName,
+                  initials: user?.initials ?? 'AD',
                 ),
                 Expanded(child: _body(context, service, state)),
               ],
@@ -71,6 +64,158 @@ class AdminDashboardScreen extends StatelessWidget {
   }
 }
 
+class _DashboardHeader extends StatelessWidget {
+  final String firstName;
+  final String initials;
+
+  const _DashboardHeader({
+    required this.firstName,
+    required this.initials,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.of(context).padding.top;
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1.3,
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: AdminColors.gradient,
+          borderRadius:
+              const BorderRadius.vertical(bottom: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF3B1478).withValues(alpha: 0.18),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius:
+              const BorderRadius.vertical(bottom: Radius.circular(24)),
+          child: Stack(
+            children: [
+              // Lingkaran dekoratif halus agar tampilan header bernuansa dinamis & tidak kaku
+              Positioned(
+                top: -35,
+                right: -25,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 130,
+                    height: 130,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: -40,
+                left: 15,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.05),
+                    ),
+                  ),
+                ),
+              ),
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.fromLTRB(20, top + 18, 20, 20),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Status badge pill dengan indikator online aktif
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 9, vertical: 3.5),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.22),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF4ADE80),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                const Flexible(
+                                  child: Text(
+                                    'Dashboard Utama',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Semantics(
+                            header: true,
+                            child: Text(
+                              'Halo, $firstName',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: -0.3,
+                                height: 1.25,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const _NotificationButton(),
+                        const SizedBox(width: 8),
+                        _HeaderAvatar(initials: initials),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _NotificationButton extends StatelessWidget {
   const _NotificationButton();
 
@@ -82,11 +227,15 @@ class _NotificationButton extends StatelessWidget {
       builder: (context, _) {
         final unread = service.unreadNotificationCount;
         return Container(
-          width: 44,
-          height: 44,
+          width: 42,
+          height: 42,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.22),
+            color: Colors.white.withValues(alpha: 0.18),
             shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.28),
+              width: 1,
+            ),
           ),
           child: Stack(
             alignment: Alignment.center,
@@ -102,19 +251,23 @@ class _NotificationButton extends StatelessWidget {
                 icon: const Icon(
                   Icons.notifications_none_rounded,
                   color: Colors.white,
-                  size: 22,
+                  size: 21,
                 ),
               ),
               if (unread > 0)
                 Positioned(
-                  top: 9,
-                  right: 9,
+                  top: 7,
+                  right: 7,
                   child: Container(
                     width: 9,
                     height: 9,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEF4444),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
                       shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                 ),
@@ -135,21 +288,41 @@ class _HeaderAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       label: 'Akun Super Admin',
-      child: Container(
-        width: 48,
-        height: 48,
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: AdminColors.amberAvatar,
-          shape: BoxShape.circle,
-        ),
-        child: ExcludeSemantics(
-          child: Text(
-            initials,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: AdminColors.textDark,
+      button: true,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: () => AdminNavigation.tab.value = 3,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AdminColors.amberAvatar,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.9),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ExcludeSemantics(
+              child: Text(
+                initials,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AdminColors.textDark,
+                ),
+              ),
             ),
           ),
         ),

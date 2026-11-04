@@ -33,6 +33,80 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     super.dispose();
   }
 
+  Future<void> _showChangeNameDialog(ManagedUserModel user) async {
+    final controller = TextEditingController(text: user.name);
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Ganti Nama Pengguna',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ubah nama untuk akun ${user.email}:',
+                style: const TextStyle(fontSize: 13, color: AdminColors.textGrey),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: controller,
+                autofocus: true,
+                style: const TextStyle(fontSize: 14, color: AdminColors.textDark),
+                decoration: InputDecoration(
+                  labelText: 'Nama Baru',
+                  hintText: 'Masukkan nama baru',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Nama tidak boleh kosong';
+                  }
+                  if (v.trim().length < 2) return 'Nama minimal 2 karakter';
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (!formKey.currentState!.validate()) return;
+              final newName = controller.text.trim();
+              _service.updateUserName(user.id, newName);
+              Navigator.of(dialogCtx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content:
+                      Text('Nama pengguna berhasil diubah menjadi "$newName"'),
+                  backgroundColor: const Color(0xFF166534),
+                ),
+              );
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF1E3A8A),
+            ),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AdminScope(
@@ -167,6 +241,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                 ),
                               );
                             },
+                            onEditName: () => _showChangeNameDialog(user),
                           );
                         },
                       ),
@@ -182,13 +257,18 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 class _UserCard extends StatelessWidget {
   final ManagedUserModel user;
   final VoidCallback onTap;
+  final VoidCallback onEditName;
 
-  const _UserCard({required this.user, required this.onTap});
+  const _UserCard({
+    required this.user,
+    required this.onTap,
+    required this.onEditName,
+  });
 
   @override
   Widget build(BuildContext context) {
     return AdminCard(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       onTap: onTap,
       child: Row(
         children: [
@@ -250,6 +330,56 @@ class _UserCard extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: _roleTextColor(user.role),
               ),
+            ),
+          ),
+          const SizedBox(width: 2),
+          // Action Menu
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: PopupMenuButton<String>(
+              tooltip: 'Menu Akun',
+              padding: EdgeInsets.zero,
+              iconSize: 18,
+              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+              icon: const Icon(
+                Icons.more_vert_rounded,
+                size: 18,
+                color: Color(0xFF94A3B8),
+              ),
+              onSelected: (val) {
+                if (val == 'name') {
+                  onEditName();
+                } else if (val == 'detail') {
+                  onTap();
+                }
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                  value: 'name',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined,
+                          size: 18, color: Color(0xFF1E3A8A)),
+                      SizedBox(width: 8),
+                      Text('Ganti Nama',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'detail',
+                  child: Row(
+                    children: [
+                      Icon(Icons.visibility_outlined,
+                          size: 18, color: AdminColors.textGrey),
+                      SizedBox(width: 8),
+                      Text('Lihat Detail', style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],

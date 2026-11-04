@@ -52,12 +52,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Color get _bgColor => _isDarkMode ? const Color(0xFF0F172A) : Colors.white;
-  Color get _cardColor => _isDarkMode ? const Color(0xFF1E293B) : Colors.white;
-  Color get _borderColor => _isDarkMode ? const Color(0xFF334155) : AppColors.border;
-  Color get _titleColor => _isDarkMode ? const Color(0xFFF8FAFC) : AppColors.textDark;
-  Color get _subtitleColor => _isDarkMode ? const Color(0xFFCBD5E1) : AppColors.textGrey;
-  Color get _iconBoxColor => _isDarkMode ? const Color(0xFF334155) : const Color(0xFFF2F4F7);
+  Color get _bgColor => _isDarkMode ? AppColors.darkBg : Colors.white;
+  Color get _cardColor => _isDarkMode ? AppColors.darkSurface : Colors.white;
+  Color get _borderColor => _isDarkMode ? AppColors.darkBorder : AppColors.border;
+  Color get _titleColor => _isDarkMode ? AppColors.darkText : AppColors.textDark;
+  Color get _subtitleColor => _isDarkMode ? AppColors.darkTextSecondary : AppColors.textGrey;
+  Color get _iconBoxColor => _isDarkMode ? AppColors.darkSurfaceVariant : const Color(0xFFF2F4F7);
 
   void _goToLogin() {
     Navigator.push(
@@ -129,50 +129,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final viewTop = MediaQuery.of(context).viewPadding.top;
-    final topSpacing = viewTop > 0 ? viewTop + 16 : 38.0;
+    return ValueListenableBuilder<bool>(
+      valueListenable: _dataService.isDarkModeNotifier,
+      builder: (context, isDarkMode, _) {
+        final viewTop = MediaQuery.of(context).viewPadding.top;
+        final topSpacing = viewTop > 0 ? viewTop + 16 : 38.0;
 
-    if (widget.isGuest) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: SingleChildScrollView(
-          padding: EdgeInsets.only(left: 20, right: 20, top: topSpacing, bottom: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Akun',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textDark,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Masuk ke akun untuk mengakses tiket dan pengaturan profil',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textGrey,
-                ),
-              ),
+        if (widget.isGuest) {
+          return Scaffold(
+            backgroundColor: _bgColor,
+            body: SingleChildScrollView(
+              padding: EdgeInsets.only(left: 20, right: 20, top: topSpacing, bottom: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Akun',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: _titleColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Masuk ke akun untuk mengakses tiket dan pengaturan profil',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _subtitleColor,
+                    ),
+                  ),
               const SizedBox(height: 22),
 
               // Kartu Guest + Tombol Masuk ke Akun saja tanpa menu user terautentikasi
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: _cardColor,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: _borderColor),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        GuestAvatarIcon(size: 54),
-                        SizedBox(width: 14),
+                        const GuestAvatarIcon(size: 54),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,15 +186,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 style: TextStyle(
                                   fontSize: 17,
                                   fontWeight: FontWeight.w700,
-                                  color: AppColors.textDark,
+                                  color: _titleColor,
                                 ),
                               ),
-                              SizedBox(height: 2),
+                              const SizedBox(height: 2),
                               Text(
                                 'Belum masuk akun',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: AppColors.textGrey,
+                                  color: _subtitleColor,
                                 ),
                               ),
                             ],
@@ -303,11 +306,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildPreferenceSwitchItem(
               icon: Icons.nightlight_round_outlined,
               title: 'Mode tampilan',
-              statusText: _isDarkMode ? 'Dark' : 'Light',
-              value: _isDarkMode,
+              statusText: isDarkMode ? 'Dark' : 'Light',
+              value: isDarkMode,
               onChanged: (val) {
                 _dataService.setDarkMode(val);
-                setState(() {});
               },
             ),
             const SizedBox(height: 20),
@@ -392,6 +394,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
+    );
+      },
     );
   }
 
@@ -605,41 +609,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: _iconBoxColor,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 20, color: _titleColor),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: _titleColor,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _iconBoxColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 20, color: _titleColor),
               ),
-            ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: _titleColor,
+                  ),
+                ),
+              ),
+              Text(
+                statusText,
+                style: TextStyle(fontSize: 13, color: _subtitleColor),
+              ),
+              const SizedBox(width: 8),
+              Switch(
+                key: const ValueKey('switch_mode_tampilan'),
+                value: value,
+                activeThumbColor: AppColors.primary,
+                onChanged: onChanged,
+              ),
+            ],
           ),
-          Text(
-            statusText,
-            style: TextStyle(fontSize: 13, color: _subtitleColor),
-          ),
-          const SizedBox(width: 8),
-          Switch(
-            value: value,
-            activeThumbColor: AppColors.primary,
-            onChanged: onChanged,
-          ),
-        ],
+        ),
       ),
     );
   }

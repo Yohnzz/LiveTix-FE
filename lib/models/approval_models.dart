@@ -644,6 +644,7 @@ class ManagedUserModel {
   final int concertsAttended;
   final bool hasFavorite;
   final List<UserTransactionModel> transactions;
+  final String password;
 
   const ManagedUserModel({
     required this.id,
@@ -657,6 +658,7 @@ class ManagedUserModel {
     this.concertsAttended = 0,
     this.hasFavorite = false,
     this.transactions = const [],
+    this.password = 'password123',
   });
 
   String get initials => ApprovalFormat.initialsOf(name);
@@ -674,6 +676,7 @@ class ManagedUserModel {
       ticketsBought: (json['tickets_bought'] as num?)?.toInt() ?? 0,
       concertsAttended: (json['concerts_attended'] as num?)?.toInt() ?? 0,
       hasFavorite: (json['has_favorite'] ?? false) as bool,
+      password: (json['password'] ?? 'password123') as String,
       transactions: rawTx is List
           ? rawTx
               .whereType<Map<String, dynamic>>()
@@ -694,6 +697,7 @@ class ManagedUserModel {
         'tickets_bought': ticketsBought,
         'concerts_attended': concertsAttended,
         'has_favorite': hasFavorite,
+        'password': password,
         'transactions': transactions.map((t) => t.toJson()).toList(),
       };
 
@@ -708,6 +712,7 @@ class ManagedUserModel {
     int? concertsAttended,
     bool? hasFavorite,
     List<UserTransactionModel>? transactions,
+    String? password,
   }) {
     return ManagedUserModel(
       id: id,
@@ -721,6 +726,7 @@ class ManagedUserModel {
       concertsAttended: concertsAttended ?? this.concertsAttended,
       hasFavorite: hasFavorite ?? this.hasFavorite,
       transactions: transactions ?? this.transactions,
+      password: password ?? this.password,
     );
   }
 }

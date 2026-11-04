@@ -59,6 +59,79 @@ class AdminUserDetailScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _showChangeNameDialog(
+      BuildContext context, ManagedUserModel user) async {
+    final controller = TextEditingController(text: user.name);
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Ganti Nama Pengguna',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ubah nama untuk akun ${user.email}:',
+                style: const TextStyle(fontSize: 13, color: AdminColors.textGrey),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: controller,
+                autofocus: true,
+                style: const TextStyle(fontSize: 14, color: AdminColors.textDark),
+                decoration: InputDecoration(
+                  labelText: 'Nama Baru',
+                  hintText: 'Masukkan nama pengguna',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Nama tidak boleh kosong';
+                  }
+                  if (v.trim().length < 2) return 'Nama minimal 2 karakter';
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (!formKey.currentState!.validate()) return;
+              final newName = controller.text.trim();
+              AdminService().updateUserName(user.id, newName);
+              Navigator.of(dialogCtx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content:
+                      Text('Nama pengguna berhasil diubah menjadi "$newName"'),
+                  backgroundColor: const Color(0xFF166534),
+                ),
+              );
+            },
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF1E3A8A)),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = AdminService();
@@ -225,6 +298,34 @@ class AdminUserDetailScreen extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 10),
+                // Tombol Aksi Kelola Akun: Ganti Nama Pengguna
+                SizedBox(
+                  width: double.infinity,
+                  height: 38,
+                  child: OutlinedButton.icon(
+                    key: const ValueKey('btn_ganti_nama'),
+                    onPressed: () => _showChangeNameDialog(context, user),
+                    icon: const Icon(Icons.edit_outlined, size: 15),
+                    label: const Text(
+                      'Ganti Nama',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF1E3A8A),
+                      side: const BorderSide(color: Color(0xFFBFDBFE)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
                 ),
               ],
             ),
