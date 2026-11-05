@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/promoter_models.dart';
 import '../../services/promoter_data_service.dart';
+import 'widgets/sales_trend_bar_chart.dart';
 
 class PromoterDashboardScreen extends StatelessWidget {
   final VoidCallback? onNavigateToConcerts;
@@ -38,35 +39,59 @@ class PromoterDashboardScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: cardBg,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: cardBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDarkMode ? 0.2 : 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'TOTAL KONSER',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: subtextColor,
-                      letterSpacing: 0.4,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'TOTAL KONSER',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: subtextColor,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1B2A8C).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.festival_outlined,
+                          size: 16,
+                          color: Color(0xFF1B2A8C),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Text(
                     '${service.totalConcerts}',
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 26,
                       fontWeight: FontWeight.w800,
                       color: textColor,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
                     'Aktif tahun ini',
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 11,
                       color: subtextColor,
                     ),
                   ),
@@ -78,39 +103,63 @@ class PromoterDashboardScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: cardBg,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: cardBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDarkMode ? 0.2 : 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'TIKET TERJUAL',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: subtextColor,
-                      letterSpacing: 0.4,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'TIKET TERJUAL',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: subtextColor,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFC2185B).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.confirmation_number_outlined,
+                          size: 16,
+                          color: Color(0xFFC2185B),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
                     child: Text(
                       service.formattedTicketsSold,
                       style: const TextStyle(
-                        fontSize: 28,
+                        fontSize: 26,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF1B2A8C), // Navy
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
                     service.ticketsSoldGrowth,
                     style: const TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFFC2185B), // Magenta
                     ),
@@ -123,8 +172,15 @@ class PromoterDashboardScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: cardBg,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: cardBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDarkMode ? 0.2 : 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,10 +193,10 @@ class PromoterDashboardScreen extends StatelessWidget {
                           'TOTAL PENDAPATAN',
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.w700,
                             color: subtextColor,
-                            letterSpacing: 0.4,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ),
@@ -163,7 +219,7 @@ class PromoterDashboardScreen extends StatelessWidget {
                             Text(
                               '${service.revenueGrowth}%',
                               style: const TextStyle(
-                                fontSize: 11,
+                                fontSize: 10.5,
                                 fontWeight: FontWeight.w700,
                                 color: Color(0xFF039855),
                               ),
@@ -206,7 +262,7 @@ class PromoterDashboardScreen extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 14.5,
                             fontWeight: FontWeight.w700,
                             color: textColor,
                           ),
@@ -215,7 +271,7 @@ class PromoterDashboardScreen extends StatelessWidget {
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 3),
+                            horizontal: 7, vertical: 2.5),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF59E0B), // Orange amber pill
                           borderRadius: BorderRadius.circular(6),
@@ -249,7 +305,7 @@ class PromoterDashboardScreen extends StatelessWidget {
                           width: 40,
                           height: 40,
                           decoration: const BoxDecoration(
-                            color: Color(0xFFFCE7F3), // Soft pink
+                            color: Color(0xFFF3E8FF), // Soft purple-pink
                             shape: BoxShape.circle,
                           ),
                           child: Center(
@@ -257,8 +313,8 @@ class PromoterDashboardScreen extends StatelessWidget {
                               service.promoterInitials,
                               style: const TextStyle(
                                 fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFFC2185B), // Magenta
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF7E22CE), // Purple/Magenta
                               ),
                             ),
                           ),
@@ -279,8 +335,16 @@ class PromoterDashboardScreen extends StatelessWidget {
                       letterSpacing: -0.3,
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Pantau performa penjualan tiket & event konser aktif',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: subtextColor,
+                    ),
+                  ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
 
                   // Responsive Metrics Cards
                   if (isWide) ...[
@@ -307,6 +371,7 @@ class PromoterDashboardScreen extends StatelessWidget {
 
                   const SizedBox(height: 24),
 
+                  // Section: Tren Penjualan 7 Hari Terakhir (Sesuai Referensi Gambar User)
                   if (isWide) ...[
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -320,16 +385,17 @@ class PromoterDashboardScreen extends StatelessWidget {
                                 'Tren Penjualan (7 Hari Terakhir)',
                                 style: TextStyle(
                                   fontSize: 15,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w800,
                                   color: textColor,
+                                  letterSpacing: -0.2,
                                 ),
                               ),
-                              const SizedBox(height: 18),
-                              _buildSalesChart(isDarkMode),
+                              const SizedBox(height: 14),
+                              SalesTrendBarChart(isDarkMode: isDarkMode),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 24),
+                        const SizedBox(width: 20),
                         Expanded(
                           flex: 2,
                           child: Column(
@@ -343,8 +409,9 @@ class PromoterDashboardScreen extends StatelessWidget {
                                     'Konser Mendatang',
                                     style: TextStyle(
                                       fontSize: 15,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: FontWeight.w800,
                                       color: textColor,
+                                      letterSpacing: -0.2,
                                     ),
                                   ),
                                   InkWell(
@@ -357,7 +424,7 @@ class PromoterDashboardScreen extends StatelessWidget {
                                         'Lihat Semua',
                                         style: TextStyle(
                                           fontSize: 12.5,
-                                          fontWeight: FontWeight.w600,
+                                          fontWeight: FontWeight.w700,
                                           color: Color(0xFFC2185B),
                                         ),
                                       ),
@@ -365,13 +432,14 @@ class PromoterDashboardScreen extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 14),
                               _buildUpcomingConcertCard(
                                 service: service,
                                 cardBg: cardBg,
                                 cardBorder: cardBorder,
                                 textColor: textColor,
                                 subtextColor: subtextColor,
+                                isDarkMode: isDarkMode,
                               ),
                             ],
                           ),
@@ -383,12 +451,14 @@ class PromoterDashboardScreen extends StatelessWidget {
                       'Tren Penjualan (7 Hari Terakhir)',
                       style: TextStyle(
                         fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         color: textColor,
+                        letterSpacing: -0.2,
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    _buildSalesChart(isDarkMode),
+                    const SizedBox(height: 14),
+                    // Mobile Bar Chart exactly matching user reference image
+                    SalesTrendBarChart(isDarkMode: isDarkMode),
                     const SizedBox(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -400,8 +470,9 @@ class PromoterDashboardScreen extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                               color: textColor,
+                              letterSpacing: -0.2,
                             ),
                           ),
                         ),
@@ -415,7 +486,7 @@ class PromoterDashboardScreen extends StatelessWidget {
                               'Lihat Semua',
                               style: TextStyle(
                                 fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
                                 color: Color(0xFFC2185B),
                               ),
                             ),
@@ -423,13 +494,14 @@ class PromoterDashboardScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     _buildUpcomingConcertCard(
                       service: service,
                       cardBg: cardBg,
                       cardBorder: cardBorder,
                       textColor: textColor,
                       subtextColor: subtextColor,
+                      isDarkMode: isDarkMode,
                     ),
                   ],
 
@@ -443,38 +515,13 @@ class PromoterDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSalesChart(bool isDarkMode) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      decoration: BoxDecoration(
-        color: isDarkMode ? const Color(0xFF161C28) : Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: SizedBox(
-        height: 90,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            _buildBar(height: 28, isMagenta: false, tooltip: 'Sen: 850 tiket'),
-            _buildBar(height: 44, isMagenta: false, tooltip: 'Sel: 1.150 tiket'),
-            _buildBar(height: 24, isMagenta: false, tooltip: 'Rab: 720 tiket'),
-            _buildBar(height: 52, isMagenta: false, tooltip: 'Kam: 1.480 tiket'),
-            _buildBar(height: 72, isMagenta: true, tooltip: 'Jum (Peak): 2.150 tiket'),
-            _buildBar(height: 38, isMagenta: false, tooltip: 'Sab: 1.050 tiket'),
-            _buildBar(height: 64, isMagenta: false, tooltip: 'Min: 1.820 tiket'),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildUpcomingConcertCard({
     required PromoterDataService service,
     required Color cardBg,
     required Color cardBorder,
     required Color textColor,
     required Color subtextColor,
+    required bool isDarkMode,
   }) {
     return ValueListenableBuilder<List<PromoterConcertItem>>(
       valueListenable: service.concertsNotifier,
@@ -492,73 +539,145 @@ class PromoterDashboardScreen extends StatelessWidget {
 
         return InkWell(
           onTap: onNavigateToConcerts,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: cardBg,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(18),
               border: Border.all(color: cardBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDarkMode ? 0.25 : 0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: Row(
               children: [
+                // Modern Artwork Container
                 Container(
-                  width: 54,
-                  height: 54,
+                  width: 58,
+                  height: 58,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFCE7F3),
-                    borderRadius: BorderRadius.circular(12),
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF1B2A8C), // Navy
+                        Color(0xFFC2185B), // Magenta
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF1B2A8C).withValues(alpha: 0.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: const Center(
                     child: Icon(
                       Icons.music_note_rounded,
-                      color: Color(0xFFC2185B),
+                      color: Colors.white,
                       size: 26,
                     ),
                   ),
                 ),
                 const SizedBox(width: 14),
+                // Title and Metadata
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        concert.title,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: textColor,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              concert.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: textColor,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECFDF3),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'AKTIF',
+                              style: TextStyle(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF027A48),
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        concert.dateAndVenue,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: subtextColor,
-                        ),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.calendar_today_rounded,
+                            size: 12,
+                            color: Color(0xFFC2185B),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              concert.dateAndVenue,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: subtextColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on_rounded,
+                            size: 12,
+                            color: subtextColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              concert.venueName,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: subtextColor,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.favorite_border_rounded,
-                      size: 16,
-                      color: Color(0xFFC2185B),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      concert.likesCount,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFC2185B),
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF667085),
+                  size: 20,
                 ),
               ],
             ),
@@ -566,30 +685,5 @@ class PromoterDashboardScreen extends StatelessWidget {
         );
       },
     );
-  }
-
-  Widget _buildBar({
-    required double height,
-    required bool isMagenta,
-    String? tooltip,
-  }) {
-    final barWidget = Container(
-      width: 20,
-      height: height,
-      decoration: BoxDecoration(
-        color: isMagenta
-            ? const Color(0xFFC2185B) // Magenta peak
-            : const Color(0xFF1B2A8C), // Navy blue
-        borderRadius: BorderRadius.circular(6),
-      ),
-    );
-
-    if (tooltip != null) {
-      return Tooltip(
-        message: tooltip,
-        child: barWidget,
-      );
-    }
-    return barWidget;
   }
 }
