@@ -39,6 +39,22 @@ class DbDummy {
       password: 'producer123',
       role: 'Produser',
     ),
+    const UserModel(
+      id: '100002',
+      name: 'Super Admin',
+      email: 'admin@soundwave.com',
+      phone: '081122334455',
+      password: 'admin123',
+      role: 'Admin',
+    ),
+    const UserModel(
+      id: '200002',
+      name: 'PT Harmony Ent.',
+      email: 'harmony@email.com',
+      phone: '081234567890',
+      password: 'producer123',
+      role: 'Produser',
+    ),
   ];
 
   // 2. Data Kota Populer

@@ -304,13 +304,22 @@ class DataService {
     final displayName = rawPrefix.isNotEmpty
         ? '${rawPrefix[0].toUpperCase()}${rawPrefix.substring(1)}'
         : 'User';
+    String resolvedRole = 'User';
+    if (normalizedEmail.contains('admin')) {
+      resolvedRole = 'Admin';
+    } else if (normalizedEmail.contains('produser') ||
+        normalizedEmail.contains('producer') ||
+        normalizedEmail.contains('promoter')) {
+      resolvedRole = 'Produser';
+    }
+
     final fallback = UserModel(
       id: UserModel.generateSixCharId(normalizedEmail),
       name: displayName,
       email: trimmedEmail,
       phone: '08123456789',
       password: password,
-      role: 'User',
+      role: resolvedRole,
     );
     _users.add(fallback);
     currentUserNotifier.value = fallback;

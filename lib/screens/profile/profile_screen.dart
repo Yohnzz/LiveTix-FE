@@ -1,3 +1,4 @@
+import '../admin/admin_shell.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/user_model.dart';
@@ -272,6 +273,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               },
             ),
+            if (_dataService.currentUser?.role.toLowerCase() == 'admin') ...[
+              const SizedBox(height: 8),
+              _buildMenuItem(
+                icon: Icons.admin_panel_settings_outlined,
+                title: 'Portal Super Admin',
+                iconColor: const Color(0xFFB91C1C),
+                textColor: const Color(0xFFB91C1C),
+                onTap: () {
+                  AdminNavigation.reset();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      settings: const RouteSettings(name: AdminShell.routeName),
+                      builder: (_) => const AdminShell(),
+                    ),
+                  );
+                },
+              ),
+            ],
             const SizedBox(height: 20),
 
             _buildLoggedInProfileCard(),

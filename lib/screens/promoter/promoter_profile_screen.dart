@@ -1,3 +1,4 @@
+import '../../services/data_service.dart';
 import 'package:flutter/material.dart';
 import '../../services/promoter_data_service.dart';
 import '../home/home_screen.dart';
@@ -497,6 +498,20 @@ class PromoterProfileScreen extends StatelessWidget {
                 },
               ),
 
+              const SizedBox(height: 10),
+
+              // Keluar Akun Produser
+              _buildMenuItem(
+                icon: Icons.logout_rounded,
+                title: 'Keluar Akun Produser',
+                subtitle: 'Selesaikan sesi dan kembali ke halaman utama sebagai tamu',
+                cardBg: cardBg,
+                cardBorder: cardBorder,
+                textColor: const Color(0xFFD92D20),
+                subtextColor: subtextColor,
+                onTap: () => _showLogoutDialog(context),
+              ),
+
               const SizedBox(height: 24),
             ],
           ),
@@ -712,5 +727,41 @@ class PromoterProfileScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+  void _showLogoutDialog(BuildContext context) {
+    showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text(
+          'Keluar dari Akun Produser?',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Anda akan keluar dari sesi produser dan kembali ke beranda sebagai tamu.',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFD92D20),
+            ),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed == true && context.mounted) {
+        DataService().logout();
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HomeScreen(isGuest: true)),
+          (route) => false,
+        );
+      }
+    });
   }
 }
