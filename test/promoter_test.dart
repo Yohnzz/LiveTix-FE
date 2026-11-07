@@ -37,6 +37,8 @@ void main() {
     );
 
     expect(find.text('Daftar Konser'), findsOneWidget);
+    expect(find.text('Aktif'), findsWidgets);
+    expect(find.text('Selesai (Riwayat)'), findsOneWidget);
     expect(find.text('Semua'), findsOneWidget);
     expect(find.text('Draft'), findsOneWidget);
     expect(find.text('Menunggu'), findsOneWidget);
@@ -44,7 +46,7 @@ void main() {
     expect(find.text('Ditolak'), findsOneWidget);
   });
 
-  testWidgets('AddConcertFlow steps 3 to 4, Detail Status Konser, and Customer Service',
+  testWidgets('AddConcertFlow steps 3 to 4 starts empty and submits to Detail Status Konser',
       (WidgetTester tester) async {
     PromoterDataService().quotaRemainingNotifier.value = 5;
 
@@ -54,11 +56,9 @@ void main() {
       ),
     );
 
-    // Step 3: Paket Harga Tiket
+    // Step 3: Paket Harga Tiket (starts with empty fields)
     expect(find.text('Paket Harga Tiket'), findsOneWidget);
-    expect(find.text('VIP Nusantara'), findsOneWidget);
-    expect(find.text('Festival'), findsOneWidget);
-    expect(find.text('1.700 Tiket'), findsOneWidget);
+    expect(find.text('0 Tiket'), findsOneWidget);
     expect(find.text('Simpan & Tinjau Ringkasan'), findsOneWidget);
 
     await tester.tap(find.text('Simpan & Tinjau Ringkasan'));
@@ -77,11 +77,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // ConcertStatusDetailScreen (Menunggu Approval)
-    expect(find.text('Harmoni Nusantara 2026'), findsOneWidget);
     expect(find.text('Pengajuan baru sedang ditinjau kurasi LiveTix'), findsOneWidget);
   });
 
-  testWidgets('ProducerVerificationFlow requires manual KTP upload and navigates through all 4 screens',
+  testWidgets('ProducerVerificationFlow requires KTP, Lembar Penanggung Jawab, and PIN setup',
       (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(
@@ -92,20 +91,26 @@ void main() {
     // Step 1: Isi data diri Produser
     expect(find.text('Isi data diri Produser'), findsOneWidget);
     expect(
-      find.text('Langkah 1 dari 2: Informasi dasar penanggung jawab'),
+      find.text('Langkah 1 dari 3: Informasi dasar penanggung jawab'),
       findsOneWidget,
     );
     expect(find.text('Lanjut ke Unggah Dokumen'), findsOneWidget);
 
-    await tester.tap(find.text('Lanjut ke Unggah Dokumen'));
+    final nextStep1Btn = find.text('Lanjut ke Unggah Dokumen');
+    await tester.ensureVisible(nextStep1Btn);
+    await tester.tap(nextStep1Btn);
     await tester.pumpAndSettle();
 
-    // Step 2: Unggah Dokumen KTP (Starts not uploaded!)
+    // Step 2: Unggah Dokumen KTP + Lembar Penanggung Jawab
     expect(find.text('Unggah Dokumen KTP'), findsOneWidget);
     expect(find.text('Dokumen yang dibutuhkan'), findsOneWidget);
     expect(find.text('Pilih Dokumen KTP'), findsOneWidget);
+    expect(
+      find.text('Unduh Template Lembar Penanggung Jawab (.doc)'),
+      findsOneWidget,
+    );
 
-    // User manually opens the upload sheet and uploads KTP
+    // 1. Upload KTP
     await tester.tap(find.text('Pilih Dokumen KTP'));
     await tester.pumpAndSettle();
 
@@ -113,19 +118,48 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
 
-    // Now KTP is uploaded and shows Ganti Dokumen KTP
     expect(find.text('Ganti Dokumen KTP'), findsOneWidget);
-    expect(find.text('Ajukan Approval Verifikasi'), findsOneWidget);
 
-    // Dismiss any pending SnackBars before tapping
-    final scaffoldMessenger = tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first);
+    // Clear SnackBar
+    final scaffoldMessenger =
+        tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first);
     scaffoldMessenger.clearSnackBars();
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Ajukan Approval Verifikasi'));
+    // 2. Upload Lembar Penanggung Jawab
+    final letterBtn = find.text('Unggah Lembar Penanggung Jawab');
+    await tester.ensureVisible(letterBtn);
+    await tester.tap(letterBtn);
     await tester.pumpAndSettle();
 
-    // Step 3: Status Akun Anda (Approval Menunggu)
+    await tester.tap(
+      find.widgetWithText(ElevatedButton, 'Unggah Lembar Penanggung Jawab'),
+    );
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    scaffoldMessenger.clearSnackBars();
+    await tester.pumpAndSettle();
+
+    final nextPinBtn = find.text('Ajukan Approval Verifikasi');
+    await tester.ensureVisible(nextPinBtn);
+    await tester.tap(nextPinBtn);
+    await tester.pumpAndSettle();
+
+    // Step 3: Buat PIN Keamanan
+    expect(find.text('Buat PIN Keamanan'), findsOneWidget);
+    final pinFields = find.byType(TextField);
+    expect(pinFields, findsNWidgets(2));
+    await tester.enterText(pinFields.at(0), '123456');
+    await tester.enterText(pinFields.at(1), '123456');
+    await tester.pump();
+
+    final submitPinBtn = find.text('Simpan PIN & Ajukan Verifikasi ke Admin');
+    await tester.ensureVisible(submitPinBtn);
+    await tester.tap(submitPinBtn);
+    await tester.pumpAndSettle();
+
+    // Step 4: Status Akun Anda (Approval Menunggu)
     expect(find.text('Status Akun Anda'), findsOneWidget);
     expect(find.text('Progres Pendaftaran'), findsOneWidget);
     expect(find.text('Sedang Ditinjau Admin'), findsOneWidget);
@@ -134,7 +168,7 @@ void main() {
     await tester.tap(find.text('Cek Status Akun'));
     await tester.pumpAndSettle();
 
-    // Step 4: Status Verifikasi (Approval Ditolak)
+    // Step 5: Status Verifikasi (Approval Ditolak)
     expect(find.text('Status Verifikasi'), findsOneWidget);
     expect(find.text('Alasan Penolakan'), findsOneWidget);
     expect(find.text('3 Hari 0 Jam 0 Menit'), findsOneWidget);

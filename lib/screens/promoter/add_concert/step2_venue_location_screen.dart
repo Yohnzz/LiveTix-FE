@@ -51,15 +51,9 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
   @override
   void initState() {
     super.initState();
-    _currentVenueName = widget.venueName.isNotEmpty
-        ? widget.venueName
-        : 'Stadion Gajayana';
-    _currentVenueAddress = widget.venueAddress.isNotEmpty
-        ? widget.venueAddress
-        : 'Jl. Tangkuban Perahu, Kauman, Kec. Klojen, Kota Malang, Jawa Timur 65119';
-    _currentSearchQuery = widget.venueSearchQuery.isNotEmpty
-        ? widget.venueSearchQuery
-        : 'Stadion Gajayana Malang';
+    _currentVenueName = widget.venueName;
+    _currentVenueAddress = widget.venueAddress;
+    _currentSearchQuery = widget.venueSearchQuery;
 
     _searchController.text = _currentSearchQuery;
     _manualNameController = TextEditingController(text: _currentVenueName);

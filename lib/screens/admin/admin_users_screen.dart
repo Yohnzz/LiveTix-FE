@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/approval_models.dart';
 import '../../services/admin_service.dart';
+import '../../services/gate_crew_service.dart';
 import 'admin_user_detail_screen.dart';
 import 'widgets/admin_theme.dart';
 import 'widgets/admin_widgets.dart';
@@ -19,7 +20,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedRole = 'Semua';
 
-  static const List<String> _roles = ['Semua', 'User', 'Produser', 'Admin'];
+  static const List<String> _roles = ['Semua', 'User', 'Produser', 'Admin', 'Gatecrew'];
 
   @override
   void initState() {
@@ -107,13 +108,144 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     );
   }
 
+  void _showAddGateCrewDialog() {
+    final formKey = GlobalKey<FormState>();
+    final nameCtrl = TextEditingController();
+    final emailCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.badge_outlined, color: Color(0xFF0F766E)),
+            SizedBox(width: 8),
+            Text(
+              'Tambah Gate Crew',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Admin mendaftarkan email Gate Crew dengan password default gatecrew123. Petugas dapat mengganti kata sandi setelah masuk.',
+                style: TextStyle(fontSize: 12.5, color: AdminColors.textGrey, height: 1.3),
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Nama Petugas',
+                  hintText: 'Contoh: Ahmad Gate Crew',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Nama wajib diisi' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'Email Petugas',
+                  hintText: 'Contoh: ahmad.gate@livetix.com',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Email wajib diisi';
+                  if (!v.contains('@')) return 'Format email tidak valid';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: phoneCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  labelText: 'No. Telepon (Opsional)',
+                  hintText: 'Contoh: 081234567890',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+              Navigator.pop(ctx);
+              final newMember = await GateCrewService().createGateCrewByAdmin(
+                name: nameCtrl.text.trim(),
+                email: emailCtrl.text.trim(),
+                phone: phoneCtrl.text.trim(),
+              );
+
+              final adminService = AdminService();
+              final currentList =
+                  List<ManagedUserModel>.from(adminService.usersNotifier.value);
+              currentList.insert(
+                0,
+                ManagedUserModel(
+                  id: newMember.id,
+                  name: newMember.name,
+                  email: newMember.email,
+                  role: 'Gatecrew',
+                  phone: newMember.phone,
+                  joinedAt: 'Baru saja',
+                  isActive: true,
+                  password: 'gatecrew123',
+                ),
+              );
+              adminService.usersNotifier.value = currentList;
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Gate Crew ${newMember.name} berhasil didaftarkan (Password: gatecrew123)',
+                    ),
+                    backgroundColor: const Color(0xFF0F766E),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F766E),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Daftarkan'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final gateCrewService = GateCrewService();
     return AdminScope(
       child: ListenableBuilder(
-        listenable: _service.usersNotifier,
+        listenable: Listenable.merge([
+          _service.usersNotifier,
+          gateCrewService.teamCrewNotifier,
+        ]),
         builder: (context, _) {
           final allUsers = _service.usersNotifier.value;
+          final pendingGateCrews = gateCrewService.teamCrewNotifier.value
+              .where((c) => c.isPendingApproval)
+              .toList();
           final query = _searchController.text.trim().toLowerCase();
 
           final filtered = allUsers.where((user) {
@@ -217,6 +349,171 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+
+              // Action bar: Total Pengguna & Tombol Tambah Gate Crew
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${filtered.length} Pengguna Terdaftar',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: _showAddGateCrewDialog,
+                      icon: const Icon(Icons.person_add_alt_1_rounded, size: 14),
+                      label: const Text(
+                        'Tambah Crew',
+                        style: TextStyle(
+                            fontSize: 11.5, fontWeight: FontWeight.w700),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F766E),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (pendingGateCrews.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFAF5FF),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFD8B4FE)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Pengajuan Gate Crew Produser (${pendingGateCrews.length} Menunggu Approval)',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF581C87),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...pendingGateCrews.map((crew) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${crew.email} (Password: ${crew.defaultPassword})',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                TextButton(
+                                  onPressed: () async {
+                                    await GateCrewService()
+                                        .rejectGateCrewByAdmin(crew.id);
+                                  },
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: const Color(0xFFDC2626),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text(
+                                    'Tolak',
+                                    style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                ElevatedButton(
+                                  onPressed: () async {
+                                    final approved = await GateCrewService()
+                                        .approveGateCrewByAdmin(crew.id);
+                                    if (approved != null) {
+                                      final currentList =
+                                          List<ManagedUserModel>.from(
+                                              _service.usersNotifier.value);
+                                      currentList.insert(
+                                        0,
+                                        ManagedUserModel(
+                                          id: approved.id,
+                                          name: approved.name,
+                                          email: approved.email,
+                                          role: 'Gatecrew',
+                                          phone: approved.phone,
+                                          joinedAt: 'Baru saja',
+                                          isActive: true,
+                                          password: approved.defaultPassword,
+                                        ),
+                                      );
+                                      _service.usersNotifier.value =
+                                          currentList;
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Gate Crew ${approved.email} disetujui (Password: ${approved.defaultPassword})',
+                                            ),
+                                            backgroundColor:
+                                                const Color(0xFF16A34A),
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF16A34A),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 5),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text(
+                                    'Setujui',
+                                    style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
               // User List
               Expanded(
                 child: filtered.isEmpty
@@ -393,6 +690,8 @@ class _UserCard extends StatelessWidget {
         return const Color(0xFFF3E8FF);
       case 'admin':
         return const Color(0xFFEFF6FF);
+      case 'gatecrew':
+        return const Color(0xFFECFDF5);
       default:
         return const Color(0xFFEFF6FF);
     }
@@ -404,6 +703,8 @@ class _UserCard extends StatelessWidget {
         return const Color(0xFF7C3AED);
       case 'admin':
         return const Color(0xFF1E3A8A);
+      case 'gatecrew':
+        return const Color(0xFF059669);
       default:
         return const Color(0xFF2563EB);
     }

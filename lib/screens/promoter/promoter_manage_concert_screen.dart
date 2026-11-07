@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../../models/gate_crew_models.dart';
 import '../../models/promoter_models.dart';
+import '../../services/gate_crew_service.dart';
 import '../../services/promoter_data_service.dart';
-import '../../utils/file_picker_helper.dart';
 import 'cancellation/promoter_cancel_concert_screen.dart';
 import 'cancellation/promoter_cancellation_approved_screen.dart';
 import 'cancellation/promoter_cancellation_status_screen.dart';
+import 'add_concert/add_concert_flow.dart';
 import 'widgets/interactive_map_view.dart';
 import 'widgets/responsive_promoter_wrapper.dart';
 
@@ -23,334 +25,266 @@ class PromoterManageConcertScreen extends StatefulWidget {
 
 class _PromoterManageConcertScreenState
     extends State<PromoterManageConcertScreen> {
-  bool _hasPendingChangeRequest = false;
-  String _pendingChangeSummary = '';
+  final bool _hasPendingChangeRequest = false;
+  final String _pendingChangeSummary = '';
 
-  void _openChangeRequestModal(BuildContext context, bool isDarkMode) {
-    String selectedCategory = 'Jadwal & Waktu Acara';
-    final categories = [
-      'Jadwal & Waktu Acara',
-      'Lokasi & Venue Acara',
-      'Kategori & Harga Tiket',
-      'Deskripsi & Logo/Poster',
-      'Lainnya',
-    ];
+  void _showAssignGateCrewDialog(
+      PromoterConcertItem concert, bool isDarkMode) {
+    final allCrew = GateCrewService().teamCrewNotifier.value;
+    final availableCrew = allCrew
+        .where((c) =>
+            c.isApproved &&
+            (c.activeAssignment == null ||
+                (c.activeAssignment!.concertId != concert.id &&
+                    c.activeAssignment!.concertTitle.toLowerCase() !=
+                        concert.title.toLowerCase())))
+        .toList();
 
-    final detailsController = TextEditingController();
-    String attachedDocument = '';
+    if (availableCrew.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Semua gate crew yang disetujui sudah ditugaskan untuk konser ini atau belum ada kru aktif.'),
+        ),
+      );
+      return;
+    }
 
-    showModalBottomSheet(
+    String selectedCrewId = availableCrew.first.id;
+    String selectedGate = 'Gate A';
+
+    final dialogBgColor =
+        isDarkMode ? const Color(0xFF1B2232) : Colors.white;
+    final dialogTextColor =
+        isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final dialogSubColor =
+        isDarkMode ? Colors.white70 : const Color(0xFF475569);
+    final fieldBgColor =
+        isDarkMode ? const Color(0xFF141A29) : const Color(0xFFF8FAFC);
+    final fieldBorderColor =
+        isDarkMode ? Colors.white24 : const Color(0xFFCBD5E1);
+
+    showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: isDarkMode ? const Color(0xFF1B2232) : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Handle Bar
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.withValues(alpha: 0.35),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
+      builder: (dialogCtx) => Theme(
+        data: isDarkMode ? ThemeData.dark() : ThemeData.light(),
+        child: StatefulBuilder(
+          builder: (dialogStateCtx, setDialogState) {
+            final selectedMember =
+                availableCrew.firstWhere((c) => c.id == selectedCrewId);
 
-                    // Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            return AlertDialog(
+              backgroundColor: dialogBgColor,
+              surfaceTintColor: dialogBgColor,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFC2185B).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.person_add_alt_1_rounded,
+                        color: Color(0xFFC2185B), size: 22),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Ajukan Perubahan Informasi Konser',
+                          'Tugaskan Gate Crew',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
-                            color: isDarkMode
-                                ? Colors.white
-                                : const Color(0xFF101828),
+                            color: dialogTextColor,
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 20),
-                          onPressed: () => Navigator.pop(ctx),
+                        Text(
+                          'Pilih petugas & pos gate validasi',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: dialogSubColor,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Perubahan data konser yang telah disetujui memerlukan verifikasi dan persetujuan Super Admin demi keamanan pembeli tiket.',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: isDarkMode
-                            ? Colors.white70
-                            : const Color(0xFF667085),
-                        height: 1.4,
-                      ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pilih Gate Crew:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: dialogTextColor,
                     ),
-
-                    const SizedBox(height: 18),
-
-                    // Select Category of Change
-                    Text(
-                      'BAGIAN YANG INGIN DIUBAH',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isDarkMode
-                            ? Colors.white70
-                            : const Color(0xFF475467),
-                        letterSpacing: 0.5,
-                      ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: fieldBgColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: fieldBorderColor),
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: categories.map((cat) {
-                        final isSelected = selectedCategory == cat;
-                        return ChoiceChip(
-                          label: Text(
-                            cat,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: isSelected
-                                  ? Colors.white
-                                  : (isDarkMode
-                                      ? Colors.white70
-                                      : const Color(0xFF344054)),
-                            ),
-                          ),
-                          selected: isSelected,
-                          selectedColor: const Color(0xFF1B2A8C), // Navy
-                          backgroundColor: isDarkMode
-                              ? const Color(0xFF141A29)
-                              : const Color(0xFFF2F4F7),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? const Color(0xFF1B2A8C)
-                                  : (isDarkMode
-                                      ? Colors.white12
-                                      : const Color(0xFFE4E7EC)),
-                            ),
-                          ),
-                          onSelected: (val) {
-                            if (val) {
-                              setModalState(() => selectedCategory = cat);
-                            }
-                          },
-                        );
-                      }).toList(),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Change Description Input
-                    Text(
-                      'RINCIAN & ALASAN PERUBAHAN',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isDarkMode
-                            ? Colors.white70
-                            : const Color(0xFF475467),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isDarkMode
-                            ? const Color(0xFF141A29)
-                            : const Color(0xFFF9FAFB),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isDarkMode
-                              ? Colors.white12
-                              : const Color(0xFFE4E7EC),
-                        ),
-                      ),
-                      child: TextField(
-                        controller: detailsController,
-                        maxLines: 3,
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: selectedCrewId,
+                        isExpanded: true,
+                        dropdownColor: dialogBgColor,
+                        iconEnabledColor: dialogTextColor,
                         style: TextStyle(
                           fontSize: 13,
-                          color: isDarkMode
-                              ? Colors.white
-                              : const Color(0xFF101828),
+                          fontWeight: FontWeight.w600,
+                          color: dialogTextColor,
                         ),
-                        decoration: const InputDecoration(
-                          hintText:
-                              'Jelaskan rincian perubahan yang diinginkan dan alasan perubahan...',
-                          hintStyle: TextStyle(
-                            fontSize: 12.5,
-                            color: Color(0xFF98A2B3),
-                          ),
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Supporting Document Attachment
-                    Text(
-                      'SURAT / DOKUMEN PENDUKUNG (OPSIONAL)',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isDarkMode
-                            ? Colors.white70
-                            : const Color(0xFF475467),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    InkWell(
-                      onTap: () async {
-                        final picked = await pickNativeFile();
-                        if (picked != null && picked.trim().isNotEmpty) {
-                          setModalState(() {
-                            attachedDocument = picked.trim();
-                          });
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: isDarkMode
-                              ? const Color(0xFF141A29)
-                              : const Color(0xFFF9FAFB),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isDarkMode
-                                ? Colors.white12
-                                : const Color(0xFFE4E7EC),
-                            style: BorderStyle.solid,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.attach_file_rounded,
-                              size: 18,
-                              color: Color(0xFFC2185B),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                attachedDocument.isEmpty
-                                    ? 'Unggah surat izin / bukti pendukung (PDF, JPG, PNG)'
-                                    : attachedDocument,
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: attachedDocument.isNotEmpty
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: attachedDocument.isNotEmpty
-                                      ? const Color(0xFFC2185B)
-                                      : const Color(0xFF667085),
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                        items: availableCrew.map((c) {
+                          return DropdownMenuItem(
+                            value: c.id,
+                            child: Text(
+                              '${c.name} (${c.email})',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: dialogTextColor,
                               ),
-                            ),
-                            if (attachedDocument.isNotEmpty)
-                              const Icon(
-                                Icons.check_circle_rounded,
-                                size: 16,
-                                color: Color(0xFF039855),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Submit Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1B2A8C), // Navy
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: () {
-                          final text = detailsController.text.trim();
-                          if (text.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                    'Harap isi rincian & alasan perubahan.'),
-                                backgroundColor: Color(0xFFC2185B),
-                              ),
-                            );
-                            return;
-                          }
-
-                          Navigator.pop(ctx);
-                          setState(() {
-                            _hasPendingChangeRequest = true;
-                            _pendingChangeSummary =
-                                '$selectedCategory: $text';
-                          });
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                  'Pengajuan perubahan informasi konser berhasil dikirimkan ke Super Admin.'),
-                              backgroundColor: Color(0xFF039855),
-                              duration: Duration(seconds: 4),
                             ),
                           );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => selectedCrewId = val);
+                          }
                         },
-                        child: const Text(
-                          'Kirim Pengajuan ke Admin',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Pilih Pos Gate:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: dialogTextColor,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: fieldBgColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: fieldBorderColor),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: selectedGate,
+                        isExpanded: true,
+                        dropdownColor: dialogBgColor,
+                        iconEnabledColor: dialogTextColor,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: dialogTextColor,
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: 'Gate A',
+                            child: Text(
+                              'Gate A (VIP & Reguler)',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: dialogTextColor,
+                              ),
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Gate B',
+                            child: Text(
+                              'Gate B (Festival Standing)',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: dialogTextColor,
+                              ),
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Gate C',
+                            child: Text(
+                              'Gate C (Fast Track)',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: dialogTextColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => selectedGate = val);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: Text(
+                    'Batal',
+                    style: TextStyle(
+                      color: dialogSubColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(dialogCtx);
+                    await GateCrewService().inviteCrewToConcert(
+                      crewId: selectedMember.id,
+                      concertId: concert.id,
+                      concertTitle: concert.title,
+                      venue: concert.venueName,
+                      gateName: selectedGate,
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                              'Berhasil menugaskan ${selectedMember.name} ke ${concert.title} ($selectedGate)'),
+                          backgroundColor: const Color(0xFF16A34A),
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFC2185B),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Tugaskan'),
+                ),
+              ],
             );
           },
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -815,13 +749,21 @@ class _PromoterManageConcertScreenState
                           ),
                           const SizedBox(height: 14),
 
-                          // Tombol Ajukan Perubahan Informasi Konser kepada Admin
+                          // Tombol Edit Konser (Tampilan 4 Langkah mirip Tambah Konser + Konfirmasi Admin)
                           SizedBox(
                             width: double.infinity,
                             height: 46,
                             child: ElevatedButton.icon(
-                              onPressed: () =>
-                                  _openChangeRequestModal(context, isDarkMode),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => AddConcertFlow(
+                                      editingConcert: concert,
+                                    ),
+                                  ),
+                                );
+                              },
                               icon: const Icon(
                                 Icons.edit_note_rounded,
                                 size: 19,
@@ -843,6 +785,49 @@ class _PromoterManageConcertScreenState
                               ),
                             ),
                           ),
+
+                          if (!concert.isCompleted) ...[
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 44,
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  PromoterDataService()
+                                      .markConcertCompleted(concert.id);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          'Konser "${concert.title}" ditandai Selesai dan disimpan ke Riwayat Konser beserta pendapatannya.'),
+                                      backgroundColor: const Color(0xFF039855),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(
+                                  Icons.task_alt_rounded,
+                                  size: 18,
+                                  color: Color(0xFF039855),
+                                ),
+                                label: const Text(
+                                  'Tandai Acara Selesai (Simpan ke Riwayat)',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF039855),
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(
+                                    color: Color(0xFFA6F4C5),
+                                    width: 1.5,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
 
                           const SizedBox(height: 10),
 
@@ -1183,6 +1168,203 @@ class _PromoterManageConcertScreenState
                               ),
                             ],
                           ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Section 5: Tim Gate Crew Bertugas
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'TIM GATE CREW BERTUGAS',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: subtextColor,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _showAssignGateCrewDialog(
+                              concert, isDarkMode),
+                          icon: const Icon(Icons.person_add_alt_1_rounded,
+                              size: 16, color: Color(0xFFC2185B)),
+                          label: const Text(
+                            '+ Tugaskan Crew',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFC2185B),
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ValueListenableBuilder<List<GateCrewMemberModel>>(
+                      valueListenable: GateCrewService().teamCrewNotifier,
+                      builder: (context, teamList, _) {
+                        final assignedCrews = teamList.where((m) =>
+                            m.activeAssignment?.concertId == concert.id ||
+                            (m.activeAssignment != null &&
+                                (m.activeAssignment!.concertTitle
+                                        .toLowerCase() ==
+                                    concert.title.toLowerCase()))).toList();
+
+                        if (assignedCrews.isEmpty) {
+                          return Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: cardBorder),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(Icons.qr_code_scanner_rounded,
+                                    size: 36,
+                                    color: subtextColor.withValues(alpha: 0.5)),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Belum ada Gate Crew ditugaskan',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: textColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Tugaskan gate crew agar dapat melakukan validasi/scan QR tiket penonton di pintu masuk konser ini.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: subtextColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                ElevatedButton.icon(
+                                  onPressed: () => _showAssignGateCrewDialog(
+                                      concert, isDarkMode),
+                                  icon: const Icon(
+                                      Icons.person_add_alt_1_rounded,
+                                      size: 16),
+                                  label: const Text(
+                                      'Tugaskan Gate Crew Sekarang'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFC2185B),
+                                    foregroundColor: Colors.white,
+                                    textStyle: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return Column(
+                          children: assignedCrews.map((crew) {
+                            final assignment = crew.activeAssignment;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: cardBorder),
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: const Color(0xFFC2185B)
+                                        .withValues(alpha: 0.12),
+                                    child: const Icon(Icons.badge_rounded,
+                                        color: Color(0xFFC2185B), size: 20),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          crew.name,
+                                          style: TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: textColor,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          crew.email,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: subtextColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFDCFCE7),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      assignment?.gateName ?? 'Gate A',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF16A34A),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  IconButton(
+                                    icon: const Icon(Icons.close_rounded,
+                                        size: 18, color: Colors.redAccent),
+                                    tooltip: 'Lepas Tugas',
+                                    onPressed: () async {
+                                      await GateCrewService()
+                                          .removeCrewFromConcert(
+                                        crewId: crew.id,
+                                        concertId: concert.id,
+                                      );
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                                'Penugasan ${crew.name} berhasil dilepas'),
+                                            backgroundColor: Colors.redAccent,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
                         );
                       },
                     ),

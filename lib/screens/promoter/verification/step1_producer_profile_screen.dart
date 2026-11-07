@@ -107,7 +107,7 @@ class Step1ProducerProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Langkah 1 dari 2: Informasi dasar penanggung jawab',
+                      'Langkah 1 dari 3: Informasi dasar penanggung jawab',
                       style: TextStyle(
                         fontSize: 12.5,
                         color: subtextColor,
@@ -174,10 +174,10 @@ class Step1ProducerProfileScreen extends StatelessWidget {
 
                     const SizedBox(height: 22),
 
-                    // 2-Step Progress Bar below fields
+                    // 3-Step Progress Bar below fields
                     const PromoterStepIndicator(
                       currentStep: 1,
-                      totalSteps: 2,
+                      totalSteps: 3,
                     ),
 
                     const SizedBox(height: 24),

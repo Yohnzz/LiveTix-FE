@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import '../data/admin_dummy.dart';
 import '../models/approval_models.dart';
+import '../models/promoter_models.dart';
 import 'data_service.dart';
+import 'promoter_data_service.dart';
+import 'supabase_service.dart';
 
 enum AdminLoadState { loading, ready, error }
 
@@ -55,6 +58,84 @@ class AdminService {
       return;
     }
     if (!_hasData) _seed();
+
+    if (SupabaseService.isInitialized) {
+      try {
+        final response = await SupabaseService.client
+            .from('concerts')
+            .select('*, ticket_tiers(*)')
+            .order('created_at', ascending: false);
+
+        if (response.isNotEmpty) {
+          final List<ConcertSubmissionModel> supaConcerts = [];
+          for (final row in response) {
+            try {
+              final rawTiers = row['ticket_tiers'] as List<dynamic>?;
+              final tiersList = rawTiers is List
+                  ? rawTiers
+                      .whereType<Map<String, dynamic>>()
+                      .map(SubmissionTierModel.fromJson)
+                      .toList()
+                  : const <SubmissionTierModel>[];
+
+              ApprovalStatus status = ApprovalStatus.pending;
+              final st = (row['status'] as String?)?.toLowerCase();
+              if (st == 'published' || st == 'disetujui' || st == 'approved') {
+                status = ApprovalStatus.approved;
+              } else if (st == 'rejected' ||
+                  st == 'ditolak' ||
+                  st == 'cancelled') {
+                status = ApprovalStatus.rejected;
+              }
+
+              supaConcerts.add(ConcertSubmissionModel(
+                id: row['id'] as String,
+                promoterId: (row['producer_id'] ?? 'prd-006') as String,
+                promoterName:
+                    (row['producer_name'] ?? 'Java Promotor') as String,
+                title: row['title'] as String,
+                subtitle: (row['subtitle'] ?? '') as String,
+                genre: (row['category'] ?? 'Pop') as String,
+                dateTime: DateTime.tryParse(row['date'] as String? ?? '') ??
+                    DateTime.now(),
+                venue: (row['venue'] ?? '') as String,
+                totalCapacity:
+                    (row['total_capacity'] as num?)?.toInt() ?? 5000,
+                status: (row['status'] ?? 'pending') as String,
+                bannerUrl: row['banner_image_url'] as String?,
+                approvalStatus: status,
+                rejectionReason: row['rejection_reason'] as String?,
+                submittedAt:
+                    DateTime.tryParse(row['created_at'] as String? ?? '') ??
+                        DateTime.now(),
+                tiers: tiersList,
+                cancellationReason: row['cancellation_reason'] as String?,
+                cancellationDate: row['cancellation_date'] as String?,
+                attachmentName: row['cancellation_attachment'] as String?,
+              ));
+            } catch (e) {
+              debugPrint('Error parse supa concert for admin: $e');
+            }
+          }
+          if (supaConcerts.isNotEmpty) {
+            final merged =
+                List<ConcertSubmissionModel>.from(concertsNotifier.value);
+            for (final sc in supaConcerts) {
+              final idx = merged.indexWhere((c) => c.id == sc.id);
+              if (idx != -1) {
+                merged[idx] = sc;
+              } else {
+                merged.insert(0, sc);
+              }
+            }
+            concertsNotifier.value = merged;
+          }
+        }
+      } catch (err) {
+        debugPrint('AdminService fetch Supabase error: $err');
+      }
+    }
+
     loadState.value = AdminLoadState.ready;
   }
 
@@ -219,6 +300,18 @@ class AdminService {
     final stats = statsNotifier.value;
     statsNotifier.value =
         stats.copyWith(activeProducers: stats.activeProducers + 1);
+
+    // Sinkronkan ke PromoterDataService (nama, dokumen legalitas, status verifikasi)
+    PromoterDataService().onAdminApprovedProducer(updated);
+
+    if (SupabaseService.isInitialized) {
+      SupabaseService.client.from('promoter_profiles').update({
+        'company_name': updated.companyName,
+        'approval_status': 'approved',
+        'is_verified': true,
+      }).eq('id', id).catchError((_) {});
+    }
+
     return updated;
   }
 
@@ -235,6 +328,15 @@ class AdminService {
       rejectionReason: trimmed,
     );
     _replaceProducer(updated);
+
+    if (SupabaseService.isInitialized) {
+      SupabaseService.client.from('promoter_profiles').update({
+        'approval_status': 'rejected',
+        'rejection_reason': trimmed,
+        'is_verified': false,
+      }).eq('id', id).catchError((_) {});
+    }
+
     return updated;
   }
 
@@ -271,6 +373,29 @@ class AdminService {
     final stats = statsNotifier.value;
     statsNotifier.value =
         stats.copyWith(activeConcerts: stats.activeConcerts + 1);
+
+    // 1. Sync ke Supabase Cloud
+    if (SupabaseService.isInitialized) {
+      SupabaseService.client.from('concerts').update({
+        'status': 'published',
+      }).eq('id', id).catchError((err) {
+        debugPrint('Error update concert status in Supabase: $err');
+      });
+    }
+
+    // 2. Sync ke PromoterDataService agar status di halaman Produser berubah jadi 'Disetujui'
+    final promoterService = PromoterDataService();
+    final pList =
+        List<PromoterConcertItem>.from(promoterService.concertsNotifier.value);
+    final pIdx = pList.indexWhere((c) => c.id == id);
+    if (pIdx != -1) {
+      pList[pIdx] = pList[pIdx].copyWith(status: ConcertStatus.disetujui);
+      promoterService.concertsNotifier.value = pList;
+    }
+
+    // 3. Refresh katalog penonton di DataService sehingga konser langsung muncul di Beranda
+    DataService().fetchConcertsFromSupabase(forceRefresh: true);
+
     return updated;
   }
 
@@ -285,8 +410,30 @@ class AdminService {
     final updated = current.copyWith(
       approvalStatus: ApprovalStatus.rejected,
       rejectionReason: trimmed,
+      status: 'rejected',
     );
     _replaceConcert(updated);
+
+    // 1. Sync ke Supabase Cloud
+    if (SupabaseService.isInitialized) {
+      SupabaseService.client.from('concerts').update({
+        'status': 'rejected',
+        'rejection_reason': trimmed,
+      }).eq('id', id).catchError((err) {
+        debugPrint('Error reject concert in Supabase: $err');
+      });
+    }
+
+    // 2. Sync ke PromoterDataService
+    final promoterService = PromoterDataService();
+    final pList =
+        List<PromoterConcertItem>.from(promoterService.concertsNotifier.value);
+    final pIdx = pList.indexWhere((c) => c.id == id);
+    if (pIdx != -1) {
+      pList[pIdx] = pList[pIdx].copyWith(status: ConcertStatus.ditolak);
+      promoterService.concertsNotifier.value = pList;
+    }
+
     return updated;
   }
 
@@ -305,6 +452,22 @@ class AdminService {
       statsNotifier.value =
           stats.copyWith(activeConcerts: stats.activeConcerts - 1);
     }
+
+    // 1. Sync ke Supabase Cloud
+    if (SupabaseService.isInitialized) {
+      SupabaseService.client.from('concerts').update({
+        'status': 'cancelled',
+      }).eq('id', id).catchError((err) {
+        debugPrint('Error approve cancellation in Supabase: $err');
+      });
+    }
+
+    // 2. Sync ke PromoterDataService
+    PromoterDataService().approveConcertCancellation(concertId: id);
+
+    // 3. Refresh penonton
+    DataService().fetchConcertsFromSupabase(forceRefresh: true);
+
     return updated;
   }
 

@@ -196,6 +196,8 @@ class PromoterConcertItem {
   final int refundDoneCount;
   final int refundProcessingCount;
   final int refundPendingAccountCount;
+  final bool isCompleted;
+  final int grossRevenue;
 
   const PromoterConcertItem({
     required this.id,
@@ -223,7 +225,36 @@ class PromoterConcertItem {
     this.refundDoneCount = 2940,
     this.refundProcessingCount = 1050,
     this.refundPendingAccountCount = 210,
+    this.isCompleted = false,
+    this.grossRevenue = 0,
   });
+
+  int get numericLikes {
+    final cleaned = likesCount.trim().toLowerCase();
+    if (cleaned.endsWith('k')) {
+      final numPart =
+          double.tryParse(cleaned.substring(0, cleaned.length - 1)) ?? 0;
+      return (numPart * 1000).round();
+    }
+    return int.tryParse(cleaned.replaceAll('.', '').replaceAll(',', '')) ?? 0;
+  }
+
+  static String formatLikes(int count) {
+    if (count < 0) return '0';
+    return count.toString();
+  }
+
+  int get resolvedGrossRevenue {
+    if (grossRevenue > 0) return grossRevenue;
+    if (ticketsSold > 0 && tiers.isNotEmpty) {
+      return ticketsSold * tiers.first.price;
+    }
+    return estimatedRevenue;
+  }
+
+  String get formattedGrossRevenue {
+    return 'Rp${PromoterTicketTier.formatNumber(resolvedGrossRevenue)}';
+  }
 
   bool get isCancellationPending =>
       cancellationStatus == ConcertCancellationStatus.menungguAdmin;
@@ -273,6 +304,8 @@ class PromoterConcertItem {
     int? refundDoneCount,
     int? refundProcessingCount,
     int? refundPendingAccountCount,
+    bool? isCompleted,
+    int? grossRevenue,
   }) {
     return PromoterConcertItem(
       id: id ?? this.id,
@@ -305,6 +338,8 @@ class PromoterConcertItem {
           refundProcessingCount ?? this.refundProcessingCount,
       refundPendingAccountCount:
           refundPendingAccountCount ?? this.refundPendingAccountCount,
+      isCompleted: isCompleted ?? this.isCompleted,
+      grossRevenue: grossRevenue ?? this.grossRevenue,
     );
   }
 
@@ -337,12 +372,14 @@ class PromoterConcertItem {
       switch (statusStr?.toLowerCase()) {
         case 'published':
         case 'disetujui':
+        case 'approved':
           return ConcertStatus.disetujui;
         case 'pending':
         case 'menunggu':
           return ConcertStatus.menunggu;
         case 'cancelled':
         case 'ditolak':
+        case 'rejected':
           return ConcertStatus.ditolak;
         case 'draft':
         default:
@@ -356,23 +393,31 @@ class PromoterConcertItem {
             .toList() ??
         [];
 
+    final resolvedDate = json['date']?.toString() ?? json['date_time']?.toString() ?? '';
+
     return PromoterConcertItem(
       id: json['id']?.toString() ?? '',
       title: json['title']?.toString() ?? '',
       dateAndVenue: json['subtitle']?.toString() ??
-          '${json['date_time'] ?? ''} · ${json['venue'] ?? ''}',
-      date: json['date_time']?.toString() ?? '',
+          '$resolvedDate · ${json['venue'] ?? ''}',
+      date: resolvedDate,
       time: json['time']?.toString() ?? '19:00 WIB',
       venueName: json['venue']?.toString() ?? '',
       venueAddress: json['venue_address']?.toString() ??
           (json['venue']?.toString() ?? ''),
       description: json['description']?.toString() ?? '',
-      posterFileName: json['banner_url']?.toString() ?? 'poster_soundwave.png',
-      squareLogoFileName:
-          json['logo_url']?.toString() ?? 'logo_soundwave_square.png',
+      posterFileName: json['banner_image_url']?.toString() ??
+          json['banner_url']?.toString() ??
+          'poster_soundwave.png',
+      squareLogoFileName: json['logo_image_url']?.toString() ??
+          json['logo_url']?.toString() ??
+          'logo_soundwave_square.png',
       status: parseStatus(json['status']?.toString()),
       likesCount: json['likes_count']?.toString() ?? '0',
       tiers: tiersList,
+      ticketsSold: (json['tickets_sold'] as num?)?.toInt() ?? 0,
+      isCompleted: (json['is_completed'] as bool?) ?? false,
+      grossRevenue: (json['gross_revenue'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -383,10 +428,10 @@ class PromoterConcertItem {
         statusString = 'published';
         break;
       case ConcertStatus.menunggu:
-        statusString = 'menunggu';
+        statusString = 'pending';
         break;
       case ConcertStatus.ditolak:
-        statusString = 'ditolak';
+        statusString = 'rejected';
         break;
       case ConcertStatus.draft:
       case ConcertStatus.semua:
@@ -397,17 +442,28 @@ class PromoterConcertItem {
     return {
       'id': id,
       if (promoterId != null) 'promoter_id': promoterId,
+      if (promoterId != null) 'producer_id': promoterId,
       'title': title,
       'subtitle': dateAndVenue,
+      'date': date,
       'date_time': date,
       'time': time,
       'venue': venueName,
       'venue_address': venueAddress,
       'description': description,
       'banner_url': posterFileName,
+      'banner_image_url': posterFileName,
       'logo_url': squareLogoFileName,
+      'logo_image_url': squareLogoFileName,
       'status': statusString,
-      'likes_count': likesCount,
+      'total_capacity': totalCapacity,
+      'price': tiers.isNotEmpty
+          ? tiers.map((t) => t.price).reduce((a, b) => a < b ? a : b)
+          : 0,
+      'likes_count': numericLikes,
+      'tickets_sold': ticketsSold,
+      'is_completed': isCompleted,
+      'gross_revenue': resolvedGrossRevenue,
       'ticket_tiers': tiers.map((t) => t.toJson(concertId: id)).toList(),
     };
   }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../../models/gate_crew_models.dart';
 import '../../../models/promoter_models.dart';
+import '../../../services/gate_crew_service.dart';
 import '../../../services/promoter_data_service.dart';
 import '../widgets/promoter_step_indicator.dart';
 
-class Step4SummaryReviewScreen extends StatelessWidget {
+class Step4SummaryReviewScreen extends StatefulWidget {
   final String concertTitle;
   final String concertDate;
   final String concertDescription;
@@ -12,8 +14,9 @@ class Step4SummaryReviewScreen extends StatelessWidget {
   final String venueName;
   final String venueAddress;
   final List<PromoterTicketTier> tiers;
-  final VoidCallback onSubmit;
+  final void Function(Map<String, String> invitedCrew) onSubmit;
   final VoidCallback onBack;
+  final bool isEditMode;
 
   const Step4SummaryReviewScreen({
     super.key,
@@ -27,7 +30,16 @@ class Step4SummaryReviewScreen extends StatelessWidget {
     required this.tiers,
     required this.onSubmit,
     required this.onBack,
+    this.isEditMode = false,
   });
+
+  @override
+  State<Step4SummaryReviewScreen> createState() =>
+      _Step4SummaryReviewScreenState();
+}
+
+class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
+  final Map<String, String> _selectedCrewGates = {};
 
   String _formatShortPrice(int price) {
     if (price >= 1000 && price % 1000 == 0) {
@@ -38,21 +50,22 @@ class Step4SummaryReviewScreen extends StatelessWidget {
   }
 
   String _formatVenueAndDate() {
-    final cleanVenue =
-        venueName.trim().isNotEmpty ? venueName.trim() : 'Stadion Gajayana';
-    if (concertDate.contains('14 November 2026') ||
-        concertDate.contains('14 Nov 2026') ||
-        concertDate.trim().isEmpty) {
+    final cleanVenue = widget.venueName.trim().isNotEmpty
+        ? widget.venueName.trim()
+        : 'Stadion Gajayana';
+    if (widget.concertDate.contains('14 November 2026') ||
+        widget.concertDate.contains('14 Nov 2026') ||
+        widget.concertDate.trim().isEmpty) {
       return '$cleanVenue · 14 Nov 2026';
     }
-    return '$cleanVenue · ${concertDate.trim()}';
+    return '$cleanVenue · ${widget.concertDate.trim()}';
   }
 
   @override
   Widget build(BuildContext context) {
     final service = PromoterDataService();
-    final displayTitle = concertTitle.trim().isNotEmpty
-        ? concertTitle.trim()
+    final displayTitle = widget.concertTitle.trim().isNotEmpty
+        ? widget.concertTitle.trim()
         : 'Harmoni Nusantara 2026';
 
     return ValueListenableBuilder<bool>(
@@ -81,7 +94,7 @@ class Step4SummaryReviewScreen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         InkWell(
-                          onTap: onBack,
+                          onTap: widget.onBack,
                           borderRadius: BorderRadius.circular(8),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -233,7 +246,7 @@ class Step4SummaryReviewScreen extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  'Logo: ${squareLogoFileName ?? "logo_square.png"}',
+                                  'Logo: ${widget.squareLogoFileName ?? "logo_square.png"}',
                                   style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
@@ -251,7 +264,7 @@ class Step4SummaryReviewScreen extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
-                                    'Poster: $posterFileName',
+                                    'Poster: ${widget.posterFileName}',
                                     style: const TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
@@ -290,11 +303,11 @@ class Step4SummaryReviewScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          ...List.generate(tiers.length, (index) {
-                            final tier = tiers[index];
+                          ...List.generate(widget.tiers.length, (index) {
+                            final tier = widget.tiers[index];
                             return Padding(
                               padding: EdgeInsets.only(
-                                bottom: index < tiers.length - 1 ? 10 : 0,
+                                bottom: index < widget.tiers.length - 1 ? 10 : 0,
                               ),
                               child: Row(
                                 mainAxisAlignment:
@@ -325,7 +338,202 @@ class Step4SummaryReviewScreen extends StatelessWidget {
 
                     const SizedBox(height: 14),
 
-                    // Notice text below Card 2
+                    // Card 3: Tugaskan Staf Gate Crew (Opsional)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Tugaskan Staf Gate Crew',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: textColor,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFC2185B)
+                                      .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '${_selectedCrewGates.length} Dipilih',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFC2185B),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Kru yang dipilih dapat langsung melakukan scan QR tiket di pintu masuk konser.',
+                            style:
+                                TextStyle(fontSize: 11.5, color: subtextColor),
+                          ),
+                          const SizedBox(height: 12),
+                          ValueListenableBuilder<List<GateCrewMemberModel>>(
+                            valueListenable:
+                                GateCrewService().teamCrewNotifier,
+                            builder: (context, teamList, _) {
+                              if (teamList.isEmpty) {
+                                return Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: isDarkMode
+                                        ? const Color(0xFF141A29)
+                                        : const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    'Belum ada Gate Crew yang didaftarkan Admin. Anda tetap dapat mengajukan konser ini dan menugaskan kru nanti di menu Kelola Konser.',
+                                    style: TextStyle(
+                                        fontSize: 12, color: subtextColor),
+                                  ),
+                                );
+                              }
+
+                              return Column(
+                                children: teamList.map((crew) {
+                                  final isSelected =
+                                      _selectedCrewGates.containsKey(crew.id);
+                                  final gateName =
+                                      _selectedCrewGates[crew.id] ?? 'Gate A';
+
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? const Color(0xFFC2185B)
+                                              .withValues(alpha: 0.05)
+                                          : (isDarkMode
+                                              ? const Color(0xFF141A29)
+                                              : const Color(0xFFF8FAFC)),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? const Color(0xFFC2185B)
+                                                .withValues(alpha: 0.4)
+                                            : cardBorder,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Checkbox(
+                                          value: isSelected,
+                                          activeColor: const Color(0xFFC2185B),
+                                          onChanged: (val) {
+                                            setState(() {
+                                              if (val == true) {
+                                                _selectedCrewGates[crew.id] =
+                                                    'Gate A';
+                                              } else {
+                                                _selectedCrewGates
+                                                    .remove(crew.id);
+                                              }
+                                            });
+                                          },
+                                        ),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                crew.name,
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: textColor,
+                                                ),
+                                              ),
+                                              Text(
+                                                crew.email,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: subtextColor,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (isSelected)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8),
+                                            decoration: BoxDecoration(
+                                              color: isDarkMode
+                                                  ? const Color(0xFF1B2232)
+                                                  : Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border:
+                                                  Border.all(color: cardBorder),
+                                            ),
+                                            child: DropdownButtonHideUnderline(
+                                              child: DropdownButton<String>(
+                                                value: gateName,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: textColor,
+                                                ),
+                                                dropdownColor: isDarkMode
+                                                    ? const Color(0xFF1B2232)
+                                                    : Colors.white,
+                                                items: const [
+                                                  DropdownMenuItem(
+                                                      value: 'Gate A',
+                                                      child: Text('Gate A')),
+                                                  DropdownMenuItem(
+                                                      value: 'Gate B',
+                                                      child: Text('Gate B')),
+                                                  DropdownMenuItem(
+                                                      value: 'Gate C',
+                                                      child: Text('Gate C')),
+                                                ],
+                                                onChanged: (newGate) {
+                                                  if (newGate != null) {
+                                                    setState(() {
+                                                      _selectedCrewGates[
+                                                          crew.id] = newGate;
+                                                    });
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Notice text below Card 3
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Text(
@@ -352,7 +560,7 @@ class Step4SummaryReviewScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: onSubmit,
+                  onPressed: () => widget.onSubmit(_selectedCrewGates),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF9E1B82), // Magenta-purple
                     foregroundColor: Colors.white,
@@ -361,9 +569,11 @@ class Step4SummaryReviewScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
-                    'Kirim untuk Approval Admin',
-                    style: TextStyle(
+                  child: Text(
+                    widget.isEditMode
+                        ? 'Simpan Perubahan Konser'
+                        : 'Kirim untuk Approval Admin',
+                    style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),

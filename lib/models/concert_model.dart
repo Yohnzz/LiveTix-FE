@@ -27,6 +27,28 @@ class TicketTierModel {
     }
     return buffer.toString();
   }
+
+  factory TicketTierModel.fromJson(Map<String, dynamic> json) {
+    return TicketTierModel(
+      id: (json['id'] as String?) ?? '',
+      name: (json['name'] as String?) ?? '',
+      description: (json['description'] as String?) ?? '',
+      price: (json['price'] as num?)?.toInt() ?? 0,
+      isSoldOut: (json['is_sold_out'] as bool?) ??
+          (json['isSoldOut'] as bool?) ??
+          false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'price': price,
+      'is_sold_out': isSoldOut,
+    };
+  }
 }
 
 class CityModel {
@@ -67,6 +89,18 @@ class ConcertModel {
   final String? logoImageUrl;
   final Uint8List? logoImageBytes;
 
+  /// Status konser: 'published' | 'pending' | 'rejected' | 'cancellation_pending' | 'cancelled' | 'draft'
+  final String status;
+
+  /// Daya tampung total pengunjung konser (akumulasi kuota kategori tiket)
+  final int totalCapacity;
+
+  /// Jumlah pengguna yang menyukai (Love) konser ini
+  final int likesCount;
+
+  /// ID Produser pemilik konser
+  final String? producerId;
+
   /// Warna gradien banner highlight persegi panjang saat produser belum mengunggah foto
   final List<Color> highlightGradientColors;
 
@@ -88,8 +122,14 @@ class ConcertModel {
     this.bannerImageBytes,
     this.logoImageUrl,
     this.logoImageBytes,
+    this.status = 'published',
+    this.totalCapacity = 0,
+    this.likesCount = 0,
+    this.producerId,
     this.highlightGradientColors = const [Color(0xFF271C80), Color(0xFF971C91)],
   });
+
+  bool get isPublished => status.toLowerCase() == 'published';
 
   ConcertModel copyWith({
     String? id,
@@ -111,6 +151,10 @@ class ConcertModel {
     String? logoImageUrl,
     Uint8List? logoImageBytes,
     bool clearLogoImage = false,
+    String? status,
+    int? totalCapacity,
+    int? likesCount,
+    String? producerId,
     List<Color>? highlightGradientColors,
   }) {
     return ConcertModel(
@@ -134,9 +178,83 @@ class ConcertModel {
       logoImageUrl: clearLogoImage ? null : (logoImageUrl ?? this.logoImageUrl),
       logoImageBytes:
           clearLogoImage ? null : (logoImageBytes ?? this.logoImageBytes),
+      status: status ?? this.status,
+      totalCapacity: totalCapacity ?? this.totalCapacity,
+      likesCount: likesCount ?? this.likesCount,
+      producerId: producerId ?? this.producerId,
       highlightGradientColors:
           highlightGradientColors ?? this.highlightGradientColors,
     );
+  }
+
+  factory ConcertModel.fromJson(Map<String, dynamic> json) {
+    List<TicketTierModel> tiers = [];
+    if (json['ticket_tiers'] is List) {
+      tiers = (json['ticket_tiers'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map((t) => TicketTierModel.fromJson(t))
+          .toList();
+    }
+
+    // Resolusi warna kategori & tag
+    final cat = (json['category'] as String?) ?? 'Pop';
+    Color iconBg = const Color(0xFFF7EEF8);
+    Color iconCol = const Color(0xFFC2185B);
+    if (cat.toLowerCase() == 'rock') {
+      iconBg = const Color(0xFFE9EEF8);
+      iconCol = const Color(0xFF1B2A8C);
+    } else if (cat.toLowerCase() == 'indie') {
+      iconBg = const Color(0xFFFEF3C7);
+      iconCol = const Color(0xFFD97706);
+    } else if (cat.toLowerCase() == 'edm') {
+      iconBg = const Color(0xFFE8EEFB);
+      iconCol = const Color(0xFF2563EB);
+    }
+
+    return ConcertModel(
+      id: (json['id'] as String?) ?? '',
+      title: (json['title'] as String?) ?? '',
+      subtitle: (json['subtitle'] as String?) ?? '',
+      date: (json['date'] as String?) ?? '',
+      time: (json['time'] as String?) ?? '',
+      venue: (json['venue'] as String?) ?? '',
+      price: (json['price'] as num?)?.toInt() ?? 0,
+      category: cat,
+      tag: (json['tag'] as String?) ?? 'Festival • 17+',
+      bannerImageUrl: (json['banner_image_url'] as String?) ??
+          (json['bannerImageUrl'] as String?),
+      logoImageUrl: (json['logo_image_url'] as String?) ??
+          (json['logoImageUrl'] as String?),
+      iconBgColor: iconBg,
+      iconColor: iconCol,
+      ticketTiers: tiers,
+      status: (json['status'] as String?) ?? 'published',
+      totalCapacity: (json['total_capacity'] as num?)?.toInt() ?? 0,
+      likesCount: (json['likes_count'] is num)
+          ? (json['likes_count'] as num).toInt()
+          : (int.tryParse(json['likes_count']?.toString() ?? '0') ?? 0),
+      producerId: json['producer_id'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'subtitle': subtitle,
+      'date': date,
+      'time': time,
+      'venue': venue,
+      'price': price,
+      'category': category,
+      'tag': tag,
+      'banner_image_url': bannerImageUrl,
+      'logo_image_url': logoImageUrl,
+      'status': status,
+      'total_capacity': totalCapacity,
+      'likes_count': likesCount,
+      if (producerId != null) 'producer_id': producerId,
+    };
   }
 
   String get formattedPrice {

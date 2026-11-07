@@ -143,54 +143,63 @@ class _SalesTrendBarChartState extends State<SalesTrendBarChart> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          '${selected.fullDayName} (${selected.dayLabel})',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? Colors.white : const Color(0xFF101828),
-                          ),
-                        ),
-                        if (selected.isPeak) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF4EBFF),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'PEAK TERTINGGI',
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              '${selected.fullDayName} (${selected.dayLabel})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF7C3AED),
-                                letterSpacing: 0.3,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? Colors.white : const Color(0xFF101828),
                               ),
                             ),
                           ),
+                          if (selected.isPeak) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF4EBFF),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'PEAK TERTINGGI',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF7C3AED),
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${_formatNumber(selected.ticketsSold)} Tiket Terjual · ${_formatRupiah(selected.revenueAmount)}',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w500,
-                        color: selected.isPeak
-                            ? const Color(0xFF8B5CF6)
-                            : axisTextColor,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        '${_formatNumber(selected.ticketsSold)} Tiket Terjual · ${_formatRupiah(selected.revenueAmount)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: selected.isPeak
+                              ? const Color(0xFF8B5CF6)
+                              : axisTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -361,33 +370,34 @@ class _SalesTrendBarChartState extends State<SalesTrendBarChart> {
           Padding(
             padding: const EdgeInsets.only(left: 32),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: List.generate(_data.length, (index) {
                 final item = _data[index];
                 final isSelected = _selectedBarIndex == index;
                 final isPeak = item.isPeak;
 
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedBarIndex = index;
-                    });
-                  },
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    child: Text(
-                      item.dayLabel,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: isPeak || isSelected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        color: isPeak
-                            ? (isDark ? Colors.white : const Color(0xFF101828))
-                            : (isSelected
-                                ? (isDark ? Colors.white : const Color(0xFF101828))
-                                : axisTextColor),
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedBarIndex = index;
+                      });
+                    },
+                    child: Center(
+                      child: Text(
+                        item.dayLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: isPeak || isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: isPeak
+                              ? (isDark ? Colors.white : const Color(0xFF101828))
+                              : (isSelected
+                                  ? (isDark ? Colors.white : const Color(0xFF101828))
+                                  : axisTextColor),
+                        ),
                       ),
                     ),
                   ),

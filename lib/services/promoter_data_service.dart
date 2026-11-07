@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import '../models/approval_models.dart';
 import '../models/promoter_models.dart';
+import 'admin_service.dart';
+import 'data_service.dart';
+import 'supabase_service.dart';
 
 class PromoterDataService {
   static final PromoterDataService _instance = PromoterDataService._internal();
@@ -25,23 +29,189 @@ class PromoterDataService {
       withdrawalRecordsNotifier =
       ValueNotifier<List<PromoterWithdrawalRecord>>([]);
 
-  // Promoter Profile Info
-  final String promoterName = 'Java Promotor';
-  final String verificationBadge = 'TERVERIFIKASI';
-  final String promoterInitials = 'JP';
+  // Reactive Promoter Identity, Verification, PIN, and Pending Profile Changes
+  final ValueNotifier<String> promoterNameNotifier =
+      ValueNotifier<String>('Java Promotor');
+  final ValueNotifier<String?> pendingPromoterNameNotifier =
+      ValueNotifier<String?>(null);
+  final ValueNotifier<String> ktpDocumentNotifier =
+      ValueNotifier<String>('ktp_rafi_firmansyah.jpg');
+  final ValueNotifier<String> responsibilityLetterNotifier =
+      ValueNotifier<String>('lembar_penanggung_jawab_rafi.doc');
+  final ValueNotifier<String?> pendingKtpDocumentNotifier =
+      ValueNotifier<String?>(null);
+  final ValueNotifier<String?> pendingResponsibilityLetterNotifier =
+      ValueNotifier<String?>(null);
+  final ValueNotifier<String?> avatarUrlNotifier =
+      ValueNotifier<String?>(null);
+
+  ValueNotifier<String?> get pendingNameChangeNotifier =>
+      pendingPromoterNameNotifier;
+  ValueNotifier<String?> get pendingKtpFileNameNotifier =>
+      pendingKtpDocumentNotifier;
+  ValueNotifier<String?> get pendingResponsibilityLetterFileNameNotifier =>
+      pendingResponsibilityLetterNotifier;
+
+  String get promoterEmail =>
+      DataService().currentUser?.email ?? 'official@javapromotor.com';
+  String get promoterPhone =>
+      (DataService().currentUser?.phone.isNotEmpty == true)
+          ? DataService().currentUser!.phone
+          : '+62 812-9908-1120';
+
+  List<PromoterConcertItem> get activeConcerts =>
+      concertsNotifier.value.where((c) => !c.isCompleted).toList();
+
+  Future<void> updateProfilePhotoDirectly(String fileName) async {
+    avatarUrlNotifier.value = fileName;
+    DataService().updateProfile(avatarUrl: fileName);
+  }
+
+  void lockPinSession() {
+    isPinUnlockedThisSession = false;
+  }
+
+  /// Status verifikasi akun produser: 'unverified' | 'pending' | 'approved' | 'rejected'
+  final ValueNotifier<String> verificationStatusNotifier =
+      ValueNotifier<String>('approved');
+
+  /// PIN 6-digit keamanan Produser (diatur saat verifikasi dokumen & diminta setiap login)
+  final ValueNotifier<String> pinCodeNotifier =
+      ValueNotifier<String>('123456');
+
+  /// Status apakah sesi login saat ini sudah membuka kunci PIN
+  bool isPinUnlockedThisSession = false;
+
+  String get promoterName => promoterNameNotifier.value;
+  String get verificationBadge =>
+      verificationStatusNotifier.value == 'approved'
+          ? 'TERVERIFIKASI'
+          : (verificationStatusNotifier.value == 'pending'
+              ? 'MENUNGGU APPROVAL'
+              : 'BELUM VERIFIKASI');
+
+  String get promoterInitials {
+    final parts = promoterName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return parts.isNotEmpty ? parts[0][0].toUpperCase() : 'JP';
+  }
+
   final int quotaMax = 3;
 
-  // Dashboard Metrics
-  final int totalConcerts = 12;
-  final int ticketsSold = 8450;
+  // Dashboard Metrics (Computed dynamically from database when Supabase is initialized)
+  int get totalConcerts {
+    if (SupabaseService.isInitialized) {
+      return concertsNotifier.value.length;
+    }
+    return 12;
+  }
+
+  int get ticketsSold {
+    if (SupabaseService.isInitialized) {
+      return concertsNotifier.value.fold<int>(
+        0,
+        (sum, c) => sum + c.ticketsSold,
+      );
+    }
+    return 8450;
+  }
+
   final String ticketsSoldGrowth = '+15% bulan ini';
-  final int totalRevenue = 2115000000;
+
+  int get totalRevenue {
+    if (SupabaseService.isInitialized) {
+      return concertsNotifier.value.fold<int>(
+        0,
+        (sum, c) => sum + c.resolvedGrossRevenue,
+      );
+    }
+    return 2115000000;
+  }
+
   final double revenueGrowth = 8.2;
 
   // 7 Days Sales Trend (values relative to max height)
-  final List<double> weeklySalesRatios = [0.35, 0.50, 0.28, 0.60, 0.82, 0.52, 0.95];
+  final List<double> weeklySalesRatios = [
+    0.35,
+    0.50,
+    0.28,
+    0.60,
+    0.82,
+    0.52,
+    0.95
+  ];
 
   void _initData() {
+    // Payment gateway / withdrawal mock records tetap dipertahankan hingga integrasi Midtrans
+    transactionsNotifier.value = [
+      const PromoterTransactionItem(
+        id: 'TX-101',
+        title: 'Penjualan Tiket - Soundwave Fest',
+        date: '21 Okt 2026, 14:20 WIB',
+        amount: '+ Rp 1.050.000',
+        isIncome: true,
+      ),
+      const PromoterTransactionItem(
+        id: 'TX-100',
+        title: 'Pencairan Dana ke BCA 8820****',
+        date: '19 Okt 2026, 10:15 WIB',
+        amount: '- Rp 150.000.000',
+        isIncome: false,
+      ),
+      const PromoterTransactionItem(
+        id: 'TX-099',
+        title: 'Penjualan Tiket - Soundwave Fest',
+        date: '18 Okt 2026, 19:40 WIB',
+        amount: '+ Rp 2.250.000',
+        isIncome: true,
+      ),
+    ];
+
+    withdrawalRecordsNotifier.value = [
+      const PromoterWithdrawalRecord(
+        id: 'w-1',
+        dateTimeStr: '18 Okt 2026 · 14:05 WIB',
+        amount: 250000000,
+        bankAccount: 'BCA - ***9901',
+        status: WithdrawalStatus.berhasil,
+        refId: '#WD-8842109',
+      ),
+      const PromoterWithdrawalRecord(
+        id: 'w-2',
+        dateTimeStr: '20 Okt 2026 · 09:12 WIB',
+        amount: 150000000,
+        bankAccount: 'Mandiri - ***3321',
+        status: WithdrawalStatus.menunggu,
+        refId: '#WD-9912048',
+      ),
+      const PromoterWithdrawalRecord(
+        id: 'w-3',
+        dateTimeStr: '15 Okt 2026 · 11:30 WIB',
+        amount: 500000000,
+        bankAccount: 'BCA - ***9901',
+        status: WithdrawalStatus.ditolak,
+        refId: '#WD-8842109',
+        rejectionReason:
+            'Alasan: Nama pemilik rekening tidak cocok dengan nama KTP terverifikasi.',
+      ),
+    ];
+
+    // Jika terhubung ke Supabase, jangan isi data konser dummy — muat murni dari database!
+    if (SupabaseService.isInitialized) {
+      concertsNotifier.value = [];
+      concertFinanceSummariesNotifier.value = [];
+      fetchPromoterConcertsFromSupabase();
+      loadProducerProfileFromSupabase();
+      return;
+    }
+
+    // Fallback khusus mode pengujian unit/widget test (ketika Supabase tidak diinisialisasi)
     concertsNotifier.value = [
       const PromoterConcertItem(
         id: '1',
@@ -50,11 +220,13 @@ class PromoterDataService {
         date: 'Minggu, 12 Oktober 2026',
         time: 'Gerbang 17.00 · Mulai 19.00',
         venueName: 'Stadion Gajayana',
-        venueAddress: 'Jl. Tangkuban Perahu, Kauman, Kec. Klojen, Kota Malang, Jawa Timur 65119',
+        venueAddress:
+            'Jl. Tangkuban Perahu, Kauman, Kec. Klojen, Kota Malang, Jawa Timur 65119',
         status: ConcertStatus.disetujui,
         likesCount: '4.2k',
         posterFileName: 'poster_soundwave.png',
         ticketsSold: 4200,
+        grossRevenue: 1050000000,
         affectedBuyersCount: 1860,
         totalRefundAmount: 2115000000,
         refundDoneCount: 2940,
@@ -165,30 +337,6 @@ class PromoterDataService {
       ),
     ];
 
-    transactionsNotifier.value = [
-      const PromoterTransactionItem(
-        id: 'TX-101',
-        title: 'Penjualan Tiket - Soundwave Fest',
-        date: '21 Okt 2026, 14:20 WIB',
-        amount: '+ Rp 1.050.000',
-        isIncome: true,
-      ),
-      const PromoterTransactionItem(
-        id: 'TX-100',
-        title: 'Pencairan Dana ke BCA 8820****',
-        date: '19 Okt 2026, 10:15 WIB',
-        amount: '- Rp 150.000.000',
-        isIncome: false,
-      ),
-      const PromoterTransactionItem(
-        id: 'TX-099',
-        title: 'Penjualan Tiket - Soundwave Fest',
-        date: '18 Okt 2026, 19:40 WIB',
-        amount: '+ Rp 2.250.000',
-        isIncome: true,
-      ),
-    ];
-
     concertFinanceSummariesNotifier.value = [
       const PromoterConcertFinanceSummary(
         id: 'c-1',
@@ -227,39 +375,453 @@ class PromoterDataService {
         payoutTransactionId: '#TX-PY9081120',
       ),
     ];
-
-    withdrawalRecordsNotifier.value = [
-      const PromoterWithdrawalRecord(
-        id: 'w-1',
-        dateTimeStr: '18 Okt 2026 · 14:05 WIB',
-        amount: 250000000,
-        bankAccount: 'BCA - ***9901',
-        status: WithdrawalStatus.berhasil,
-        refId: '#WD-8842109',
-      ),
-      const PromoterWithdrawalRecord(
-        id: 'w-2',
-        dateTimeStr: '20 Okt 2026 · 09:12 WIB',
-        amount: 150000000,
-        bankAccount: 'Mandiri - ***3321',
-        status: WithdrawalStatus.menunggu,
-        refId: '#WD-9912048',
-      ),
-      const PromoterWithdrawalRecord(
-        id: 'w-3',
-        dateTimeStr: '15 Okt 2026 · 11:30 WIB',
-        amount: 500000000,
-        bankAccount: 'BCA - ***9901',
-        status: WithdrawalStatus.ditolak,
-        refId: '#WD-8842109',
-        rejectionReason:
-            'Alasan: Nama pemilik rekening tidak cocok dengan nama KTP terverifikasi.',
-      ),
-    ];
   }
 
   void toggleTheme() {
     isDarkModeNotifier.value = !isDarkModeNotifier.value;
+    DataService().setDarkMode(isDarkModeNotifier.value);
+  }
+
+  /// Sinkronisasi ringkasan keuangan dari daftar konser di database
+  void _rebuildFinanceSummariesFromConcerts() {
+    final items = concertsNotifier.value;
+    if (items.isEmpty) {
+      concertFinanceSummariesNotifier.value = [];
+      return;
+    }
+    final List<PromoterConcertFinanceSummary> summaries = [];
+    for (final c in items) {
+      if (c.status == ConcertStatus.disetujui || c.isCompleted) {
+        final cap = c.totalCapacity > 0 ? c.totalCapacity : 5000;
+        final sold = c.ticketsSold;
+        final gross = c.resolvedGrossRevenue;
+        final fee = (gross * 0.05).round();
+        final net = gross - fee;
+        summaries.add(
+          PromoterConcertFinanceSummary(
+            id: c.id,
+            concertTitle: c.isCompleted ? '${c.title} (Selesai)' : c.title,
+            ticketsSold: sold,
+            totalCapacity: cap,
+            grossAmount: gross,
+            systemFeePercent: 5.0,
+            systemFeeAmount: fee,
+            netAmount: net,
+            payoutStatus: c.isCompleted ? 'Payout Selesai' : 'Aktif Berjalan',
+          ),
+        );
+      }
+    }
+    concertFinanceSummariesNotifier.value = summaries;
+  }
+
+  /// Memuat profil, status verifikasi, dokumen, dan PIN Produser dari Supabase
+  Future<void> loadProducerProfileFromSupabase([String? userId]) async {
+    if (!SupabaseService.isInitialized) return;
+    final targetId = userId ?? DataService().currentUser?.id;
+    if (targetId == null || targetId.isEmpty) return;
+
+    try {
+      final profileRow = await SupabaseService.client
+          .from('profiles')
+          .select()
+          .eq('id', targetId)
+          .maybeSingle();
+
+      if (profileRow != null) {
+        final name = (profileRow['name'] ?? profileRow['full_name'])?.toString();
+        if (name != null && name.trim().isNotEmpty) {
+          promoterNameNotifier.value = name.trim();
+        }
+        final pin = profileRow['pin_code']?.toString();
+        if (pin != null && pin.trim().isNotEmpty) {
+          pinCodeNotifier.value = pin.trim();
+        }
+        final verStatus = profileRow['verification_status']?.toString();
+        if (verStatus != null && verStatus.trim().isNotEmpty) {
+          verificationStatusNotifier.value = verStatus.trim().toLowerCase();
+        }
+      }
+
+      final promoterRow = await SupabaseService.client
+          .from('promoter_profiles')
+          .select()
+          .eq('user_id', targetId)
+          .maybeSingle();
+
+      if (promoterRow != null) {
+        final compName = promoterRow['company_name']?.toString();
+        if (compName != null && compName.trim().isNotEmpty) {
+          promoterNameNotifier.value = compName.trim();
+        }
+        final appStatus = promoterRow['approval_status']?.toString();
+        if (appStatus != null && appStatus.trim().isNotEmpty) {
+          verificationStatusNotifier.value = appStatus.trim().toLowerCase();
+        }
+        final ktpUrl = promoterRow['ktp_url']?.toString();
+        if (ktpUrl != null && ktpUrl.isNotEmpty) {
+          ktpDocumentNotifier.value = ktpUrl;
+        }
+        final letterUrl = promoterRow['responsibility_letter_url']?.toString();
+        if (letterUrl != null && letterUrl.isNotEmpty) {
+          responsibilityLetterNotifier.value = letterUrl;
+        }
+        final pin = promoterRow['pin_code']?.toString();
+        if (pin != null && pin.isNotEmpty) {
+          pinCodeNotifier.value = pin;
+        }
+        pendingPromoterNameNotifier.value =
+            promoterRow['pending_name']?.toString();
+        pendingKtpDocumentNotifier.value =
+            promoterRow['pending_ktp_url']?.toString();
+        pendingResponsibilityLetterNotifier.value =
+            promoterRow['pending_responsibility_letter_url']?.toString();
+      }
+    } catch (e) {
+      debugPrint('Error loadProducerProfileFromSupabase: $e');
+    }
+  }
+
+  /// Memuat daftar konser Produser langsung dari Supabase Cloud (tanpa dummy)
+  Future<void> fetchPromoterConcertsFromSupabase() async {
+    if (!SupabaseService.isInitialized) return;
+    try {
+      final currentUserId = DataService().currentUser?.id;
+      final response = await SupabaseService.client
+          .from('concerts')
+          .select('*, ticket_tiers(*)')
+          .order('created_at', ascending: false);
+
+      final List<PromoterConcertItem> supaItems = [];
+      for (final row in response) {
+        try {
+          final rowProducer = row['producer_id']?.toString();
+          if (currentUserId == null ||
+              rowProducer == null ||
+              rowProducer == currentUserId ||
+              row['status'] == 'pending') {
+            supaItems.add(PromoterConcertItem.fromJson(row));
+          }
+        } catch (e) {
+          debugPrint('Error parse promoter concert row: $e');
+        }
+      }
+      concertsNotifier.value = supaItems;
+      _rebuildFinanceSummariesFromConcerts();
+    } catch (err) {
+      debugPrint('Error fetch promoter concerts: $err');
+    }
+  }
+
+  /// Verifikasi PIN 6-digit Produser saat login
+  bool verifyPin(String inputPin) {
+    final cleanInput = inputPin.trim();
+    final storedPin = pinCodeNotifier.value.trim();
+    if (cleanInput.isNotEmpty && cleanInput == storedPin) {
+      isPinUnlockedThisSession = true;
+      return true;
+    }
+    return false;
+  }
+
+  /// Simpan atau perbarui PIN 6-digit Produser
+  Future<void> updateProducerPin(String newPin) async {
+    final trimmed = newPin.trim();
+    if (trimmed.length != 6) return;
+    pinCodeNotifier.value = trimmed;
+    isPinUnlockedThisSession = true;
+
+    if (SupabaseService.isInitialized) {
+      final userId = DataService().currentUser?.id;
+      if (userId != null) {
+        try {
+          await SupabaseService.client
+              .from('profiles')
+              .update({'pin_code': trimmed}).eq('id', userId);
+          await SupabaseService.client
+              .from('promoter_profiles')
+              .update({'pin_code': trimmed}).eq('user_id', userId);
+        } catch (e) {
+          debugPrint('Error updateProducerPin Supabase: $e');
+        }
+      }
+    }
+  }
+
+  /// Pengajuan verifikasi awal data diri Produser + KTP + Lembar Penanggung Jawab + PIN
+  Future<void> submitInitialVerification({
+    required String fullName,
+    required String birthDate,
+    required String phone,
+    required String address,
+    required String ktpFileName,
+    required String responsibilityLetterFileName,
+    required String pinCode,
+  }) async {
+    final cleanName = fullName.trim().isNotEmpty
+        ? fullName.trim()
+        : promoterNameNotifier.value;
+    promoterNameNotifier.value = cleanName;
+    ktpDocumentNotifier.value = ktpFileName.trim();
+    responsibilityLetterNotifier.value = responsibilityLetterFileName.trim();
+    pinCodeNotifier.value = pinCode.trim();
+    verificationStatusNotifier.value = 'pending';
+    isPinUnlockedThisSession = false;
+
+    final currentUser = DataService().currentUser;
+    final userId = currentUser?.id ?? 'prd-${DateTime.now().millisecondsSinceEpoch}';
+    final userEmail = currentUser?.email ?? 'official@javapromotor.com';
+
+    // Sinkronkan ke antrean approval Produser di AdminService
+    final adminService = AdminService();
+    final newApp = ProducerApplicationModel(
+      id: 'promoter-$userId',
+      userId: userId,
+      companyName: cleanName,
+      email: userEmail,
+      phone: phone.trim().isNotEmpty ? phone.trim() : '081234567890',
+      address: address.trim().isNotEmpty
+          ? address.trim()
+          : 'Jl. Kayutangan No. 45, Malang',
+      approvalStatus: ApprovalStatus.pending,
+      isVerified: false,
+      submittedAt: DateTime.now(),
+      submissionDocuments: [
+        ProducerDocumentModel(
+          id: 'doc-ktp-$userId',
+          name: 'KTP Penanggung Jawab (${ktpFileName.trim()})',
+          type: 'JPG',
+          fileSize: '850 KB',
+          fileUrl: ktpFileName.trim(),
+        ),
+        ProducerDocumentModel(
+          id: 'doc-letter-$userId',
+          name: 'Lembar Penanggung Jawab (${responsibilityLetterFileName.trim()})',
+          type: 'PDF',
+          fileSize: '540 KB',
+          fileUrl: responsibilityLetterFileName.trim(),
+        ),
+      ],
+    );
+    final list = List<ProducerApplicationModel>.from(
+        adminService.producersNotifier.value);
+    list.removeWhere((p) => p.id == newApp.id || p.userId == userId);
+    list.insert(0, newApp);
+    adminService.producersNotifier.value = list;
+
+    if (SupabaseService.isInitialized) {
+      try {
+        await SupabaseService.client.from('profiles').upsert({
+          'id': userId,
+          'name': cleanName,
+          'full_name': cleanName,
+          'email': userEmail,
+          'phone': phone.trim(),
+          'role': 'Produser',
+          'pin_code': pinCode.trim(),
+          'is_verified': false,
+          'verification_status': 'pending',
+        });
+
+        await SupabaseService.client.from('promoter_profiles').upsert({
+          'id': 'promoter-$userId',
+          'user_id': userId,
+          'company_name': cleanName,
+          'responsible_name': cleanName,
+          'phone': phone.trim(),
+          'office_address': address.trim(),
+          'birth_date': birthDate.trim(),
+          'ktp_url': ktpFileName.trim(),
+          'responsibility_letter_url': responsibilityLetterFileName.trim(),
+          'pin_code': pinCode.trim(),
+          'is_verified': false,
+          'approval_status': 'pending',
+          'submitted_at': DateTime.now().toIso8601String(),
+        });
+      } catch (e) {
+        debugPrint('Error submitInitialVerification Supabase: $e');
+      }
+    }
+  }
+
+  /// Ajukan perubahan Nama Produser atau Dokumen Legalitas (Memerlukan Approval Admin)
+  Future<void> requestProfileOrLegalityChange({
+    String? newName,
+    String? newKtpFileName,
+    String? newResponsibilityLetterFileName,
+  }) async {
+    if (newName != null &&
+        newName.trim().isNotEmpty &&
+        newName.trim() != promoterNameNotifier.value) {
+      pendingPromoterNameNotifier.value = newName.trim();
+    }
+    if (newKtpFileName != null && newKtpFileName.trim().isNotEmpty) {
+      pendingKtpDocumentNotifier.value = newKtpFileName.trim();
+    }
+    if (newResponsibilityLetterFileName != null &&
+        newResponsibilityLetterFileName.trim().isNotEmpty) {
+      pendingResponsibilityLetterNotifier.value =
+          newResponsibilityLetterFileName.trim();
+    }
+
+    final currentUser = DataService().currentUser;
+    final userId = currentUser?.id ?? 'prd-006';
+    final userEmail = currentUser?.email ?? 'official@javapromotor.com';
+
+    // Tambahkan ke antrean approval Admin
+    final adminService = AdminService();
+    final targetName =
+        pendingPromoterNameNotifier.value ?? promoterNameNotifier.value;
+    final targetKtp =
+        pendingKtpDocumentNotifier.value ?? ktpDocumentNotifier.value;
+    final targetLetter = pendingResponsibilityLetterNotifier.value ??
+        responsibilityLetterNotifier.value;
+
+    final changeApp = ProducerApplicationModel(
+      id: 'promoter-$userId',
+      userId: userId,
+      companyName: targetName,
+      email: userEmail,
+      phone: currentUser?.phone ?? '081234567890',
+      address: 'Perubahan Data/Dokumen Produser',
+      approvalStatus: ApprovalStatus.pending,
+      isVerified: false,
+      submittedAt: DateTime.now(),
+      submissionDocuments: [
+        ProducerDocumentModel(
+          id: 'doc-ktp-$userId',
+          name: 'KTP Penanggung Jawab ($targetKtp)',
+          type: 'JPG',
+          fileSize: '850 KB',
+          fileUrl: targetKtp,
+        ),
+        ProducerDocumentModel(
+          id: 'doc-letter-$userId',
+          name: 'Lembar Penanggung Jawab ($targetLetter)',
+          type: 'PDF',
+          fileSize: '540 KB',
+          fileUrl: targetLetter,
+        ),
+      ],
+    );
+
+    final list = List<ProducerApplicationModel>.from(
+        adminService.producersNotifier.value);
+    list.removeWhere((p) => p.id == changeApp.id || p.userId == userId);
+    list.insert(0, changeApp);
+    adminService.producersNotifier.value = list;
+
+    if (SupabaseService.isInitialized) {
+      try {
+        await SupabaseService.client.from('promoter_profiles').upsert({
+          'id': 'promoter-$userId',
+          'user_id': userId,
+          'company_name': promoterNameNotifier.value,
+          if (pendingPromoterNameNotifier.value != null)
+            'pending_name': pendingPromoterNameNotifier.value,
+          if (pendingKtpDocumentNotifier.value != null)
+            'pending_ktp_url': pendingKtpDocumentNotifier.value,
+          if (pendingResponsibilityLetterNotifier.value != null)
+            'pending_responsibility_letter_url':
+                pendingResponsibilityLetterNotifier.value,
+          'profile_change_status': 'pending',
+          'approval_status': 'pending',
+          'submitted_at': DateTime.now().toIso8601String(),
+        });
+      } catch (e) {
+        debugPrint('Error requestProfileOrLegalityChange Supabase: $e');
+      }
+    }
+  }
+
+  /// Dipanggil saat Admin menyetujui akun produser atau perubahan nama/dokumen produser
+  void onAdminApprovedProducer(ProducerApplicationModel approvedModel) {
+    verificationStatusNotifier.value = 'approved';
+    if (pendingPromoterNameNotifier.value != null &&
+        pendingPromoterNameNotifier.value!.isNotEmpty) {
+      promoterNameNotifier.value = pendingPromoterNameNotifier.value!;
+      DataService().updateProfile(name: pendingPromoterNameNotifier.value!);
+      pendingPromoterNameNotifier.value = null;
+    } else if (approvedModel.companyName.isNotEmpty) {
+      promoterNameNotifier.value = approvedModel.companyName;
+    }
+    if (pendingKtpDocumentNotifier.value != null &&
+        pendingKtpDocumentNotifier.value!.isNotEmpty) {
+      ktpDocumentNotifier.value = pendingKtpDocumentNotifier.value!;
+      pendingKtpDocumentNotifier.value = null;
+    }
+    if (pendingResponsibilityLetterNotifier.value != null &&
+        pendingResponsibilityLetterNotifier.value!.isNotEmpty) {
+      responsibilityLetterNotifier.value =
+          pendingResponsibilityLetterNotifier.value!;
+      pendingResponsibilityLetterNotifier.value = null;
+    }
+  }
+
+  /// Tambah/kurangi jumlah Love (Disukai) konser secara real-time saat User menekan tombol Love
+  void adjustConcertLikes(String concertId, int delta) {
+    final list = List<PromoterConcertItem>.from(concertsNotifier.value);
+    final idx = list.indexWhere((c) =>
+        c.id == concertId ||
+        (concertId == 'featured-1' &&
+            (c.id == '1' ||
+                c.title.toLowerCase().contains('soundwave fest'))));
+
+    if (idx != -1) {
+      final currentLikes = list[idx].numericLikes;
+      final nextLikes = (currentLikes + delta) < 0 ? 0 : (currentLikes + delta);
+      list[idx] = list[idx].copyWith(
+        likesCount: PromoterConcertItem.formatLikes(nextLikes),
+      );
+      concertsNotifier.value = list;
+
+      if (SupabaseService.isInitialized) {
+        SupabaseService.client
+            .from('concerts')
+            .update({'likes_count': nextLikes})
+            .eq('id', list[idx].id)
+            .catchError((err) {
+              debugPrint('Error sync likes_count to Supabase: $err');
+            });
+      }
+    } else if (SupabaseService.isInitialized) {
+      // Update langsung berdasarkan concertId di Supabase
+      SupabaseService.client
+          .from('concerts')
+          .select('likes_count')
+          .eq('id', concertId)
+          .maybeSingle()
+          .then((row) {
+        if (row != null) {
+          final curr = (row['likes_count'] as num?)?.toInt() ?? 0;
+          final next = (curr + delta) < 0 ? 0 : (curr + delta);
+          SupabaseService.client
+              .from('concerts')
+              .update({'likes_count': next}).eq('id', concertId);
+        }
+      }).catchError((_) {});
+    }
+  }
+
+  /// Tandai konser telah selesai (masuk ke Riwayat Selesai beserta data pendapatan)
+  void markConcertCompleted(String concertId, {bool completed = true}) {
+    final list = List<PromoterConcertItem>.from(concertsNotifier.value);
+    final idx = list.indexWhere((c) => c.id == concertId);
+    if (idx != -1) {
+      list[idx] = list[idx].copyWith(isCompleted: completed);
+      concertsNotifier.value = list;
+      _rebuildFinanceSummariesFromConcerts();
+
+      if (SupabaseService.isInitialized) {
+        SupabaseService.client
+            .from('concerts')
+            .update({'is_completed': completed})
+            .eq('id', concertId)
+            .catchError((err) {
+              debugPrint('Error markConcertCompleted Supabase: $err');
+            });
+      }
+    }
   }
 
   bool addConcert(PromoterConcertItem newConcert) {
@@ -271,13 +833,112 @@ class PromoterDataService {
     concertsNotifier.value = updatedList;
 
     quotaRemainingNotifier.value = quotaRemainingNotifier.value - 1;
+
+    // 1. Simpan ke Supabase Cloud jika Supabase aktif
+    if (SupabaseService.isInitialized) {
+      final currentUserId = DataService().currentUser?.id;
+      final concertJson = newConcert.toJson(promoterId: currentUserId);
+      concertJson.remove('ticket_tiers');
+      concertJson['producer_name'] = promoterName;
+      concertJson['status'] = 'pending'; // Memerlukan approval Admin
+
+      SupabaseService.client.from('concerts').upsert(concertJson).then((_) {
+        for (final tier in newConcert.tiers) {
+          SupabaseService.client.from('ticket_tiers').upsert({
+            'id': tier.id,
+            'concert_id': newConcert.id,
+            'name': tier.name,
+            'price': tier.price,
+            'quota': tier.quota,
+            'total_quota': tier.quota,
+            'quota_type': tier.quotaType,
+            'accent_color': tier.accentColor.toARGB32(),
+          }).catchError((err) {
+            debugPrint('Error upsert ticket_tier: $err');
+          });
+        }
+      }).catchError((err) {
+        debugPrint('Error upsert concert to Supabase: $err');
+      });
+    }
+
+    // 2. Hubungkan ke antrean persetujuan Super Admin
+    _syncConcertToAdmin(newConcert);
+
     return true;
+  }
+
+  /// Memperbarui informasi konser dan mengirim ulang ke antrean approval Admin
+  void updateConcert(
+    PromoterConcertItem updatedConcert, {
+    bool requiresAdminApproval = true,
+  }) {
+    final list = List<PromoterConcertItem>.from(concertsNotifier.value);
+    final idx = list.indexWhere((c) => c.id == updatedConcert.id);
+    final finalConcert = requiresAdminApproval
+        ? updatedConcert.copyWith(status: ConcertStatus.menunggu)
+        : updatedConcert;
+
+    if (idx != -1) {
+      list[idx] = finalConcert;
+    } else {
+      list.insert(0, finalConcert);
+    }
+    concertsNotifier.value = list;
+
+    if (SupabaseService.isInitialized) {
+      final json = finalConcert.toJson(
+        promoterId: DataService().currentUser?.id,
+      );
+      json.remove('ticket_tiers');
+      if (requiresAdminApproval) {
+        json['status'] = 'pending';
+      }
+      SupabaseService.client.from('concerts').upsert(json).catchError((err) {
+        debugPrint('Error update concert in Supabase: $err');
+      });
+
+      for (final tier in finalConcert.tiers) {
+        SupabaseService.client.from('ticket_tiers').upsert({
+          'id': tier.id,
+          'concert_id': finalConcert.id,
+          'name': tier.name,
+          'price': tier.price,
+          'quota': tier.quota,
+          'total_quota': tier.quota,
+          'quota_type': tier.quotaType,
+          'accent_color': tier.accentColor.toARGB32(),
+        }).catchError((err) {
+          debugPrint('Error update tier in Supabase: $err');
+        });
+      }
+    }
+
+    if (requiresAdminApproval) {
+      _syncConcertToAdmin(finalConcert, requestType: 'edit');
+    }
   }
 
   void deleteConcert(String id) {
     final updatedList = List<PromoterConcertItem>.from(concertsNotifier.value);
     updatedList.removeWhere((item) => item.id == id);
     concertsNotifier.value = updatedList;
+
+    if (SupabaseService.isInitialized) {
+      SupabaseService.client
+          .from('concerts')
+          .delete()
+          .eq('id', id)
+          .catchError((err) {
+        debugPrint('Error delete concert from Supabase: $err');
+      });
+    }
+
+    final adminService = AdminService();
+    final adminConcerts =
+        List<ConcertSubmissionModel>.from(adminService.concertsNotifier.value);
+    adminConcerts.removeWhere((c) => c.id == id);
+    adminService.concertsNotifier.value = adminConcerts;
   }
 
   void submitConcertCancellation({
@@ -299,6 +960,67 @@ class PromoterDataService {
       );
       concertsNotifier.value = list;
     }
+
+    if (SupabaseService.isInitialized) {
+      SupabaseService.client.from('concerts').update({
+        'status': 'cancellation_pending',
+        'cancellation_category': category,
+        'cancellation_reason': reason,
+        'cancellation_attachment': attachmentName,
+        'cancellation_date': '19 Okt 2026, 14:02',
+      }).eq('id', concertId).catchError((err) {
+        debugPrint('Error submit cancellation in Supabase: $err');
+      });
+    }
+
+    final adminService = AdminService();
+    final current = adminService.concertById(concertId);
+    if (current != null) {
+      final updated = current.copyWith(
+        approvalStatus: ApprovalStatus.pending,
+        cancellationReason: reason,
+        attachmentName: attachmentName,
+      );
+      adminService.concertsNotifier.value = [
+        for (final c in adminService.concertsNotifier.value)
+          c.id == concertId ? updated : c,
+      ];
+    }
+  }
+
+  void _syncConcertToAdmin(PromoterConcertItem item, {String? requestType}) {
+    final adminService = AdminService();
+    final submission = ConcertSubmissionModel(
+      id: item.id,
+      promoterId: DataService().currentUser?.id ?? 'prd-006',
+      promoterName: promoterName,
+      title: item.title,
+      subtitle: item.dateAndVenue,
+      dateTime: DateTime.tryParse(item.date) ??
+          DateTime.now().add(const Duration(days: 7)),
+      venue: item.venueName,
+      totalCapacity: item.totalCapacity,
+      status: 'pending',
+      approvalStatus: ApprovalStatus.pending,
+      submittedAt: DateTime.now(),
+      requestType: requestType,
+      requestInfo: requestType == 'edit' ? 'Perubahan Data Konser' : null,
+      tiers: item.tiers
+          .map((t) => SubmissionTierModel(
+                id: t.id,
+                concertId: item.id,
+                name: t.name,
+                price: t.price,
+                totalQuota: t.quota,
+              ))
+          .toList(),
+    );
+
+    final adminConcerts =
+        List<ConcertSubmissionModel>.from(adminService.concertsNotifier.value);
+    adminConcerts.removeWhere((c) => c.id == submission.id);
+    adminConcerts.insert(0, submission);
+    adminService.concertsNotifier.value = adminConcerts;
   }
 
   void approveConcertCancellation({required String concertId}) {

@@ -25,15 +25,28 @@ class ConcertDetailScreen extends StatefulWidget {
 class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
   int _selectedTierIndex = 0;
 
-  late final List<TicketTierModel> _tiers;
+  late List<TicketTierModel> _tiers;
 
   @override
   void initState() {
     super.initState();
     if (widget.concert.ticketTiers.isNotEmpty) {
-      _tiers = widget.concert.ticketTiers;
+      _tiers = List.from(widget.concert.ticketTiers);
     } else {
-      _tiers = DbDummy.concerts.first.ticketTiers;
+      _tiers = List.from(DbDummy.concerts.first.ticketTiers);
+    }
+    _fetchFreshDetail();
+  }
+
+  Future<void> _fetchFreshDetail() async {
+    final fresh = await DataService().getConcertById(widget.concert.id);
+    if (fresh != null && fresh.ticketTiers.isNotEmpty && mounted) {
+      setState(() {
+        _tiers = List.from(fresh.ticketTiers);
+        if (_selectedTierIndex >= _tiers.length) {
+          _selectedTierIndex = 0;
+        }
+      });
     }
   }
 

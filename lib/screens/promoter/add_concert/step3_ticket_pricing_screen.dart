@@ -18,15 +18,6 @@ class Step3TicketPricingScreen extends StatelessWidget {
   });
 
   void _removeTier(BuildContext context, int index) {
-    if (tiers.length <= 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Minimal harus ada 1 kategori tiket aktif.'),
-          backgroundColor: Color(0xFFC2185B),
-        ),
-      );
-      return;
-    }
     final updated = List<PromoterTicketTier>.from(tiers)..removeAt(index);
     onTiersChanged(updated);
   }
@@ -45,167 +36,209 @@ class Step3TicketPricingScreen extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Tambah Kategori Tiket',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF101828),
+      builder: (ctx) => Theme(
+        data: ThemeData.light(),
+        child: StatefulBuilder(
+          builder: (ctx, setModalState) => Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Tambah Kategori Tiket',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Nama Kategori (misal: VIP / Presale)',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                    IconButton(
+                      icon: const Icon(Icons.close,
+                          size: 20, color: Color(0xFF0F172A)),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: priceCtrl,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Harga (Rp)',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameCtrl,
+                  style: const TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w600,
                   ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: quotaCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'Jumlah Kuota',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  DropdownButton<String>(
-                    value: quotaType,
-                    items: const [
-                      DropdownMenuItem(value: 'Kursi', child: Text('Kursi')),
-                      DropdownMenuItem(value: 'Orang', child: Text('Orang')),
-                      DropdownMenuItem(value: 'Tiket', child: Text('Tiket')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setModalState(() => quotaType = val);
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  const Text('Warna Aksen: ', style: TextStyle(fontSize: 13)),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () => setModalState(
-                        () => selectedColor = const Color(0xFFC2185B)),
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFC2185B),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: selectedColor == const Color(0xFFC2185B)
-                              ? Colors.black
-                              : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  GestureDetector(
-                    onTap: () => setModalState(
-                        () => selectedColor = const Color(0xFF1B2A8C)),
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1B2A8C),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: selectedColor == const Color(0xFF1B2A8C)
-                              ? Colors.black
-                              : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 46,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B2A8C),
-                    shape: RoundedRectangleBorder(
+                  decoration: InputDecoration(
+                    labelText: 'Nama Kategori (misal: VIP / Presale)',
+                    labelStyle: const TextStyle(color: Color(0xFF475569)),
+                    border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: () {
-                    final name = nameCtrl.text.trim();
-                    final price = int.tryParse(priceCtrl.text.trim()) ?? 0;
-                    final quota = int.tryParse(quotaCtrl.text.trim()) ?? 0;
-                    if (name.isEmpty || price <= 0 || quota <= 0) return;
-
-                    final newTier = PromoterTicketTier(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      name: name,
-                      price: price,
-                      quota: quota,
-                      quotaType: quotaType,
-                      accentColor: selectedColor,
-                    );
-                    onTiersChanged([...tiers, newTier]);
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text(
-                    'Simpan Kategori',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: priceCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w600,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Harga (Rp)',
+                    labelStyle: const TextStyle(color: Color(0xFF475569)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: quotaCtrl,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(
+                          color: Color(0xFF0F172A),
+                          fontWeight: FontWeight.w600,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Jumlah Kuota',
+                          labelStyle:
+                              const TextStyle(color: Color(0xFF475569)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    DropdownButton<String>(
+                      value: quotaType,
+                      dropdownColor: Colors.white,
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'Kursi',
+                            child: Text('Kursi',
+                                style: TextStyle(color: Color(0xFF0F172A)))),
+                        DropdownMenuItem(
+                            value: 'Orang',
+                            child: Text('Orang',
+                                style: TextStyle(color: Color(0xFF0F172A)))),
+                        DropdownMenuItem(
+                            value: 'Tiket',
+                            child: Text('Tiket',
+                                style: TextStyle(color: Color(0xFF0F172A)))),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setModalState(() => quotaType = val);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const Text(
+                      'Warna Aksen: ',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => setModalState(
+                          () => selectedColor = const Color(0xFFC2185B)),
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFC2185B),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: selectedColor == const Color(0xFFC2185B)
+                                ? Colors.black
+                                : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: () => setModalState(
+                          () => selectedColor = const Color(0xFF1B2A8C)),
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1B2A8C),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: selectedColor == const Color(0xFF1B2A8C)
+                                ? Colors.black
+                                : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1B2A8C),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: () {
+                      final name = nameCtrl.text.trim();
+                      final price = int.tryParse(priceCtrl.text.trim()) ?? 0;
+                      final quota = int.tryParse(quotaCtrl.text.trim()) ?? 0;
+                      if (name.isEmpty || price <= 0 || quota <= 0) return;
+
+                      final newTier = PromoterTicketTier(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        name: name,
+                        price: price,
+                        quota: quota,
+                        quotaType: quotaType,
+                        accentColor: selectedColor,
+                      );
+                      onTiersChanged([...tiers, newTier]);
+                      Navigator.pop(ctx);
+                    },
+                    child: const Text(
+                      'Simpan Kategori',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -326,7 +359,45 @@ class Step3TicketPricingScreen extends StatelessWidget {
                     const SizedBox(height: 12),
 
                     // List of Tier Cards
-                    ListView.separated(
+                    if (tiers.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: cardBorder),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.confirmation_number_outlined,
+                              size: 36,
+                              color: subtextColor,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Belum ada kategori tiket',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: textColor,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Klik tombol "Tambah Kategori Tiket" di bawah untuk menambahkan kategori (VIP, Reguler, dll), kuota daya tampung, dan harga tiket.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: subtextColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: tiers.length,

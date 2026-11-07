@@ -547,6 +547,8 @@ class AdminUserDetailScreen extends StatelessWidget {
         return const Color(0xFFF3E8FF);
       case 'admin':
         return const Color(0xFFEFF6FF);
+      case 'gatecrew':
+        return const Color(0xFFECFDF5);
       default:
         return const Color(0xFFEFF6FF);
     }
@@ -558,6 +560,8 @@ class AdminUserDetailScreen extends StatelessWidget {
         return const Color(0xFF7C3AED);
       case 'admin':
         return const Color(0xFF1E3A8A);
+      case 'gatecrew':
+        return const Color(0xFF059669);
       default:
         return const Color(0xFF2563EB);
     }
@@ -569,6 +573,8 @@ class AdminUserDetailScreen extends StatelessWidget {
         return const Color(0xFFF3E8FF);
       case 'admin':
         return const Color(0xFFEFF6FF);
+      case 'gatecrew':
+        return const Color(0xFFECFDF5);
       default:
         return const Color(0xFFEFF6FF);
     }
@@ -580,6 +586,8 @@ class AdminUserDetailScreen extends StatelessWidget {
         return const Color(0xFF7C3AED);
       case 'admin':
         return const Color(0xFF1E3A8A);
+      case 'gatecrew':
+        return const Color(0xFF059669);
       default:
         return const Color(0xFF2563EB);
     }

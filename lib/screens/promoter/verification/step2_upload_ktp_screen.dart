@@ -8,6 +8,11 @@ class Step2UploadKtpScreen extends StatelessWidget {
   final bool isKtpUploaded;
   final VoidCallback onPickOrReplaceKtp;
   final VoidCallback onDeleteKtp;
+  final String responsibilityLetterFileName;
+  final bool isResponsibilityLetterUploaded;
+  final VoidCallback? onPickOrReplaceResponsibilityLetter;
+  final VoidCallback? onDeleteResponsibilityLetter;
+  final VoidCallback? onDownloadResponsibilityWordTemplate;
   final VoidCallback onSubmit;
   final VoidCallback onBack;
 
@@ -17,6 +22,11 @@ class Step2UploadKtpScreen extends StatelessWidget {
     this.isKtpUploaded = false,
     required this.onPickOrReplaceKtp,
     required this.onDeleteKtp,
+    this.responsibilityLetterFileName = '',
+    this.isResponsibilityLetterUploaded = false,
+    this.onPickOrReplaceResponsibilityLetter,
+    this.onDeleteResponsibilityLetter,
+    this.onDownloadResponsibilityWordTemplate,
     required this.onSubmit,
     required this.onBack,
   });
@@ -106,7 +116,7 @@ class Step2UploadKtpScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Langkah 2 dari 2: Upload KTP penanggung jawab untuk verifikasi akun',
+                      'Langkah 2 dari 3: Upload KTP & Lembar Penanggung Jawab untuk diperiksa Admin',
                       style: TextStyle(
                         fontSize: 12.5,
                         color: subtextColor,
@@ -114,7 +124,7 @@ class Step2UploadKtpScreen extends StatelessWidget {
                       ),
                     ),
 
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 20),
 
                     // Card 1: Dokumen yang dibutuhkan
                     Container(
@@ -155,7 +165,7 @@ class Step2UploadKtpScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
-                                  'KTP penanggung jawab harus jelas, tidak terpotong, dan masih berlaku.',
+                                  '1. KTP Penanggung Jawab yang jelas & masih berlaku.\n2. Lembar Penanggung Jawab sesuai format template Word resmi.',
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     color: subtextColor,
@@ -169,9 +179,19 @@ class Step2UploadKtpScreen extends StatelessWidget {
                       ),
                     ),
 
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
 
-                    // Card 2: KTP Penanggung Jawab (Empty / Uploaded state)
+                    // Card 2: KTP Penanggung Jawab
+                    Text(
+                      '1. KTP PENANGGUNG JAWAB',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: subtextColor,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     if (isKtpUploaded)
                       Container(
                         padding: const EdgeInsets.all(14),
@@ -301,12 +321,12 @@ class Step2UploadKtpScreen extends StatelessWidget {
                         ),
                       ),
 
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
 
                     // Button: Pilih / Ganti Dokumen KTP
                     SizedBox(
                       width: double.infinity,
-                      height: 46,
+                      height: 44,
                       child: OutlinedButton(
                         onPressed: onPickOrReplaceKtp,
                         style: OutlinedButton.styleFrom(
@@ -326,7 +346,7 @@ class Step2UploadKtpScreen extends StatelessWidget {
                               ? 'Ganti Dokumen KTP'
                               : 'Pilih Dokumen KTP',
                           style: TextStyle(
-                            fontSize: 13.5,
+                            fontSize: 13,
                             fontWeight: FontWeight.w700,
                             color: isDarkMode
                                 ? Colors.white
@@ -336,12 +356,208 @@ class Step2UploadKtpScreen extends StatelessWidget {
                       ),
                     ),
 
+                    const SizedBox(height: 22),
+
+                    // Section 2: Lembar Penanggung Jawab (Template Word + Upload)
+                    Text(
+                      '2. LEMBAR PENANGGUNG JAWAB (FORMAT WORD)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: subtextColor,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Unduh template Word (.doc) di bawah ini, isi dan tanda tangani sesuai format, lalu unggah ke kolom di bawah untuk diperiksa oleh pihak Admin.',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: subtextColor,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Button: Download Word Template
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: onDownloadResponsibilityWordTemplate,
+                        icon: const Icon(
+                          Icons.download_rounded,
+                          size: 18,
+                          color: Color(0xFF1B2A8C),
+                        ),
+                        label: Text(
+                          'Unduh Template Lembar Penanggung Jawab (.doc)',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: isDarkMode
+                                ? Colors.white
+                                : const Color(0xFF1B2A8C),
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: isDarkMode
+                              ? const Color(0xFF182032)
+                              : const Color(0xFFF0F4FF),
+                          side: const BorderSide(
+                            color: Color(0xFF1B2A8C),
+                            width: 1.2,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Upload Box: Lembar Penanggung Jawab
+                    if (isResponsibilityLetterUploaded)
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isDarkMode
+                              ? const Color(0xFF182032)
+                              : const Color(0xFFF0F4FF),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: const Color(0xFF1B2A8C)
+                                .withValues(alpha: 0.5),
+                            width: 1.1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE0E7FF),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.assignment_turned_in_outlined,
+                                color: Color(0xFF1B2A8C),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Lembar Penanggung Jawab',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '$responsibilityLetterFileName · Siap diperiksa Admin',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1B2A8C),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (onDeleteResponsibilityLetter != null)
+                              InkWell(
+                                onTap: onDeleteResponsibilityLetter,
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(6),
+                                  child: Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 20,
+                                    color: subtextColor,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      )
+                    else
+                      InkWell(
+                        onTap: onPickOrReplaceResponsibilityLetter,
+                        borderRadius: BorderRadius.circular(14),
+                        child: DashedBorderBox(
+                          borderRadius: 14,
+                          color: const Color(0xFF1B2A8C),
+                          backgroundColor: isDarkMode
+                              ? const Color(0xFF182032)
+                              : const Color(0xFFF8FAFC),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE0E7FF),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.article_outlined,
+                                    color: Color(0xFF1B2A8C),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Unggah Lembar Penanggung Jawab',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: textColor,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      const Text(
+                                        'Ketuk untuk upload file (.doc, .docx, .pdf)',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF1B2A8C),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.file_upload_outlined,
+                                  size: 20,
+                                  color: subtextColor,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
                     const SizedBox(height: 20),
 
-                    // 2-Step Progress Bar (both active)
+                    // 3-Step Progress Bar
                     const PromoterStepIndicator(
                       currentStep: 2,
-                      totalSteps: 2,
+                      totalSteps: 3,
                     ),
 
                     const SizedBox(height: 24),

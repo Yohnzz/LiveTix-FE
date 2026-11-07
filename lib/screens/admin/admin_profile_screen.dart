@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/admin_service.dart';
 import '../../services/data_service.dart';
+import '../../utils/file_picker_helper.dart';
 import '../home/home_screen.dart';
 import 'admin_notification_screen.dart';
 import 'admin_shell.dart';
@@ -67,115 +68,153 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       BuildContext context, String currentName, String currentEmail) {
     final nameController = TextEditingController(text: currentName);
     final formKey = GlobalKey<FormState>();
+    String? selectedPhoto = DataService().currentUser?.avatarUrl;
 
     showDialog<void>(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Edit Profil Admin',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-        ),
-        content: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Email (Terkunci)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AdminColors.textGrey,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            'Edit Profil Admin',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 22,
+                        backgroundColor: Color(0xFFE0E7FF),
+                        child: Icon(Icons.person_rounded,
+                            color: Color(0xFF1E3A8A)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          selectedPhoto ?? 'Foto Profil Default',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AdminColors.textGrey,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          final picked = await pickNativeFile();
+                          if (picked != null) {
+                            setDialogState(() => selectedPhoto = picked);
+                          }
+                        },
+                        child: const Text('Ganti Foto'),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AdminColors.border),
-                  ),
-                  child: Text(
-                    currentEmail,
-                    style: const TextStyle(
-                      fontSize: 14,
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Email (Terkunci)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                       color: AdminColors.textGrey,
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Nama Lengkap',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AdminColors.textDark,
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AdminColors.border),
+                    ),
+                    child: Text(
+                      currentEmail,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AdminColors.textGrey,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: nameController,
-                  autofocus: true,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AdminColors.textDark,
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Nama Lengkap',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AdminColors.textDark,
+                    ),
                   ),
-                  decoration: InputDecoration(
-                    hintText: 'Masukkan nama admin',
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: nameController,
+                    autofocus: true,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AdminColors.textDark,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Masukkan nama admin',
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Nama tidak boleh kosong';
+                      }
+                      if (v.trim().length < 2) return 'Nama minimal 2 karakter';
+                      return null;
+                    },
                   ),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) {
-                      return 'Nama tidak boleh kosong';
-                    }
-                    if (v.trim().length < 2) return 'Nama minimal 2 karakter';
-                    return null;
-                  },
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (!formKey.currentState!.validate()) return;
-              final newName = nameController.text.trim();
-              setState(() {
-                _adminName = newName;
-              });
-              DataService().updateProfile(name: newName);
-              AdminService().updateUserName('usr-003', newName);
-              Navigator.of(dialogCtx).pop();
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(
-                  SnackBar(
-                    content: Text(
-                        'Profil admin berhasil diperbarui menjadi "$newName"'),
-                    backgroundColor: const Color(0xFF166534),
-                  ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (!formKey.currentState!.validate()) return;
+                final newName = nameController.text.trim();
+                setState(() {
+                  _adminName = newName;
+                });
+                DataService().updateProfile(
+                  name: newName,
+                  avatarUrl: selectedPhoto,
                 );
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF1E3A8A),
+                AdminService().updateUserName('usr-003', newName);
+                Navigator.of(dialogCtx).pop();
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      content: Text(
+                          'Profil admin berhasil diperbarui menjadi "$newName"'),
+                      backgroundColor: const Color(0xFF166534),
+                    ),
+                  );
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF1E3A8A),
+              ),
+              child: const Text('Simpan'),
             ),
-            child: const Text('Simpan'),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

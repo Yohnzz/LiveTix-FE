@@ -166,15 +166,28 @@ class _HomeScreenState extends State<HomeScreen> {
     return list;
   }
 
-  /// Menampilkan maksimal 5 konser yang cocok dengan filter aktif pada dashboard Beranda
-  List<ConcertModel> get _trendingConcerts =>
-      _filteredConcerts.take(_maxTrendingDisplayCount).toList();
+  /// Menampilkan maksimal 5 konser yang cocok dengan filter aktif pada dashboard Beranda,
+  /// diurutkan berdasarkan jumlah love/suka tertinggi (Trending).
+  List<ConcertModel> get _trendingConcerts {
+    final sorted = List<ConcertModel>.from(_filteredConcerts);
+    sorted.sort((a, b) {
+      final aLikes =
+          _dataService.getConcertLikesCount(a.id) + (_dataService.isFavorite(a.id) ? 1 : 0);
+      final bLikes =
+          _dataService.getConcertLikesCount(b.id) + (_dataService.isFavorite(b.id) ? 1 : 0);
+      return bLikes.compareTo(aLikes);
+    });
+    return sorted.take(_maxTrendingDisplayCount).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: _dataService.isDarkModeNotifier,
-      builder: (context, isDark, _) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        _dataService.isDarkModeNotifier,
+        _dataService.favoriteConcertIdsNotifier,
+      ]),
+      builder: (context, _) {
         return Scaffold(
           backgroundColor: AppColors.bg(context),
           body: _buildCurrentTabBody(),

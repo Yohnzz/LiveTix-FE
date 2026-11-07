@@ -20,8 +20,15 @@ class PromoterConcertListScreen extends StatefulWidget {
 
 class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
   ConcertStatus _selectedStatus = ConcertStatus.semua;
+  bool _showCompletedHistory = false; // false = Aktif, true = Selesai (Riwayat)
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    PromoterDataService().fetchPromoterConcertsFromSupabase();
+  }
 
   @override
   void dispose() {
@@ -166,6 +173,74 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
 
                 const SizedBox(height: 16),
 
+                // Toggle Filter Aktif vs Selesai (Riwayat Konser & Pendapatan)
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: cardBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () =>
+                              setState(() => _showCompletedHistory = false),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: !_showCompletedHistory
+                                  ? const Color(0xFF1B2A8C)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'Aktif',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: !_showCompletedHistory
+                                    ? Colors.white
+                                    : subtextColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () =>
+                              setState(() => _showCompletedHistory = true),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _showCompletedHistory
+                                  ? const Color(0xFF1B2A8C)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'Selesai (Riwayat)',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: _showCompletedHistory
+                                    ? Colors.white
+                                    : subtextColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
                 // Horizontal Filter Chips
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -259,6 +334,9 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
                   valueListenable: service.concertsNotifier,
                   builder: (context, allConcerts, _) {
                     final filtered = allConcerts.where((item) {
+                      if (_showCompletedHistory != item.isCompleted) {
+                        return false;
+                      }
                       final matchesStatus =
                           _selectedStatus == ConcertStatus.semua ||
                               item.status == _selectedStatus;
@@ -917,30 +995,58 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.confirmation_number_outlined,
-                      size: 13,
-                      color: subtextColor,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${concert.formattedTotalCapacity} · ${concert.tiers.length} Tier',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: subtextColor,
-                        fontWeight: FontWeight.w500,
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.confirmation_number_outlined,
+                            size: 13,
+                            color: subtextColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            concert.isCompleted
+                                ? 'Terjual: ${concert.formattedTicketsSold}'
+                                : '${concert.formattedTotalCapacity} · ${concert.tiers.length} Tier',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: subtextColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                      if (concert.isCompleted || concert.ticketsSold > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFECFDF3),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Pendapatan: ${concert.formattedGrossRevenue}',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF027A48),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      actionCtaText,
+                      concert.isCompleted ? 'Lihat Riwayat' : actionCtaText,
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,

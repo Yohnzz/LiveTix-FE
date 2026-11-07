@@ -13,6 +13,7 @@ class Step1DetailPosterScreen extends StatelessWidget {
   final VoidCallback onPickSquareLogo;
   final VoidCallback onNext;
   final VoidCallback onBack;
+  final bool isEditMode;
 
   const Step1DetailPosterScreen({
     super.key,
@@ -25,6 +26,7 @@ class Step1DetailPosterScreen extends StatelessWidget {
     required this.onPickSquareLogo,
     required this.onNext,
     required this.onBack,
+    this.isEditMode = false,
   });
 
   @override
@@ -98,7 +100,7 @@ class Step1DetailPosterScreen extends StatelessWidget {
 
               // Title & Subtitle
               Text(
-                'Tambah Konser Baru',
+                isEditMode ? 'Edit Konser' : 'Tambah Konser Baru',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
@@ -335,7 +337,9 @@ class Step1DetailPosterScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          posterFileName,
+                          posterFileName.isNotEmpty
+                              ? posterFileName
+                              : 'Pilih Poster Highlight Konser (16:9)',
                           style: const TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w700,

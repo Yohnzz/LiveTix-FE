@@ -6,6 +6,7 @@ import 'promoter_concert_list_screen.dart';
 import 'promoter_dashboard_screen.dart';
 import 'promoter_finance_screen.dart';
 import 'promoter_profile_screen.dart';
+import 'promoter_team_screen.dart';
 
 class PromoterMainScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -43,12 +44,13 @@ class _PromoterMainScreenState extends State<PromoterMainScreen> {
     final List<Widget> pages = [
       PromoterDashboardScreen(
         onNavigateToConcerts: () => setState(() => _currentIndex = 1),
-        onNavigateToProfile: () => setState(() => _currentIndex = 3),
+        onNavigateToProfile: () => setState(() => _currentIndex = 4),
         onAddConcertPressed: _openAddConcert,
       ),
       PromoterConcertListScreen(
         onAddConcertPressed: _openAddConcert,
       ),
+      const PromoterTeamScreen(),
       const PromoterFinanceScreen(),
       const PromoterProfileScreen(),
     ];
@@ -76,8 +78,9 @@ class _PromoterMainScreenState extends State<PromoterMainScreen> {
               children: [
                 _buildNavItem(0, Icons.home_outlined, Icons.home_rounded, 'Dasbor', isDarkMode),
                 _buildNavItem(1, Icons.music_note_outlined, Icons.music_note_rounded, 'Konser', isDarkMode),
-                _buildNavItem(2, Icons.credit_card_outlined, Icons.credit_card_rounded, 'Keuangan', isDarkMode),
-                _buildNavItem(3, Icons.person_outline_rounded, Icons.person_rounded, 'Profil', isDarkMode),
+                _buildNavItem(2, Icons.groups_outlined, Icons.groups_rounded, 'Team', isDarkMode),
+                _buildNavItem(3, Icons.credit_card_outlined, Icons.credit_card_rounded, 'Keuangan', isDarkMode),
+                _buildNavItem(4, Icons.person_outline_rounded, Icons.person_rounded, 'Profil', isDarkMode),
               ],
             ),
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/promoter_models.dart';
+import '../../../services/gate_crew_service.dart';
 import '../../../services/promoter_data_service.dart';
 import '../../../utils/file_picker_helper.dart';
 import '../concert_status_detail_screen.dart';
@@ -11,8 +12,13 @@ import 'step4_summary_review_screen.dart';
 
 class AddConcertFlow extends StatefulWidget {
   final int initialStep;
+  final PromoterConcertItem? editingConcert;
 
-  const AddConcertFlow({super.key, this.initialStep = 1});
+  const AddConcertFlow({
+    super.key,
+    this.initialStep = 1,
+    this.editingConcert,
+  });
 
   @override
   State<AddConcertFlow> createState() => _AddConcertFlowState();
@@ -21,47 +27,54 @@ class AddConcertFlow extends StatefulWidget {
 class _AddConcertFlowState extends State<AddConcertFlow> {
   late int _currentStep;
 
-  // Step 1 Controllers & State
-  final _nameController =
-      TextEditingController(text: 'Harmoni Nusantara 2026');
-  final _dateTimeController = TextEditingController(
-      text: 'Sabtu, 14 November 2026 - 19:00 WIB');
-  final _descriptionController = TextEditingController(
-      text:
-          'Perayaan megah mahakarya musik nusantara bersama musisi papan atas nasional.');
-  String _posterFileName = 'poster_harmoni_final.png';
-  String _squareLogoFileName = 'logo_harmoni_square.png';
+  // Step 1 Controllers & State (kosong saat tambah konser baru, terisi saat edit)
+  late final TextEditingController _nameController;
+  late final TextEditingController _dateTimeController;
+  late final TextEditingController _descriptionController;
+  late String _posterFileName;
+  late String _squareLogoFileName;
 
-  // Step 2 State (Synced with Maps Data)
-  String _venueName = 'Stadion Gajayana';
-  String _venueAddress =
-      'Jl. Tangkuban Perahu, Kauman, Kec. Klojen, Kota Malang, Jawa Timur 65119';
-  String _venueSearchQuery = 'Stadion Gajayana Malang';
+  // Step 2 State
+  late String _venueName;
+  late String _venueAddress;
+  late String _venueSearchQuery;
 
   // Step 3 State
-  List<PromoterTicketTier> _ticketTiers = const [
-    PromoterTicketTier(
-      id: 'tier-1',
-      name: 'VIP Nusantara',
-      price: 750000,
-      quota: 200,
-      quotaType: 'Kursi',
-      accentColor: Color(0xFFC2185B), // Magenta
-    ),
-    PromoterTicketTier(
-      id: 'tier-2',
-      name: 'Festival',
-      price: 350000,
-      quota: 1500,
-      quotaType: 'Orang',
-      accentColor: Color(0xFF1B2A8C), // Navy
-    ),
-  ];
+  late List<PromoterTicketTier> _ticketTiers;
+
+  bool get _isEditMode => widget.editingConcert != null;
 
   @override
   void initState() {
     super.initState();
     _currentStep = widget.initialStep;
+    final editing = widget.editingConcert;
+
+    if (editing != null) {
+      _nameController = TextEditingController(text: editing.title);
+      _dateTimeController = TextEditingController(
+        text: editing.time.isNotEmpty
+            ? '${editing.date} - ${editing.time}'
+            : editing.date,
+      );
+      _descriptionController = TextEditingController(text: editing.description);
+      _posterFileName = editing.posterFileName;
+      _squareLogoFileName = editing.squareLogoFileName;
+      _venueName = editing.venueName;
+      _venueAddress = editing.venueAddress;
+      _venueSearchQuery = editing.venueName;
+      _ticketTiers = List<PromoterTicketTier>.from(editing.tiers);
+    } else {
+      _nameController = TextEditingController();
+      _dateTimeController = TextEditingController();
+      _descriptionController = TextEditingController();
+      _posterFileName = '';
+      _squareLogoFileName = '';
+      _venueName = '';
+      _venueAddress = '';
+      _venueSearchQuery = '';
+      _ticketTiers = [];
+    }
   }
 
   @override
@@ -91,7 +104,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
     if (picked != null && picked.trim().isNotEmpty) {
       setState(() => _posterFileName = picked.trim());
     }
-    if (!mounted) return;
+    if (!mounted || _posterFileName.isEmpty) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Poster terpilih: $_posterFileName'),
@@ -106,7 +119,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
     if (picked != null && picked.trim().isNotEmpty) {
       setState(() => _squareLogoFileName = picked.trim());
     }
-    if (!mounted) return;
+    if (!mounted || _squareLogoFileName.isEmpty) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Logo persegi (1:1) terpilih: $_squareLogoFileName'),
@@ -116,8 +129,150 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
     );
   }
 
-  void _submitConcert() {
+  Future<bool> _showEditConfirmationDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => Theme(
+        data: ThemeData.light(),
+        child: AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B2A8C).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.admin_panel_settings_rounded,
+                  color: Color(0xFF1B2A8C),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Konfirmasi Perubahan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Semua yang telah diedit akan terganti setelah Admin menyetujui.',
+            style: TextStyle(
+              fontSize: 13.5,
+              color: Color(0xFF334155),
+              height: 1.45,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF475569),
+                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text(
+                'Kembali',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B2A8C),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text(
+                'Lanjutkan',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    return confirmed == true;
+  }
+
+  void _submitConcert([Map<String, String>? invitedCrew]) async {
     final service = PromoterDataService();
+
+    if (_isEditMode) {
+      final proceed = await _showEditConfirmationDialog();
+      if (!proceed || !mounted) return;
+
+      final original = widget.editingConcert!;
+      final resolvedTitle = _nameController.text.trim().isNotEmpty
+          ? _nameController.text.trim()
+          : original.title;
+      final resolvedVenue =
+          _venueName.trim().isNotEmpty ? _venueName.trim() : original.venueName;
+      final resolvedDate = _dateTimeController.text.trim().isNotEmpty
+          ? _dateTimeController.text.trim()
+          : original.date;
+
+      final updatedConcert = original.copyWith(
+        title: resolvedTitle,
+        dateAndVenue: '$resolvedDate · $resolvedVenue',
+        date: resolvedDate,
+        venueName: resolvedVenue,
+        venueAddress: _venueAddress.trim().isNotEmpty
+            ? _venueAddress.trim()
+            : original.venueAddress,
+        description: _descriptionController.text.trim(),
+        posterFileName: _posterFileName.isNotEmpty
+            ? _posterFileName
+            : original.posterFileName,
+        squareLogoFileName: _squareLogoFileName.isNotEmpty
+            ? _squareLogoFileName
+            : original.squareLogoFileName,
+        status: ConcertStatus.menunggu,
+        tiers: _ticketTiers.isNotEmpty ? _ticketTiers : original.tiers,
+      );
+
+      service.updateConcert(updatedConcert, requiresAdminApproval: true);
+
+      if (invitedCrew != null && invitedCrew.isNotEmpty) {
+        for (final entry in invitedCrew.entries) {
+          await GateCrewService().inviteCrewToConcert(
+            crewId: entry.key,
+            concertId: updatedConcert.id,
+            concertTitle: updatedConcert.title,
+            venue: updatedConcert.venueName,
+            gateName: entry.value,
+          );
+        }
+      }
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ConcertStatusDetailScreen(
+            concertTitle: updatedConcert.title,
+            status: ConcertStatus.menunggu,
+          ),
+        ),
+      );
+      return;
+    }
+
     if (service.quotaRemainingNotifier.value <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -128,18 +283,27 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       return;
     }
 
+    final resolvedTitle = _nameController.text.trim().isNotEmpty
+        ? _nameController.text.trim()
+        : 'Konser Baru LiveTix';
+    final resolvedVenue =
+        _venueName.trim().isNotEmpty ? _venueName.trim() : 'Venue Konser';
+    final resolvedDate = _dateTimeController.text.trim().isNotEmpty
+        ? _dateTimeController.text.trim()
+        : 'Jadwal Segera Diumumkan';
+
     final newConcert = PromoterConcertItem(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: _nameController.text.trim().isNotEmpty
-          ? _nameController.text.trim()
-          : 'Harmoni Nusantara 2026',
-      dateAndVenue: '14 Nov · $_venueName',
-      date: _dateTimeController.text.trim(),
-      venueName: _venueName,
-      venueAddress: _venueAddress,
+      title: resolvedTitle,
+      dateAndVenue: '$resolvedDate · $resolvedVenue',
+      date: resolvedDate,
+      venueName: resolvedVenue,
+      venueAddress: _venueAddress.trim(),
       description: _descriptionController.text.trim(),
-      posterFileName: _posterFileName,
-      squareLogoFileName: _squareLogoFileName,
+      posterFileName:
+          _posterFileName.isNotEmpty ? _posterFileName : 'poster_konser.png',
+      squareLogoFileName:
+          _squareLogoFileName.isNotEmpty ? _squareLogoFileName : 'logo_1x1.png',
       status: ConcertStatus.menunggu,
       likesCount: '0',
       tiers: _ticketTiers,
@@ -147,6 +311,20 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
 
     final success = service.addConcert(newConcert);
     if (!success) return;
+
+    if (invitedCrew != null && invitedCrew.isNotEmpty) {
+      for (final entry in invitedCrew.entries) {
+        await GateCrewService().inviteCrewToConcert(
+          crewId: entry.key,
+          concertId: newConcert.id,
+          concertTitle: newConcert.title,
+          venue: newConcert.venueName,
+          gateName: entry.value,
+        );
+      }
+    }
+
+    if (!mounted) return;
 
     Navigator.pushReplacement(
       context,
@@ -175,6 +353,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
           onPickSquareLogo: _pickSquareLogoFile,
           onNext: _onNext,
           onBack: _onBack,
+          isEditMode: _isEditMode,
         );
         break;
       case 2:
@@ -214,6 +393,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
           tiers: _ticketTiers,
           onSubmit: _submitConcert,
           onBack: _onBack,
+          isEditMode: _isEditMode,
         );
         break;
     }

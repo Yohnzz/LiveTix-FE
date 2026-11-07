@@ -22,14 +22,20 @@ class PromoterDashboardScreen extends StatelessWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: service.isDarkModeNotifier,
       builder: (context, isDarkMode, _) {
-        final textColor =
-            isDarkMode ? Colors.white : const Color(0xFF101828);
-        final subtextColor =
-            isDarkMode ? Colors.white70 : const Color(0xFF667085);
-        final cardBg =
-            isDarkMode ? const Color(0xFF1B2232) : Colors.white;
-        final cardBorder =
-            isDarkMode ? Colors.white12 : const Color(0xFFE4E7EC);
+        return ValueListenableBuilder<List<PromoterConcertItem>>(
+          valueListenable: service.concertsNotifier,
+          builder: (context, _, __) {
+            return ValueListenableBuilder<String>(
+              valueListenable: service.promoterNameNotifier,
+              builder: (context, ___, ____) {
+                final textColor =
+                    isDarkMode ? Colors.white : const Color(0xFF101828);
+                final subtextColor =
+                    isDarkMode ? Colors.white70 : const Color(0xFF667085);
+                final cardBg =
+                    isDarkMode ? const Color(0xFF1B2232) : Colors.white;
+                final cardBorder =
+                    isDarkMode ? Colors.white12 : const Color(0xFFE4E7EC);
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -55,15 +61,20 @@ class PromoterDashboardScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'TOTAL KONSER',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: subtextColor,
-                          letterSpacing: 0.5,
+                      Expanded(
+                        child: Text(
+                          'TOTAL KONSER',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: subtextColor,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 4),
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
@@ -119,15 +130,20 @@ class PromoterDashboardScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'TIKET TERJUAL',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: subtextColor,
-                          letterSpacing: 0.5,
+                      Expanded(
+                        child: Text(
+                          'TIKET TERJUAL',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: subtextColor,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 4),
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
@@ -511,6 +527,10 @@ class PromoterDashboardScreen extends StatelessWidget {
             );
           },
         );
+              },
+            );
+          },
+        );
       },
     );
   }
@@ -526,16 +546,27 @@ class PromoterDashboardScreen extends StatelessWidget {
     return ValueListenableBuilder<List<PromoterConcertItem>>(
       valueListenable: service.concertsNotifier,
       builder: (context, concerts, _) {
-        final concert = concerts.isNotEmpty
-            ? concerts.first
-            : const PromoterConcertItem(
-                id: '1',
-                title: 'Soundwave Fest 2026',
-                dateAndVenue: '12 Okt · Stadion Gajayana',
-                date: 'Minggu, 12 Oktober 2026',
-                venueName: 'Stadion Gajayana',
-                venueAddress: 'Malang',
-              );
+        if (concerts.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: cardBorder),
+            ),
+            child: Center(
+              child: Text(
+                'Belum ada konser aktif di database.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: subtextColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          );
+        }
+        final concert = concerts.first;
 
         return InkWell(
           onTap: onNavigateToConcerts,

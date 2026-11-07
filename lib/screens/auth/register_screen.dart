@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/custom_checkbox.dart';
 import '../../widgets/primary_button.dart';
-import '../../services/dummy_data_service.dart';
+import '../../services/data_service.dart';
 import '../home/home_screen.dart';
 import '../promoter/verification/producer_verification_flow.dart';
 
@@ -23,6 +24,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _roles = const ['User', 'Produser'];
   String _role = 'User';
   bool _agree = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -33,7 +35,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void _register() {
+  Future<void> _register() async {
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
     if (!_agree) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -42,40 +45,72 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    final user = DummyDataService().register(
-      name: _name.text.trim(),
-      email: _email.text.trim(),
-      phone: _phone.text.trim(),
-      password: _password.text.trim(),
-      role: _role,
-    );
+    setState(() => _isLoading = true);
 
-    // Jika mendaftar sebagai Produser / Promotor, arahkan ke alur Lengkapi Profil & Verifikasi Produser
-    if (user.role == 'Produser') {
-      Navigator.push(
+    try {
+      final user = await DataService().register(
+        name: _name.text.trim(),
+        email: _email.text.trim(),
+        phone: _phone.text.trim(),
+        password: _password.text.trim(),
+        role: _role,
+      );
+
+      if (!mounted) return;
+
+      final role = user.role.trim().toLowerCase();
+      if (role == 'produser' || role == 'producer' || role == 'promoter') {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProducerVerificationFlow(
+              initialName: user.name,
+              initialPhone: user.phone,
+            ),
+          ),
+        );
+        return;
+      }
+
+      // Registrasi penonton biasa berhasil -> langsung masuk ke Home User
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (_) => ProducerVerificationFlow(
-            initialName: user.name,
-            initialPhone: user.phone,
+          builder: (_) => HomeScreen(
+            isGuest: false,
+            userName: user.name,
+            userInitials: user.initials,
           ),
         ),
+        (route) => false,
       );
-      return;
-    }
-
-    // Registrasi berhasil -> langsung masuk ke Home User
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (_) => HomeScreen(
-          isGuest: false,
-          userName: user.name,
-          userInitials: user.initials,
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.message.contains('User already registered')
+                ? 'Email sudah terdaftar, silakan gunakan email lain atau masuk'
+                : e.message,
+          ),
+          backgroundColor: const Color(0xFFB91C1C),
         ),
-      ),
-      (route) => false,
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mendaftar: ${e.toString()}'),
+          backgroundColor: const Color(0xFFB91C1C),
+        ),
+      );
+    } finally {
+      if (mounted && _isLoading) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -200,7 +235,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 18),
 
                 // Tombol Daftar
-                PrimaryButton(text: 'Daftar', onPressed: _register),
+                PrimaryButton(
+                  text: _isLoading ? 'Mendaftarkan...' : 'Daftar',
+                  onPressed: _isLoading ? () {} : _register,
+                ),
                 const SizedBox(height: 18),
 
                 // Divider Atau

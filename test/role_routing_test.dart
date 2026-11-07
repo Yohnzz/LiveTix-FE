@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:livetix/screens/admin/admin_shell.dart';
 import 'package:livetix/screens/auth/login_screen.dart';
+import 'package:livetix/screens/gate_crew/gate_crew_main_screen.dart';
 import 'package:livetix/screens/home/home_screen.dart';
 import 'package:livetix/screens/promoter/promoter_main_screen.dart';
+import 'package:livetix/screens/promoter/promoter_pin_lock_screen.dart';
 import 'package:livetix/services/admin_service.dart';
 import 'package:livetix/services/data_service.dart';
 
@@ -62,6 +64,12 @@ void main() {
       await tester.tap(find.widgetWithText(ElevatedButton, 'Masuk'));
       await tester.pumpAndSettle();
 
+      // Meminta PIN Keamanan 6-Digit terlebih dahulu sebelum masuk ke Portal Produser
+      expect(find.byType(PromoterPinLockScreen), findsOneWidget);
+      await tester.enterText(find.byType(TextField), '123456');
+      await tester.tap(find.text('Buka Aplikasi Produser'));
+      await tester.pumpAndSettle();
+
       expect(find.byType(PromoterMainScreen), findsOneWidget);
       expect(find.byType(LoginScreen), findsNothing);
       expect(find.text('Dasbor'), findsOneWidget);
@@ -92,7 +100,7 @@ void main() {
       expect(find.text('Halo, Admin'), findsOneWidget);
     });
 
-    testWidgets('Uji Coba Cepat 1-Klik Role Penonton auto-fill dan masuk ke HomeScreen',
+    testWidgets('Login sebagai Gatecrew langsung masuk ke GateCrewMainScreen',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
@@ -101,15 +109,22 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Role: Penonton / User'));
-      await tester.tap(find.text('Role: Penonton / User'));
-      await tester.pumpAndSettle();
+      final textFields = find.byType(TextFormField);
+      await tester.enterText(textFields.at(0), 'gatecrew@livetix.com');
+      await tester.enterText(textFields.at(1), 'password123');
 
-      expect(find.byType(HomeScreen), findsOneWidget);
-      expect(find.text('Rafi Firmansyah'), findsWidgets);
+      await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Masuk'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Masuk'));
+      for (int i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      expect(find.byType(GateCrewMainScreen), findsOneWidget);
+      expect(find.byType(LoginScreen), findsNothing);
+      expect(find.text('GATE CREW SCANNER'), findsOneWidget);
     });
 
-    testWidgets('Uji Coba Cepat 1-Klik Role Produser auto-fill dan masuk ke PromoterMainScreen',
+    testWidgets('Login sebagai Gatecrew yang belum di-invite menampilkan status belum ada tugas',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
@@ -118,28 +133,18 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Role: Produser / Promotor'));
-      await tester.tap(find.text('Role: Produser / Promotor'));
-      await tester.pumpAndSettle();
+      final textFields = find.byType(TextFormField);
+      await tester.enterText(textFields.at(0), 'gatecrew2@livetix.com');
+      await tester.enterText(textFields.at(1), 'gatecrew123');
 
-      expect(find.byType(PromoterMainScreen), findsOneWidget);
-    });
+      await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Masuk'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Masuk'));
+      for (int i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
 
-    testWidgets('Uji Coba Cepat 1-Klik Role Admin auto-fill dan masuk ke AdminShell',
-        (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
-      await tester.pumpAndSettle();
-
-      await tester.ensureVisible(find.text('Role: Super Admin'));
-      await tester.tap(find.text('Role: Super Admin'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(AdminShell), findsOneWidget);
-      expect(find.text('Halo, Admin'), findsOneWidget);
+      expect(find.byType(GateCrewMainScreen), findsOneWidget);
+      expect(find.text('Anda Tidak Memiliki Tugas Gate'), findsOneWidget);
     });
   });
 }

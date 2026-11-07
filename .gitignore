@@ -5,11 +5,16 @@ build/
 .flutter-plugins-dependencies
 .idea/
 *.iml
+.vscode/
 pubspec.lock
+
+# Supabase CLI temp files
+supabase/.temp/
 
 # Environment & local credentials
 .env
 .env.*
+!.env.example
 *.local
 
 # AI Assistants, Agent configurations, and Anti-Slop files

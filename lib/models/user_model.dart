@@ -11,6 +11,7 @@ class UserModel {
   final int concertsAttended;
   final int reviewsCount;
   final Uint8List? profileImageBytes;
+  final String? avatarUrl;
   final int avatarColorIndex;
   final bool hasAcceptedAgreement;
 
@@ -25,6 +26,7 @@ class UserModel {
     this.concertsAttended = 9,
     this.reviewsCount = 4,
     this.profileImageBytes,
+    this.avatarUrl,
     this.avatarColorIndex = -1,
     this.hasAcceptedAgreement = true,
   });
@@ -62,6 +64,7 @@ class UserModel {
     int? concertsAttended,
     int? reviewsCount,
     Uint8List? profileImageBytes,
+    String? avatarUrl,
     bool clearProfileImage = false,
     int? avatarColorIndex,
     bool? hasAcceptedAgreement,
@@ -78,6 +81,7 @@ class UserModel {
       reviewsCount: reviewsCount ?? this.reviewsCount,
       profileImageBytes:
           clearProfileImage ? null : (profileImageBytes ?? this.profileImageBytes),
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       avatarColorIndex: avatarColorIndex ?? this.avatarColorIndex,
       hasAcceptedAgreement: hasAcceptedAgreement ?? this.hasAcceptedAgreement,
     );
@@ -93,5 +97,36 @@ class UserModel {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
     return parts.isNotEmpty ? parts[0][0].toUpperCase() : 'U';
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'phone': phone,
+      'role': role,
+      'ticketsBought': ticketsBought,
+      'concertsAttended': concertsAttended,
+      'reviewsCount': reviewsCount,
+      'avatarColorIndex': avatarColorIndex,
+      'hasAcceptedAgreement': hasAcceptedAgreement,
+    };
+  }
+
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel(
+      id: (json['id'] as String?) ?? '123456',
+      name: (json['name'] as String?) ?? '',
+      email: (json['email'] as String?) ?? '',
+      phone: (json['phone'] as String?) ?? '',
+      password: '',
+      role: (json['role'] as String?) ?? 'User',
+      ticketsBought: (json['ticketsBought'] as num?)?.toInt() ?? 12,
+      concertsAttended: (json['concertsAttended'] as num?)?.toInt() ?? 9,
+      reviewsCount: (json['reviewsCount'] as num?)?.toInt() ?? 4,
+      avatarColorIndex: (json['avatarColorIndex'] as num?)?.toInt() ?? -1,
+      hasAcceptedAgreement: (json['hasAcceptedAgreement'] as bool?) ?? true,
+    );
   }
 }
