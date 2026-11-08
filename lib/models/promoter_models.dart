@@ -198,6 +198,8 @@ class PromoterConcertItem {
   final int refundPendingAccountCount;
   final bool isCompleted;
   final int grossRevenue;
+  final String? rejectionReason;
+  final DateTime? rejectedAt;
 
   const PromoterConcertItem({
     required this.id,
@@ -227,6 +229,8 @@ class PromoterConcertItem {
     this.refundPendingAccountCount = 210,
     this.isCompleted = false,
     this.grossRevenue = 0,
+    this.rejectionReason,
+    this.rejectedAt,
   });
 
   int get numericLikes {
@@ -306,6 +310,8 @@ class PromoterConcertItem {
     int? refundPendingAccountCount,
     bool? isCompleted,
     int? grossRevenue,
+    String? rejectionReason,
+    DateTime? rejectedAt,
   }) {
     return PromoterConcertItem(
       id: id ?? this.id,
@@ -340,6 +346,8 @@ class PromoterConcertItem {
           refundPendingAccountCount ?? this.refundPendingAccountCount,
       isCompleted: isCompleted ?? this.isCompleted,
       grossRevenue: grossRevenue ?? this.grossRevenue,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
+      rejectedAt: rejectedAt ?? this.rejectedAt,
     );
   }
 
@@ -412,12 +420,18 @@ class PromoterConcertItem {
       squareLogoFileName: json['logo_image_url']?.toString() ??
           json['logo_url']?.toString() ??
           'logo_soundwave_square.png',
-      status: parseStatus(json['status']?.toString()),
+      status: parseStatus(
+        json['approval_status']?.toString() ?? json['status']?.toString(),
+      ),
       likesCount: json['likes_count']?.toString() ?? '0',
       tiers: tiersList,
       ticketsSold: (json['tickets_sold'] as num?)?.toInt() ?? 0,
       isCompleted: (json['is_completed'] as bool?) ?? false,
       grossRevenue: (json['gross_revenue'] as num?)?.toInt() ?? 0,
+      rejectionReason: json['rejection_reason']?.toString(),
+      rejectedAt: json['rejected_at'] != null
+          ? DateTime.tryParse(json['rejected_at'].toString())
+          : null,
     );
   }
 
@@ -439,22 +453,23 @@ class PromoterConcertItem {
         break;
     }
 
+    final bool isValidUuid = promoterId != null &&
+        RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+            .hasMatch(promoterId);
+
     return {
       'id': id,
-      if (promoterId != null) 'promoter_id': promoterId,
-      if (promoterId != null) 'producer_id': promoterId,
+      if (isValidUuid) 'producer_id': promoterId,
       'title': title,
       'subtitle': dateAndVenue,
       'date': date,
-      'date_time': date,
       'time': time,
       'venue': venueName,
       'venue_address': venueAddress,
       'description': description,
-      'banner_url': posterFileName,
       'banner_image_url': posterFileName,
-      'logo_url': squareLogoFileName,
       'logo_image_url': squareLogoFileName,
+      'square_logo_url': squareLogoFileName,
       'status': statusString,
       'total_capacity': totalCapacity,
       'price': tiers.isNotEmpty
@@ -464,6 +479,8 @@ class PromoterConcertItem {
       'tickets_sold': ticketsSold,
       'is_completed': isCompleted,
       'gross_revenue': resolvedGrossRevenue,
+      if (rejectionReason != null) 'rejection_reason': rejectionReason,
+      if (rejectedAt != null) 'rejected_at': rejectedAt!.toIso8601String(),
       'ticket_tiers': tiers.map((t) => t.toJson(concertId: id)).toList(),
     };
   }

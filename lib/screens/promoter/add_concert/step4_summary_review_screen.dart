@@ -14,6 +14,7 @@ class Step4SummaryReviewScreen extends StatefulWidget {
   final String venueName;
   final String venueAddress;
   final List<PromoterTicketTier> tiers;
+  final Map<String, String>? initialInvitedCrew;
   final void Function(Map<String, String> invitedCrew) onSubmit;
   final VoidCallback onBack;
   final bool isEditMode;
@@ -28,6 +29,7 @@ class Step4SummaryReviewScreen extends StatefulWidget {
     required this.venueName,
     required this.venueAddress,
     required this.tiers,
+    this.initialInvitedCrew,
     required this.onSubmit,
     required this.onBack,
     this.isEditMode = false,
@@ -40,6 +42,14 @@ class Step4SummaryReviewScreen extends StatefulWidget {
 
 class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
   final Map<String, String> _selectedCrewGates = {};
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialInvitedCrew != null) {
+      _selectedCrewGates.addAll(widget.initialInvitedCrew!);
+    }
+  }
 
   String _formatShortPrice(int price) {
     if (price >= 1000 && price % 1000 == 0) {
@@ -147,7 +157,7 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Langkah terakhir: Cek ulang sebelum mengajukan approval',
+                      'Langkah 5 dari 5: Cek ulang sebelum mengajukan approval',
                       style: TextStyle(
                         fontSize: 12.5,
                         color: subtextColor,
@@ -156,8 +166,8 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
 
                     const SizedBox(height: 16),
 
-                    // Stepper (All 4 steps active)
-                    const PromoterStepIndicator(currentStep: 4),
+                    // Stepper (All 5 steps active)
+                    const PromoterStepIndicator(currentStep: 5, totalSteps: 5),
 
                     const SizedBox(height: 22),
 

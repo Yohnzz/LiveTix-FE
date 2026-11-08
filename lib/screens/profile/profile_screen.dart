@@ -5,6 +5,7 @@ import '../../models/user_model.dart';
 import '../../services/data_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
+import '../promoter/producer_customer_service_screen.dart';
 import '../promoter/promoter_main_screen.dart';
 import 'edit_profile_screen.dart';
 import 'refund_payment_method_screen.dart';
@@ -360,6 +361,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 8),
+            _buildMenuItem(
+              icon: Icons.support_agent_rounded,
+              title: 'Customer Service LiveTix',
+              iconColor: const Color(0xFF1B2A8C),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ProducerCustomerServiceScreen(
+                      senderRole: 'User',
+                    ),
+                  ),
+                );
+              },
+            ),
             _buildMenuItem(
               icon: Icons.help_outline_rounded,
               title: 'Pusat bantuan',

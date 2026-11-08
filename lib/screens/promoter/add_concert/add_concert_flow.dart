@@ -8,6 +8,7 @@ import '../widgets/responsive_promoter_wrapper.dart';
 import 'step1_detail_poster_screen.dart';
 import 'step2_venue_location_screen.dart';
 import 'step3_ticket_pricing_screen.dart';
+import 'step4_select_gate_crew_screen.dart';
 import 'step4_summary_review_screen.dart';
 
 class AddConcertFlow extends StatefulWidget {
@@ -41,6 +42,9 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
 
   // Step 3 State
   late List<PromoterTicketTier> _ticketTiers;
+
+  // Step 4 State: Pemilihan Gate Crew
+  Map<String, String> _selectedCrewWithGate = {};
 
   bool get _isEditMode => widget.editingConcert != null;
 
@@ -94,7 +98,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
   }
 
   void _onNext() {
-    if (_currentStep < 4) {
+    if (_currentStep < 5) {
       setState(() => _currentStep++);
     }
   }
@@ -381,6 +385,16 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
         );
         break;
       case 4:
+        activeScreen = Step4SelectGateCrewScreen(
+          selectedCrewWithGate: _selectedCrewWithGate,
+          onCrewAssignmentsChanged: (updated) {
+            setState(() => _selectedCrewWithGate = updated);
+          },
+          onNext: _onNext,
+          onBack: _onBack,
+        );
+        break;
+      case 5:
       default:
         activeScreen = Step4SummaryReviewScreen(
           concertTitle: _nameController.text.trim(),
@@ -391,6 +405,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
           venueName: _venueName,
           venueAddress: _venueAddress,
           tiers: _ticketTiers,
+          initialInvitedCrew: _selectedCrewWithGate,
           onSubmit: _submitConcert,
           onBack: _onBack,
           isEditMode: _isEditMode,

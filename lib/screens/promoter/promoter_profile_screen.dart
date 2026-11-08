@@ -3,6 +3,7 @@ import '../../services/data_service.dart';
 import '../../services/promoter_data_service.dart';
 import '../../utils/file_picker_helper.dart';
 import '../home/home_screen.dart';
+import 'producer_customer_service_screen.dart';
 import 'promoter_withdrawal_history_screen.dart';
 import 'verification/producer_verification_flow.dart';
 
@@ -467,6 +468,44 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
                               color: Color(0xFF1B2A8C),
                               width: 1.5,
                             ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      // Button: Live Chat Customer Service (Admin LiveTix)
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const ProducerCustomerServiceScreen(
+                                  senderRole: 'Produser',
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.support_agent_rounded,
+                            size: 20,
+                            color: Colors.white,
+                          ),
+                          label: const Text(
+                            'Customer Service Live Chat',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1B2A8C),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),

@@ -47,6 +47,9 @@ class GateCrewMemberModel {
   final GateCrewAssignmentModel? activeAssignment;
   final String approvalStatus; // 'approved' | 'pending' | 'rejected'
   final String defaultPassword;
+  final String producerId;
+  final String producerName;
+  final String producerEmail;
 
   const GateCrewMemberModel({
     required this.id,
@@ -56,11 +59,15 @@ class GateCrewMemberModel {
     this.activeAssignment,
     this.approvalStatus = 'approved',
     this.defaultPassword = 'crewgate123',
+    this.producerId = 'producer-1',
+    this.producerName = 'Soundwave Entertainment',
+    this.producerEmail = 'produser@livetix.com',
   });
 
   bool get isAssigned => activeAssignment != null;
   bool get isApproved => approvalStatus.toLowerCase() == 'approved';
   bool get isPendingApproval => approvalStatus.toLowerCase() == 'pending';
+  bool get isRejected => approvalStatus.toLowerCase() == 'rejected';
 
   GateCrewMemberModel copyWith({
     String? name,
@@ -70,6 +77,9 @@ class GateCrewMemberModel {
     bool clearAssignment = false,
     String? approvalStatus,
     String? defaultPassword,
+    String? producerId,
+    String? producerName,
+    String? producerEmail,
   }) {
     return GateCrewMemberModel(
       id: id,
@@ -80,6 +90,9 @@ class GateCrewMemberModel {
           clearAssignment ? null : (activeAssignment ?? this.activeAssignment),
       approvalStatus: approvalStatus ?? this.approvalStatus,
       defaultPassword: defaultPassword ?? this.defaultPassword,
+      producerId: producerId ?? this.producerId,
+      producerName: producerName ?? this.producerName,
+      producerEmail: producerEmail ?? this.producerEmail,
     );
   }
 
@@ -112,6 +125,15 @@ class GateCrewMemberModel {
           'approved') as String,
       defaultPassword:
           (json['default_password'] ?? 'crewgate123') as String,
+      producerId: (json['producer_id'] ??
+          json['producerId'] ??
+          'producer-1') as String,
+      producerName: (json['producer_name'] ??
+          json['producerName'] ??
+          'Soundwave Entertainment') as String,
+      producerEmail: (json['producer_email'] ??
+          json['producerEmail'] ??
+          'produser@livetix.com') as String,
     );
   }
 
@@ -122,6 +144,9 @@ class GateCrewMemberModel {
         'phone': phone,
         'approval_status': approvalStatus,
         'default_password': defaultPassword,
+        'producer_id': producerId,
+        'producer_name': producerName,
+        'producer_email': producerEmail,
         'active_assignment': activeAssignment?.toJson(),
       };
 }

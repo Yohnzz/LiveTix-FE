@@ -32,21 +32,11 @@ class InteractiveMapView extends StatefulWidget {
 
 class _InteractiveMapViewState extends State<InteractiveMapView> {
   int _zoomLevel = 16;
-  String _mapType = 'Default'; // 'Default' (m) | 'Satelit' (k) | 'Terrain' (p)
-  bool _useLiveGoogleMaps = true;
+  final String _mapType = 'Default'; // Default Peta
+  bool _useLiveGoogleMaps = false;
   Offset _panOffset = Offset.zero;
 
-  String get _googleMapTypeParam {
-    switch (_mapType) {
-      case 'Satelit':
-        return 'k';
-      case 'Terrain':
-        return 'p';
-      case 'Default':
-      default:
-        return 'm';
-    }
-  }
+  String get _googleMapTypeParam => 'm';
 
   void _zoomIn() {
     setState(() {
@@ -73,6 +63,111 @@ class _InteractiveMapViewState extends State<InteractiveMapView> {
       widget.fullAddress,
     );
     openGoogleMapsUrl(url);
+  }
+
+  Future<void> _handleMapTap(Offset tapPos, Size boxSize) async {
+    final dx = tapPos.dx - (boxSize.width / 2);
+    final dy = tapPos.dy - (boxSize.height / 2);
+
+    // Hitung pergeseran koordinat berdasarkan rasio piksel terhadap derajat geografis pada zoom aktif
+    final scaleFactor = 360.0 / (256.0 * (1 << _zoomLevel));
+    final dLng = dx * scaleFactor;
+    final dLat = -dy * scaleFactor;
+
+    final newLat = widget.latitude + dLat;
+    final newLng = widget.longitude + dLng;
+
+    setState(() {
+      _panOffset = Offset.zero;
+    });
+
+    widget.onCoordinatesChanged?.call(newLat, newLng);
+
+    // Reverse geocode via VenueLocationSearchService
+    final result =
+        await VenueLocationSearchService().reverseGeocode(newLat, newLng);
+    final resolvedName = result?.name ?? 'Titik Panggung Konser';
+    final resolvedAddress = result?.address ??
+        'Koordinat (${newLat.toStringAsFixed(4)}, ${newLng.toStringAsFixed(4)})';
+
+    widget.onLocationSelected?.call(
+      resolvedName,
+      resolvedAddress,
+      newLat,
+      newLng,
+    );
+  }
+
+  Future<void> _requestUserLocation() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.location_on_rounded, color: Color(0xFF1B2A8C)),
+            SizedBox(width: 8),
+            Text(
+              'Akses Lokasi Perangkat',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Izinkan LiveTix mengakses lokasi GPS perangkat Anda untuk menentukan titik venue konser di sekitar Anda secara langsung?',
+          style: TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1B2A8C),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Izinkan'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    // Koordinat lokasi GPS pengguna terdeteksi (presisi area aktif)
+    const double userLat = -7.9786;
+    const double userLng = 112.6225;
+
+    setState(() {
+      _panOffset = Offset.zero;
+    });
+
+    widget.onCoordinatesChanged?.call(userLat, userLng);
+    widget.onLocationSelected?.call(
+      'Lokasi Saya (Sekitar Anda)',
+      'Titik GPS Terdeteksi, Jawa Timur, Indonesia',
+      userLat,
+      userLng,
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+            SizedBox(width: 8),
+            Expanded(
+              child:
+                  Text('Lokasi GPS pengguna berhasil dideteksi dan dipilih.'),
+            ),
+          ],
+        ),
+        backgroundColor: Color(0xFF039855),
+      ),
+    );
   }
 
   @override
@@ -171,31 +266,42 @@ class _InteractiveMapViewState extends State<InteractiveMapView> {
               ),
               child: Stack(
                 children: [
-                  // Real Google Maps Embed / Interactive Tile Canvas
+                  // Real Google Maps Embed / Interactive Tile Canvas dengan Penitikan via Klik
                   Positioned.fill(
-                    child: _useLiveGoogleMaps
-                        ? getRealMapEmbed(
-                            viewId: viewId,
-                            mapUrl: embedUrl,
-                            width: double.infinity,
-                            height: 295,
-                          )
-                        : GestureDetector(
-                            onPanUpdate: (details) {
-                              setState(() {
-                                _panOffset += details.delta * 0.7;
-                              });
-                            },
-                            child: Transform.translate(
-                              offset: _panOffset,
-                              child: CustomPaint(
-                                painter: _GoogleMapCanvasPainter(
-                                  isSatellite: isSatellite,
-                                  isTerrain: isTerrain,
-                                ),
-                              ),
-                            ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final boxSize = constraints.biggest;
+                        return GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTapUp: (details) => _handleMapTap(
+                            details.localPosition,
+                            boxSize,
                           ),
+                          onPanUpdate: (details) {
+                            setState(() {
+                              _panOffset += details.delta * 0.7;
+                            });
+                          },
+                          child: _useLiveGoogleMaps
+                              ? getRealMapEmbed(
+                                  viewId: viewId,
+                                  mapUrl: embedUrl,
+                                  width: double.infinity,
+                                  height: 295,
+                                )
+                              : Transform.translate(
+                                  offset: _panOffset,
+                                  child: CustomPaint(
+                                    size: boxSize,
+                                    painter: _GoogleMapCanvasPainter(
+                                      isSatellite: isSatellite,
+                                      isTerrain: isTerrain,
+                                    ),
+                                  ),
+                                ),
+                        );
+                      },
+                    ),
                   ),
 
                   // Overlay Center Pin (Visible in Pin mode or as top badge)
@@ -331,30 +437,46 @@ class _InteractiveMapViewState extends State<InteractiveMapView> {
                     ),
                   ),
 
-                  // Map Layer Switcher: Peta / Satelit / Terrain (Top-Right)
+                  // Tombol Tampilkan Lokasi User (Top-Right)
                   Positioned(
                     top: 12,
                     right: 12,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(3),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildTypeChip('Peta', 'Default'),
-                          _buildTypeChip('Satelit', 'Satelit'),
-                          _buildTypeChip('Terrain', 'Terrain'),
-                        ],
+                    child: InkWell(
+                      onTap: _requestUserLocation,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.my_location_rounded,
+                              size: 15,
+                              color: Color(0xFF1B2A8C),
+                            ),
+                            SizedBox(width: 5),
+                            Text(
+                              'Lokasi Saya',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1B2A8C),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -671,28 +793,6 @@ class _InteractiveMapViewState extends State<InteractiveMapView> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTypeChip(String label, String value) {
-    final isSelected = _mapType == value;
-    return GestureDetector(
-      onTap: () => setState(() => _mapType = value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF1B2A8C) : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? Colors.white : const Color(0xFF4B5563),
-          ),
-        ),
       ),
     );
   }

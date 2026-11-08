@@ -110,7 +110,7 @@ class Step1DetailPosterScreen extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Langkah 1 dari 4: Detail, Logo Persegi & Poster',
+                'Langkah 1 dari 5: Detail, Logo Persegi & Poster',
                 style: TextStyle(
                   fontSize: 13,
                   color: subtextColor,
@@ -119,8 +119,8 @@ class Step1DetailPosterScreen extends StatelessWidget {
 
               const SizedBox(height: 16),
 
-              // Stepper (Step 1 active)
-              const PromoterStepIndicator(currentStep: 1),
+              // Stepper (Step 1 active dari 5 langkah)
+              const PromoterStepIndicator(currentStep: 1, totalSteps: 5),
 
               const SizedBox(height: 24),
 
@@ -162,40 +162,53 @@ class Step1DetailPosterScreen extends StatelessWidget {
 
               const SizedBox(height: 18),
 
-              // Form Field 2: TANGGAL & WAKTU
+              // Form Field 2: TANGGAL & WAKTU (Pemilihan Kalender & Jam)
               _buildFieldLabel('TANGGAL & WAKTU', labelColor),
               const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: fieldBg,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: fieldBorder),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.calendar_today_outlined,
-                      size: 19,
-                      color: Color(0xFF667085),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: dateTimeController,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: textColor,
-                        ),
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          hintText:
-                              'Contoh: Sabtu, 14 November 2026 - 19:00 WIB',
+              InkWell(
+                onTap: () => _pickDateTime(context),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: fieldBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: fieldBorder),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_month_rounded,
+                        size: 20,
+                        color: Color(0xFF1B2A8C),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          dateTimeController.text.trim().isNotEmpty
+                              ? dateTimeController.text.trim()
+                              : 'Pilih tanggal & jam konser dari kalender...',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: dateTimeController.text.trim().isNotEmpty
+                                ? textColor
+                                : subtextColor,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                      IconButton(
+                        icon: const Icon(
+                          Icons.arrow_drop_down_rounded,
+                          size: 24,
+                          color: Color(0xFF667085),
+                        ),
+                        onPressed: () => _pickDateTime(context),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
@@ -405,5 +418,80 @@ class Step1DetailPosterScreen extends StatelessWidget {
         letterSpacing: 0.5,
       ),
     );
+  }
+
+  Future<void> _pickDateTime(BuildContext context) async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: now.add(const Duration(days: 7)),
+      firstDate: now,
+      lastDate: DateTime(now.year + 5),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF1B2A8C),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF101828),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (pickedDate == null || !context.mounted) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 19, minute: 0),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF1B2A8C),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF101828),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (pickedTime == null) return;
+
+    final dayNames = [
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
+    ];
+    final monthNames = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+
+    final dayName = dayNames[pickedDate.weekday - 1];
+    final day = pickedDate.day;
+    final monthName = monthNames[pickedDate.month - 1];
+    final year = pickedDate.year;
+    final hourStr = pickedTime.hour.toString().padLeft(2, '0');
+    final minuteStr = pickedTime.minute.toString().padLeft(2, '0');
+
+    dateTimeController.text =
+        '$dayName, $day $monthName $year - $hourStr:$minuteStr WIB';
   }
 }

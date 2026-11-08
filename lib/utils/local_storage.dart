@@ -28,6 +28,9 @@ class LocalStorage {
     _memoryFallback[key] = value;
   }
 
+  static String? getItem(String key) => getString(key);
+  static void setItem(String key, String value) => setString(key, value);
+
   static void remove(String key) {
     _prefs?.remove(key);
     _memoryFallback.remove(key);

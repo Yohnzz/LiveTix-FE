@@ -1,20 +1,49 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/promoter_models.dart';
 import '../../services/promoter_data_service.dart';
 import 'producer_customer_service_screen.dart';
 import 'widgets/responsive_promoter_wrapper.dart';
 
-class ConcertStatusDetailScreen extends StatelessWidget {
+class ConcertStatusDetailScreen extends StatefulWidget {
   final String concertTitle;
+  final String? concertId;
+  final PromoterConcertItem? concert;
   final ConcertStatus status;
   final String? rejectionReason;
 
   const ConcertStatusDetailScreen({
     super.key,
     this.concertTitle = 'Harmoni Nusantara 2026',
+    this.concertId,
+    this.concert,
     this.status = ConcertStatus.ditolak,
     this.rejectionReason,
   });
+
+  @override
+  State<ConcertStatusDetailScreen> createState() =>
+      _ConcertStatusDetailScreenState();
+}
+
+class _ConcertStatusDetailScreenState extends State<ConcertStatusDetailScreen> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.status == ConcertStatus.ditolak) {
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,12 +53,10 @@ class ConcertStatusDetailScreen extends StatelessWidget {
       child: ValueListenableBuilder<bool>(
         valueListenable: service.isDarkModeNotifier,
         builder: (context, isDarkMode, _) {
-          final textColor =
-              isDarkMode ? Colors.white : const Color(0xFF101828);
+          final textColor = isDarkMode ? Colors.white : const Color(0xFF101828);
           final subtextColor =
               isDarkMode ? Colors.white70 : const Color(0xFF667085);
-          final cardBg =
-              isDarkMode ? const Color(0xFF1B2232) : Colors.white;
+          final cardBg = isDarkMode ? const Color(0xFF1B2232) : Colors.white;
           final cardBorder =
               isDarkMode ? Colors.white12 : const Color(0xFFE4E7EC);
           final rejectionBg =
@@ -43,9 +70,53 @@ class ConcertStatusDetailScreen extends StatelessWidget {
           final disabledBtnText =
               isDarkMode ? Colors.white38 : const Color(0xFF98A2B3);
 
-          final isPending = status == ConcertStatus.menunggu;
-          final isApproved = status == ConcertStatus.disetujui;
-          final isRejected = status == ConcertStatus.ditolak;
+          final isPending = widget.status == ConcertStatus.menunggu;
+          final isApproved = widget.status == ConcertStatus.disetujui;
+          final isRejected = widget.status == ConcertStatus.ditolak;
+
+          // Temukan objek konser riil dari PromoterDataService
+          PromoterConcertItem? resolvedConcert = widget.concert;
+          final concertList = service.concertsNotifier.value;
+          if (resolvedConcert == null && widget.concertId != null) {
+            final idx =
+                concertList.indexWhere((c) => c.id == widget.concertId);
+            if (idx != -1) resolvedConcert = concertList[idx];
+          }
+          if (resolvedConcert == null) {
+            final idx = concertList.indexWhere(
+              (c) =>
+                  c.title.trim().toLowerCase() ==
+                  widget.concertTitle.trim().toLowerCase(),
+            );
+            if (idx != -1) resolvedConcert = concertList[idx];
+          }
+
+          final String actualRejectionReason = resolvedConcert != null
+              ? service.getConcertRejectionReason(resolvedConcert)
+              : (widget.rejectionReason ??
+                  'Pengajuan konser ditolak oleh Admin. Silakan periksa kembali kelengkapan informasi konser Anda.');
+
+          final DateTime rejectedAt = resolvedConcert != null
+              ? service.getConcertRejectedAt(resolvedConcert)
+              : DateTime.now();
+
+          final unlockAt =
+              rejectedAt.add(PromoterDataService.resubmitCooldownDuration);
+          final remaining = unlockAt.difference(DateTime.now());
+          final bool isCooldownActive = remaining > Duration.zero;
+
+          String countdownDisplay;
+          if (isCooldownActive) {
+            final days = remaining.inDays;
+            final hours = remaining.inHours % 24;
+            final minutes = remaining.inMinutes % 60;
+            final seconds = remaining.inSeconds % 60;
+            countdownDisplay =
+                '$days Hari $hours Jam $minutes Menit $seconds Detik';
+          } else {
+            countdownDisplay =
+                'Waktu jeda selesai (Siap diajukan ulang sekarang)';
+          }
 
           return Column(
             children: [
@@ -104,7 +175,7 @@ class ConcertStatusDetailScreen extends StatelessWidget {
 
                       // Title & Subtitle
                       Text(
-                        concertTitle,
+                        widget.concertTitle,
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
@@ -174,7 +245,8 @@ class ConcertStatusDetailScreen extends StatelessWidget {
                             color: pendingBg,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: const Color(0xFFF59E0B).withValues(alpha: 0.5),
+                              color: const Color(0xFFF59E0B)
+                                  .withValues(alpha: 0.5),
                               width: 1.1,
                             ),
                           ),
@@ -201,7 +273,7 @@ class ConcertStatusDetailScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 10),
                               Text(
-                                'Pengajuan konser "$concertTitle" telah diterima oleh tim kurasi LiveTix. Kami sedang memverifikasi denah venue, batas izin keramaian, dan tier harga tiket yang didaftarkan.',
+                                'Pengajuan konser "${widget.concertTitle}" telah diterima oleh tim kurasi LiveTix. Kami sedang memverifikasi denah venue, batas izin keramaian, dan tier harga tiket yang didaftarkan.',
                                 style: TextStyle(
                                   fontSize: 12.5,
                                   color: textColor,
@@ -245,7 +317,8 @@ class ConcertStatusDetailScreen extends StatelessWidget {
                             color: approvedBg,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: const Color(0xFF039855).withValues(alpha: 0.5),
+                              color: const Color(0xFF039855)
+                                  .withValues(alpha: 0.5),
                               width: 1.1,
                             ),
                           ),
@@ -272,7 +345,7 @@ class ConcertStatusDetailScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 10),
                               Text(
-                                'Selamat! Konser "$concertTitle" telah lulus verifikasi dan sekarang tayang secara resmi di aplikasi pembeli tiket LiveTix.',
+                                'Selamat! Konser "${widget.concertTitle}" telah lulus verifikasi dan sekarang tayang secara resmi di aplikasi pembeli tiket LiveTix.',
                                 style: TextStyle(
                                   fontSize: 12.5,
                                   color: textColor,
@@ -283,7 +356,7 @@ class ConcertStatusDetailScreen extends StatelessWidget {
                           ),
                         ),
                       ] else ...[
-                        // Rejection State Card
+                        // Rejection State Card (Sinkron dari database)
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
@@ -309,8 +382,7 @@ class ConcertStatusDetailScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 10),
                               Text(
-                                rejectionReason ??
-                                    '"Kapasitas stadion Gajayana yang diajukan melampaui batas aman izin keramaian untuk layout Festival yang dilampirkan. Mohon kurangi kuota tiket Festival atau ajukan izin khusus."',
+                                actualRejectionReason,
                                 style: TextStyle(
                                   fontSize: 12.5,
                                   color: textColor,
@@ -323,7 +395,7 @@ class ConcertStatusDetailScreen extends StatelessWidget {
 
                         const SizedBox(height: 14),
 
-                        // Card 2: Jeda Waktu Pengajuan Ulang
+                        // Card 2: Jeda Waktu Pengajuan Ulang (Realtime Hari, Jam, Menit, Detik)
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(
@@ -346,14 +418,32 @@ class ConcertStatusDetailScreen extends StatelessWidget {
                                   color: textColor,
                                 ),
                               ),
-                              const SizedBox(height: 3),
-                              const Text(
-                                'Tersisa 1 Hari 22 Jam (Wajib jeda 2 hari)',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFFC2185B),
-                                ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(
+                                    isCooldownActive
+                                        ? Icons.timer_outlined
+                                        : Icons.check_circle_outline,
+                                    size: 16,
+                                    color: isCooldownActive
+                                        ? const Color(0xFFC2185B)
+                                        : const Color(0xFF039855),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      countdownDisplay,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: isCooldownActive
+                                            ? const Color(0xFFC2185B)
+                                            : const Color(0xFF039855),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -373,25 +463,43 @@ class ConcertStatusDetailScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (isRejected) ...[
-                      // Disabled Button: Ajukan Ulang Verifikasi (Terkunci)
+                      // Button: Ajukan Ulang Verifikasi (Aktif otomatis setelah waktu cooldown habis)
                       SizedBox(
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton(
-                          onPressed: null,
+                          onPressed: isCooldownActive
+                              ? null
+                              : () {
+                                  if (resolvedConcert != null) {
+                                    service.resubmitRejectedConcert(
+                                        resolvedConcert.id);
+                                  }
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Konser "${widget.concertTitle}" berhasil diajukan ulang ke kurasi Admin.',
+                                      ),
+                                      backgroundColor: const Color(0xFF039855),
+                                    ),
+                                  );
+                                  Navigator.pop(context);
+                                },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: disabledBtnBg,
+                            backgroundColor: const Color(0xFF1B2A8C),
                             disabledBackgroundColor: disabledBtnBg,
-                            foregroundColor: disabledBtnText,
+                            foregroundColor: Colors.white,
                             disabledForegroundColor: disabledBtnText,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
-                            'Ajukan Ulang Verifikasi (Terkunci)',
-                            style: TextStyle(
+                          child: Text(
+                            isCooldownActive
+                                ? 'Ajukan Ulang Verifikasi (Terkunci)'
+                                : 'Ajukan Ulang Verifikasi',
+                            style: const TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w700,
                             ),
@@ -410,7 +518,8 @@ class ConcertStatusDetailScreen extends StatelessWidget {
                               MaterialPageRoute(
                                 builder: (_) =>
                                     ProducerCustomerServiceScreen(
-                                  subjectTitle: 'Banding Penolakan - $concertTitle',
+                                  subjectTitle:
+                                      'Banding Penolakan - ${widget.concertTitle}',
                                 ),
                               ),
                             );

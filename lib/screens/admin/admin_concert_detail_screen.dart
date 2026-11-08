@@ -13,10 +13,14 @@ class AdminConcertDetailScreen extends StatelessWidget {
 
   Future<void> _approve(
       BuildContext context, ConcertSubmissionModel item) async {
+    final isEdit =
+        item.requestType == 'edit' || item.pendingEditPayload != null;
     final confirmed = await showApproveConfirm(
       context,
-      title: 'Setujui konser?',
-      message: '${item.title} akan tayang di publik dan tiketnya bisa dibeli.',
+      title: isEdit ? 'Setujui perubahan konser?' : 'Setujui konser?',
+      message: isEdit
+          ? 'Seluruh pembaruan data konser "${item.title}" akan langsung diterapkan di database.'
+          : '${item.title} akan tayang di publik dan tiketnya bisa dibeli.',
       confirmLabel: 'Setujui',
     );
     if (!confirmed || !context.mounted) return;
@@ -66,14 +70,15 @@ class AdminConcertDetailScreen extends StatelessWidget {
           final item = service.concertById(concertId);
           final canDecide = item?.approvalStatus == ApprovalStatus.pending;
           return Scaffold(
-            backgroundColor: const Color(0xFFF8FAFC),
+            backgroundColor: AdminColors.bgOf(context),
             body: Column(
               children: [
                 AdminHeader(
+                  eyebrow: 'TINJAUAN PENGAJUAN KONSER',
                   title: 'Detail Konser',
                   subtitle: item?.approvalStatus == ApprovalStatus.rejected
-                      ? 'Informasi penjualan dan performa tiket'
-                      : null,
+                      ? 'Informasi pengajuan dan catatan penolakan Admin'
+                      : 'Periksa detail konser yang diajukan oleh Produser',
                   onBack: () => Navigator.of(context).pop(),
                 ),
                 Expanded(
@@ -109,12 +114,18 @@ class _Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final editPayload = item.pendingEditPayload;
+    final isEditSubmission = item.requestType == 'edit' || editPayload != null;
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+    final border = AdminColors.borderOf(context);
+
     return MediaQuery.withClampedTextScaling(
       maxScaleFactor: 1.35,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
         children: [
-          // 1. Kartu Poster & Judul Konser (Image 3 & 4)
+          // 1. Kartu Poster & Judul Konser (tanpa tombol Edit/Hapus karena wewenang Produser)
           AdminCard(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -134,10 +145,10 @@ class _Body extends StatelessWidget {
                   children: [
                     Text(
                       item.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
-                        color: AdminColors.textDark,
+                        color: textPri,
                       ),
                     ),
                     Container(
@@ -156,53 +167,87 @@ class _Body extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (item.approvalStatus == ApprovalStatus.rejected)
+                    if (isEditSubmission)
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFEE2E2),
+                          color: const Color(0xFFDBEAFE),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: const Text(
-                          'Ditolak',
+                          'Pengajuan Edit',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFFDC2626),
+                            color: Color(0xFF1E40AF),
                           ),
                         ),
                       ),
-                    if (item.approvalStatus == ApprovalStatus.pending)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF3C7),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Text(
-                          'Menunggu',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF92400E),
-                          ),
-                        ),
-                      ),
+                    StatusBadge(status: item.approvalStatus),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   'Produser: ${item.promoterName}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: AdminColors.textGrey,
+                    color: textSec,
                   ),
                 ),
               ],
             ),
           ),
+
+          if (editPayload != null) ...[
+            const SizedBox(height: 16),
+            AdminCard(
+              color: const Color(0xFFEFF6FF),
+              borderColor: const Color(0xFFBFDBFE),
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.edit_note_rounded,
+                        color: Color(0xFF1D4ED8),
+                        size: 20,
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Detail Perubahan Edit Konser oleh Produser',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E3A8A),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (editPayload['title'] != null)
+                    _buildMetaRow(
+                        context, 'Judul Baru', editPayload['title'].toString()),
+                  if (editPayload['date'] != null)
+                    _buildMetaRow(context, 'Tanggal Baru',
+                        editPayload['date'].toString()),
+                  if (editPayload['time'] != null)
+                    _buildMetaRow(
+                        context, 'Waktu Baru', editPayload['time'].toString()),
+                  if (editPayload['venue'] != null)
+                    _buildMetaRow(
+                        context, 'Venue Baru', editPayload['venue'].toString()),
+                  if (editPayload['total_capacity'] != null)
+                    _buildMetaRow(context, 'Kapasitas Baru',
+                        '${editPayload['total_capacity']} Kursi'),
+                ],
+              ),
+            ),
+          ],
 
           const SizedBox(height: 16),
 
@@ -212,13 +257,15 @@ class _Body extends StatelessWidget {
             child: Column(
               children: [
                 _buildMetaRow(
+                  context,
                   'Tanggal & Waktu',
                   '${ApprovalFormat.dayMonthYear(item.dateTime)} · ${ApprovalFormat.time(item.dateTime)}',
                 ),
-                const Divider(height: 1, color: AdminColors.border),
-                _buildMetaRow('Lokasi Venue', item.venue),
-                const Divider(height: 1, color: AdminColors.border),
+                Divider(height: 1, color: border),
+                _buildMetaRow(context, 'Lokasi Venue', item.venue),
+                Divider(height: 1, color: border),
                 _buildMetaRow(
+                  context,
                   item.approvalStatus == ApprovalStatus.rejected
                       ? 'Kapasitas Total'
                       : 'Total Kapasitas',
@@ -233,88 +280,61 @@ class _Body extends StatelessWidget {
           if (item.approvalStatus == ApprovalStatus.rejected &&
               (item.rejectionReason ?? '').isNotEmpty) ...[
             const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x08000000),
-                    offset: Offset(0, 2),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Stack(
+            AdminCard(
+              borderColor: const Color(0xFFFECACA),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 6,
-                      color: const Color(0xFFDC2626),
-                    ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFEE2E2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.error_outline_rounded,
+                          color: Color(0xFFDC2626),
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Alasan Penolakan',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFDC2626),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Ditinjau oleh Admin',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: textSec,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFFEE2E2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.error_outline_rounded,
-                                color: Color(0xFFDC2626),
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Alasan Penolakan',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF991B1B),
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'Ditinjau oleh Admin',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AdminColors.textGrey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          child: Divider(height: 1, color: Color(0xFFF1F5F9)),
-                        ),
-                        Text(
-                          item.rejectionReason!,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            height: 1.5,
-                            color: Color(0xFF334155),
-                          ),
-                        ),
-                      ],
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Divider(height: 1, color: border),
+                  ),
+                  Text(
+                    item.rejectionReason!,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: textPri,
                     ),
                   ),
                 ],
@@ -326,10 +346,10 @@ class _Body extends StatelessWidget {
             // 3. Bagian Kategori Tiket
             const AdminSectionTitle('Kategori Tiket'),
             if (item.tiers.isEmpty)
-              const AdminCard(
+              AdminCard(
                 child: Text(
                   'Produser belum menambahkan kategori tiket.',
-                  style: TextStyle(fontSize: 13, color: AdminColors.textGrey),
+                  style: TextStyle(fontSize: 13, color: textSec),
                 ),
               )
             else
@@ -349,25 +369,25 @@ class _Body extends StatelessWidget {
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                                 color: i == 0
-                                    ? const Color(0xFF1E3A8A)
+                                    ? AdminColors.accentOf(context)
                                     : const Color(0xFFC2185B),
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               ApprovalFormat.rupiah(item.tiers[i].price),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: AdminColors.textDark,
+                                color: textPri,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Kapasitas: ${item.tiers[i].totalQuota} kursi',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: AdminColors.textGrey,
+                                color: textSec,
                               ),
                             ),
                           ],
@@ -383,7 +403,7 @@ class _Body extends StatelessWidget {
     );
   }
 
-  Widget _buildMetaRow(String label, String value) {
+  Widget _buildMetaRow(BuildContext context, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
@@ -393,7 +413,10 @@ class _Body extends StatelessWidget {
             width: 110,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 13, color: AdminColors.textGrey),
+              style: TextStyle(
+                fontSize: 13,
+                color: AdminColors.textSecondaryOf(context),
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -401,10 +424,10 @@ class _Body extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: AdminColors.textDark,
+                color: AdminColors.textPrimaryOf(context),
               ),
             ),
           ),
@@ -413,4 +436,3 @@ class _Body extends StatelessWidget {
     );
   }
 }
-

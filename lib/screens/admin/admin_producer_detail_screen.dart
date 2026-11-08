@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/approval_models.dart';
 import '../../services/admin_service.dart';
+import '../../services/supabase_service.dart';
 import 'admin_deactivate_user_screen.dart';
 import 'admin_result_screen.dart';
 import 'admin_review_producer_screen.dart';
@@ -88,6 +89,79 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
     );
   }
 
+  Future<void> _showEditProducerNameDialog(
+    ProducerApplicationModel item,
+  ) async {
+    final controller = TextEditingController(text: item.companyName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Ubah Nama Profil Produser',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: AdminColors.textDark,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Perubahan nama akan langsung disimpan ke database dan disinkronkan ke seluruh konser produser.',
+              style: TextStyle(fontSize: 12.5, color: AdminColors.textGrey),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('admin_edit_producer_name_input'),
+              controller: controller,
+              autofocus: true,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AdminColors.textDark,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Nama Produser / Perusahaan',
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            key: const Key('admin_save_producer_name_button'),
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            style: FilledButton.styleFrom(backgroundColor: AdminColors.navy),
+            child: const Text('Simpan ke Database'),
+          ),
+        ],
+      ),
+    );
+
+    if (newName == null || newName.isEmpty || !mounted) return;
+    final updated = _service.updateProducerNameByAdmin(item.id, newName);
+    if (updated != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Nama produser berhasil diubah menjadi "$newName".'),
+          backgroundColor: AdminColors.navy,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AdminScope(
@@ -157,6 +231,11 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
     final docs = item.legalDocuments.isNotEmpty
         ? item.legalDocuments
         : ProducerDocumentModel.defaultLegalDocuments();
+    final hasPendingProfileEdit = item.requestType == 'profile_edit' ||
+        (item.pendingName != null && item.pendingName!.isNotEmpty) ||
+        (item.pendingKtpUrl != null && item.pendingKtpUrl!.isNotEmpty) ||
+        (item.pendingResponsibilityLetterUrl != null &&
+            item.pendingResponsibilityLetterUrl!.isNotEmpty);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -168,11 +247,33 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
             children: [
               InitialAvatar(initials: item.initials, size: 64),
               const SizedBox(height: 12),
-              Text(
-                item.companyName,
-                textAlign: TextAlign.center,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      item.companyName,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  InkWell(
+                    key: const Key('admin_edit_producer_name_button_pending'),
+                    onTap: () => _showEditProducerNameDialog(item),
+                    borderRadius: BorderRadius.circular(999),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.edit_outlined,
+                        size: 16,
+                        color: AdminColors.navy,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 2),
               Text(
@@ -190,6 +291,74 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
             ],
           ),
         ),
+
+        if (hasPendingProfileEdit) ...[
+          const SizedBox(height: 16),
+          AdminCard(
+            color: const Color(0xFFFFFBEB),
+            borderColor: const Color(0xFFFDE68A),
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.published_with_changes_rounded,
+                      color: Color(0xFFD97706),
+                      size: 18,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Pengajuan Perubahan Profil / Legalitas Produser',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF92400E),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (item.pendingName != null &&
+                    item.pendingName!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Nama Baru Diajukan: ${item.pendingName}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AdminColors.textDark,
+                    ),
+                  ),
+                ],
+                if (item.pendingKtpUrl != null &&
+                    item.pendingKtpUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'KTP Baru: ${item.pendingKtpUrl!.split('/').last}',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AdminColors.textDark,
+                    ),
+                  ),
+                ],
+                if (item.pendingResponsibilityLetterUrl != null &&
+                    item.pendingResponsibilityLetterUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Lembar Penanggung Jawab Baru: ${item.pendingResponsibilityLetterUrl!.split('/').last}',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AdminColors.textDark,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
 
         const SizedBox(height: 20),
         const AdminSectionTitle('Dokumen Legalitas'),
@@ -732,6 +901,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
   }
 
   Widget _buildApprovedBody(ProducerApplicationModel item) {
+    final activeSummaries = item.activeConcertSummaries;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       children: [
@@ -761,37 +931,63 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFECFDF5),
-                  border: Border.all(color: const Color(0xFF10B981)),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.check_rounded,
-                      size: 16,
-                      color: Color(0xFF10B981),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      border: Border.all(color: const Color(0xFF10B981)),
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                    SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        'Terverifikasi · 24 Okt 2026',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF059669),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.check_rounded,
+                          size: 16,
+                          color: Color(0xFF10B981),
                         ),
+                        SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            'Terverifikasi · 24 Okt 2026',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF059669),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    key: const Key('admin_edit_producer_name_button'),
+                    onPressed: () => _showEditProducerNameDialog(item),
+                    icon: const Icon(Icons.edit_outlined, size: 15),
+                    label: const Text('Ubah Nama Produser'),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: AdminColors.navy,
+                      side: const BorderSide(color: AdminColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               const Divider(height: 1, color: AdminColors.border),
@@ -836,18 +1032,74 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
         const SizedBox(height: 20),
         const AdminSectionTitle('Konser Aktif'),
 
-        // 3. Daftar Konser Aktif (Image 5)
-        _buildActiveConcertCard(
-          title: 'Soundwave Fest 2026',
-          subtitle: '12 Okt 2026 · Gate B',
-          posterUrl: null,
-        ),
-        const SizedBox(height: 10),
-        _buildActiveConcertCard(
-          title: 'Jazz Night 2026',
-          subtitle: '15 Nov 2026 · Balai Sarbini',
-          posterUrl: null,
-        ),
+        // 3. Daftar Konser Aktif (dari database ketika terhubung ke Supabase)
+        if (activeSummaries.isNotEmpty)
+          for (int i = 0; i < activeSummaries.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _buildActiveConcertCard(
+              title: activeSummaries[i]['title'] ?? '',
+              subtitle: activeSummaries[i]['subtitle'] ?? '',
+              posterUrl: activeSummaries[i]['posterUrl'],
+            ),
+          ]
+        else if (SupabaseService.isInitialized)
+          AdminCard(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3E8FF),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.confirmation_number_outlined,
+                    color: Color(0xFF9333EA),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Belum ada konser aktif',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AdminColors.textDark,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Produser ini belum memiliki konser aktif di database.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AdminColors.textGrey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )
+        else ...[
+          _buildActiveConcertCard(
+            title: 'Soundwave Fest 2026',
+            subtitle: '12 Okt 2026 · Gate B',
+            posterUrl: null,
+          ),
+          const SizedBox(height: 10),
+          _buildActiveConcertCard(
+            title: 'Jazz Night 2026',
+            subtitle: '15 Nov 2026 · Balai Sarbini',
+            posterUrl: null,
+          ),
+        ],
       ],
     );
   }
@@ -1010,23 +1262,29 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
               Expanded(
                 child: _buildMiniStat(
                   'Konser Diajukan',
-                  '${item.proposedConcertsCount == 0 ? 8 : item.proposedConcertsCount}',
+                  SupabaseService.isInitialized
+                      ? '${item.proposedConcertsCount}'
+                      : '${item.proposedConcertsCount == 0 ? 8 : item.proposedConcertsCount}',
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: _buildMiniStat(
                   'Konser Dihentikan',
-                  '${item.activeConcertsCount == 0 ? 5 : item.activeConcertsCount}',
+                  SupabaseService.isInitialized
+                      ? '${item.activeConcertsCount}'
+                      : '${item.activeConcertsCount == 0 ? 5 : item.activeConcertsCount}',
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: _buildMiniStat(
                   'Tiket Terjual',
-                  item.ticketsSold == 0
-                      ? '12,450'
-                      : ApprovalFormat.thousands(item.ticketsSold),
+                  SupabaseService.isInitialized
+                      ? ApprovalFormat.thousands(item.ticketsSold)
+                      : (item.ticketsSold == 0
+                          ? '12,450'
+                          : ApprovalFormat.thousands(item.ticketsSold)),
                   valueColor: const Color(0xFFC2185B),
                 ),
               ),

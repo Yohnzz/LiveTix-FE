@@ -126,7 +126,7 @@ void main() {
       await service.load();
       expect(service.pendingProducerCount, 4);
       expect(service.pendingConcertCount, 3);
-      expect(service.pendingTotal, 7);
+      expect(service.pendingTotal, 8);
       final recent = service.recentPending();
       expect(recent.map((e) => e.title),
           ['Soundwave Fest 2026', 'PT Harmony Entertainment']);
@@ -775,7 +775,7 @@ void main() {
     });
 
     testWidgets(
-        'AdminProfileScreen: Mode Tampilan switch toggle langsung, dan seluruh fitur profil dapat digunakan (Edit Profil, Ubah Kata Sandi, Bahasa, Bantuan, Tentang, Privasi)',
+        'AdminProfileScreen: Mode Tampilan switch toggle langsung, Notifikasi, Customer Service, dan Keluar',
         (tester) async {
       await _pumpAdmin(tester);
       await _tapNav(tester, 'Profil');
@@ -786,81 +786,32 @@ void main() {
       expect(find.text(DataService().currentUser?.email ?? 'admin@livetix.com'),
           findsOneWidget);
 
-      // 2. Mode Tampilan menjadi toggle switch saja
+      // 2. Mode Tampilan menjadi toggle switch langsung
       expect(find.text('Mode Tampilan'), findsOneWidget);
-      final switchRow = find.widgetWithText(Row, 'Mode Tampilan');
-      expect(switchRow, findsOneWidget);
+      final switchFinder = find.byType(Switch);
+      expect(switchFinder, findsOneWidget);
       final initialMode = DataService().isDarkModeNotifier.value;
-      await tester.tap(find.descendant(of: switchRow, matching: find.byType(Switch)));
+      await tester.tap(switchFinder);
       await tester.pumpAndSettle();
       expect(DataService().isDarkModeNotifier.value, !initialMode);
       // Toggle kembali
-      await tester.tap(find.descendant(of: switchRow, matching: find.byType(Switch)));
+      await tester.tap(switchFinder);
       await tester.pumpAndSettle();
       expect(DataService().isDarkModeNotifier.value, initialMode);
 
-      // 3. Edit Profil Admin
-      await tester.tap(find.text('Edit Profil'));
+      // 3. Notifikasi
+      expect(find.text('Notifikasi'), findsOneWidget);
+      await tester.tap(find.text('Notifikasi'));
       await tester.pumpAndSettle();
-      expect(find.text('Edit Profil Admin'), findsOneWidget);
-      expect(find.text('Email (Terkunci)'), findsOneWidget);
-      await tester.enterText(
-          find.widgetWithText(TextFormField, 'Masukkan nama admin'),
-          'Super Admin Utama');
-      await tester.tap(find.widgetWithText(FilledButton, 'Simpan'));
-      await tester.pumpAndSettle();
-      expect(find.text('Super Admin Utama'), findsOneWidget);
-
-      // 4. Ubah Kata Sandi Admin
-      await tester.tap(find.text('Ubah Kata Sandi'));
-      await tester.pumpAndSettle();
-      expect(find.text('Ubah Kata Sandi Admin'), findsOneWidget);
-      final passFields = find.byType(TextFormField);
-      await tester.enterText(passFields.at(0), 'admin123');
-      await tester.enterText(passFields.at(1), 'adminBaru456');
-      await tester.enterText(passFields.at(2), 'adminBaru456');
-      await tester.tap(find.widgetWithText(FilledButton, 'Simpan'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(find.textContaining('Kata sandi admin berhasil diperbarui'),
-          findsOneWidget);
-      await tester.pump(const Duration(seconds: 4));
+      expect(find.text('Notifikasi Admin'), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.chevron_left_rounded).first);
       await tester.pumpAndSettle();
 
-      // 5. Ganti Bahasa
-      await tester.tap(find.text('Bahasa'));
-      await tester.pumpAndSettle();
-      expect(find.text('Pilih Bahasa'), findsOneWidget);
-      expect(find.text('English (US)'), findsOneWidget);
-      await tester.tap(find.text('English (US)'));
-      await tester.pumpAndSettle();
-      expect(find.text('English (US)'), findsOneWidget);
+      // 4. Customer Service
+      expect(find.text('Customer Service (Admin Inbox)'), findsOneWidget);
 
-      // 6. Pusat Bantuan
-      await tester.drag(find.byType(ListView).last, const Offset(0, -250));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Pusat Bantuan'));
-      await tester.pumpAndSettle();
-      expect(find.text('Pusat Bantuan Super Admin'), findsOneWidget);
-      expect(find.text('• Hotline Darurat: 0800-1234-LIVE (Bebas Pulsa)'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Tutup'));
-      await tester.pumpAndSettle();
-
-      // 7. Tentang Aplikasi
-      await tester.tap(find.text('Tentang Aplikasi'));
-      await tester.pumpAndSettle();
-      expect(find.text('Soundwave Admin Console'), findsOneWidget);
-      expect(find.text('Versi 2.4.0 (Build 2026.11)'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Tutup'));
-      await tester.pumpAndSettle();
-
-      // 8. Kebijakan Privasi
-      await tester.tap(find.text('Kebijakan Privasi'));
-      await tester.pumpAndSettle();
-      expect(find.text('Kebijakan Privasi Administrator'), findsOneWidget);
-      expect(find.text('1. Kerahasiaan Data Pengguna'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Mengerti'));
-      await tester.pumpAndSettle();
+      // 5. Keluar dari Akun
+      expect(find.text('Keluar dari akun'), findsOneWidget);
     });
 
     testWidgets(

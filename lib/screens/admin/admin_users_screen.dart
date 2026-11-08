@@ -257,33 +257,40 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             return matchesRole && matchesQuery;
           }).toList();
 
+          final surface = AdminColors.surfaceOf(context);
+          final border = AdminColors.borderOf(context);
+          final textPri = AdminColors.textPrimaryOf(context);
+          final textSec = AdminColors.textSecondaryOf(context);
+          final accent = AdminColors.accentOf(context);
+
           return Column(
             children: [
               const AdminHeader(
+                eyebrow: 'MANAJEMEN AKUN & PERAN',
                 title: 'Kelola Pengguna',
-                subtitle: 'Daftar seluruh role pengguna terdaftar di Soundwave',
+                subtitle: 'Daftar seluruh role pengguna terdaftar di LiveTix',
               ),
               // Search Bar
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    color: surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: border),
                   ),
                   child: TextField(
                     controller: _searchController,
-                    style: const TextStyle(fontSize: 14, color: AdminColors.textDark),
+                    style: TextStyle(fontSize: 14, color: textPri),
                     decoration: InputDecoration(
                       hintText: 'Cari pengguna...',
-                      hintStyle: const TextStyle(
+                      hintStyle: TextStyle(
                         fontSize: 14,
-                        color: Color(0xFF94A3B8),
+                        color: textSec,
                       ),
-                      prefixIcon: const Icon(
+                      prefixIcon: Icon(
                         Icons.search_rounded,
-                        color: Color(0xFF94A3B8),
+                        color: textSec,
                         size: 20,
                       ),
                       suffixIcon: _searchController.text.isNotEmpty
@@ -320,14 +327,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: isSelected
-                                ? const Color(0xFF1E3A8A)
-                                : Colors.white,
+                            color: isSelected ? accent : surface,
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(
-                              color: isSelected
-                                  ? const Color(0xFF1E3A8A)
-                                  : const Color(0xFFE2E8F0),
+                              color: isSelected ? accent : border,
                             ),
                           ),
                           child: Text(
@@ -337,9 +340,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                               fontWeight: isSelected
                                   ? FontWeight.w700
                                   : FontWeight.w500,
-                              color: isSelected
-                                  ? Colors.white
-                                  : const Color(0xFF64748B),
+                              color: isSelected ? Colors.white : textSec,
                             ),
                           ),
                         ),
@@ -595,18 +596,18 @@ class _UserCard extends StatelessWidget {
               children: [
                 Text(
                   user.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: AdminColors.textDark,
+                    color: AdminColors.textPrimaryOf(context),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   user.email,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AdminColors.textGrey,
+                    color: AdminColors.textSecondaryOf(context),
                   ),
                 ),
               ],

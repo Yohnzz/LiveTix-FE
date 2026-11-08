@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../services/promoter_data_service.dart';
 
-class ApprovalRejectedScreen extends StatelessWidget {
+class ApprovalRejectedScreen extends StatefulWidget {
   final VoidCallback onContactAdmin;
   final VoidCallback onBack;
   final VoidCallback? onResubmit;
@@ -14,18 +15,37 @@ class ApprovalRejectedScreen extends StatelessWidget {
   });
 
   @override
+  State<ApprovalRejectedScreen> createState() => _ApprovalRejectedScreenState();
+}
+
+class _ApprovalRejectedScreenState extends State<ApprovalRejectedScreen> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final service = PromoterDataService();
 
     return ValueListenableBuilder<bool>(
       valueListenable: service.isDarkModeNotifier,
       builder: (context, isDarkMode, _) {
-        final textColor =
-            isDarkMode ? Colors.white : const Color(0xFF101828);
+        final textColor = isDarkMode ? Colors.white : const Color(0xFF101828);
         final subtextColor =
             isDarkMode ? Colors.white70 : const Color(0xFF667085);
-        final cardBg =
-            isDarkMode ? const Color(0xFF1B2232) : Colors.white;
+        final cardBg = isDarkMode ? const Color(0xFF1B2232) : Colors.white;
         final cardBorder =
             isDarkMode ? Colors.white12 : const Color(0xFFE4E7EC);
         final rejectionBg =
@@ -34,6 +54,29 @@ class ApprovalRejectedScreen extends StatelessWidget {
             isDarkMode ? const Color(0xFF252D3D) : const Color(0xFFE4E7EC);
         final disabledBtnText =
             isDarkMode ? Colors.white38 : const Color(0xFF98A2B3);
+
+        final actualReason = service.rejectionReasonNotifier.value?.trim();
+        final displayReason = (actualReason != null && actualReason.isNotEmpty)
+            ? actualReason
+            : 'Dokumen legalitas profil produser memerlukan perbaikan sesuai catatan kurasi Admin.';
+
+        final DateTime rejectedAt = service.getProducerRejectedAt();
+        final unlockAt =
+            rejectedAt.add(PromoterDataService.resubmitCooldownDuration);
+        final remaining = unlockAt.difference(DateTime.now());
+        final bool isCooldownActive = remaining > Duration.zero;
+
+        String countdownDisplay;
+        if (isCooldownActive) {
+          final days = remaining.inDays;
+          final hours = remaining.inHours % 24;
+          final minutes = remaining.inMinutes % 60;
+          final seconds = remaining.inSeconds % 60;
+          countdownDisplay =
+              '$days Hari $hours Jam $minutes Menit $seconds Detik';
+        } else {
+          countdownDisplay = 'Waktu jeda selesai (Dapat diajukan ulang sekarang)';
+        }
 
         return Column(
           children: [
@@ -82,7 +125,7 @@ class ApprovalRejectedScreen extends StatelessWidget {
 
                     const SizedBox(height: 20),
 
-                    // Card 1: Alasan Penolakan
+                    // Card 1: Alasan Penolakan (Real dari database)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
@@ -90,7 +133,8 @@ class ApprovalRejectedScreen extends StatelessWidget {
                         color: rejectionBg,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: const Color(0xFFC2185B).withValues(alpha: 0.45),
+                          color:
+                              const Color(0xFFC2185B).withValues(alpha: 0.45),
                           width: 1.1,
                         ),
                       ),
@@ -117,7 +161,7 @@ class ApprovalRejectedScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            '"Alamat kantor tidak sesuai dengan dokumen SIUP resmi yang diunggah. Mohon untuk memverifikasi ulang alamat kantor pusat Anda dan unggah dokumen SIUP terbaru yang aktif."',
+                            '"$displayReason"',
                             style: TextStyle(
                               fontSize: 12.5,
                               color: textColor,
@@ -130,7 +174,7 @@ class ApprovalRejectedScreen extends StatelessWidget {
 
                     const SizedBox(height: 14),
 
-                    // Card 2: Cooldown Timer
+                    // Card 2: Cooldown Timer (Realtime Hari, Jam, Menit, Detik)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
@@ -144,9 +188,13 @@ class ApprovalRejectedScreen extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          const Icon(
-                            Icons.access_time_rounded,
-                            color: Color(0xFFF59E0B),
+                          Icon(
+                            isCooldownActive
+                                ? Icons.access_time_rounded
+                                : Icons.check_circle_outline,
+                            color: isCooldownActive
+                                ? const Color(0xFFF59E0B)
+                                : const Color(0xFF039855),
                             size: 22,
                           ),
                           const SizedBox(width: 12),
@@ -162,12 +210,14 @@ class ApprovalRejectedScreen extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 2),
-                                const Text(
-                                  '3 Hari 0 Jam 0 Menit',
+                                Text(
+                                  countdownDisplay,
                                   style: TextStyle(
-                                    fontSize: 13.5,
+                                    fontSize: 13,
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFFF59E0B),
+                                    color: isCooldownActive
+                                        ? const Color(0xFFF59E0B)
+                                        : const Color(0xFF039855),
                                   ),
                                 ),
                               ],
@@ -189,25 +239,27 @@ class ApprovalRejectedScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Disabled Button: Ajukan Ulang Verifikasi
+                  // Button: Ajukan Ulang Verifikasi (Terkunci jika cooldown aktif)
                   SizedBox(
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: onResubmit,
+                      onPressed: isCooldownActive ? null : widget.onResubmit,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: disabledBtnBg,
+                        backgroundColor: const Color(0xFF1B2A8C),
                         disabledBackgroundColor: disabledBtnBg,
-                        foregroundColor: disabledBtnText,
+                        foregroundColor: Colors.white,
                         disabledForegroundColor: disabledBtnText,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Ajukan Ulang Verifikasi',
-                        style: TextStyle(
+                      child: Text(
+                        isCooldownActive
+                            ? 'Ajukan Ulang Verifikasi (Terkunci)'
+                            : 'Ajukan Ulang Verifikasi',
+                        style: const TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w700,
                         ),
@@ -224,7 +276,7 @@ class ApprovalRejectedScreen extends StatelessWidget {
                         child: SizedBox(
                           height: 46,
                           child: OutlinedButton(
-                            onPressed: onContactAdmin,
+                            onPressed: widget.onContactAdmin,
                             style: OutlinedButton.styleFrom(
                               backgroundColor: cardBg,
                               side: BorderSide(
@@ -250,21 +302,16 @@ class ApprovalRejectedScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
                         flex: 3,
                         child: SizedBox(
                           height: 46,
                           child: OutlinedButton(
-                            onPressed: onBack,
+                            onPressed: widget.onBack,
                             style: OutlinedButton.styleFrom(
                               backgroundColor: cardBg,
-                              side: BorderSide(
-                                color: isDarkMode
-                                    ? const Color(0xFF4A6CF7)
-                                    : const Color(0xFF1B2A8C),
-                                width: 1.2,
-                              ),
+                              side: BorderSide(color: cardBorder, width: 1.2),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -273,10 +320,8 @@ class ApprovalRejectedScreen extends StatelessWidget {
                               'Kembali',
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: isDarkMode
-                                    ? Colors.white
-                                    : const Color(0xFF1B2A8C),
+                                fontWeight: FontWeight.w600,
+                                color: textColor,
                               ),
                             ),
                           ),

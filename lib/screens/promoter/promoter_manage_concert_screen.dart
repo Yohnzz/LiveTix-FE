@@ -54,20 +54,29 @@ class _PromoterManageConcertScreenState
     String selectedGate = 'Gate A';
 
     final dialogBgColor =
-        isDarkMode ? const Color(0xFF1B2232) : Colors.white;
+        isDarkMode ? const Color(0xFF1E293B) : Colors.white;
     final dialogTextColor =
         isDarkMode ? Colors.white : const Color(0xFF0F172A);
     final dialogSubColor =
-        isDarkMode ? Colors.white70 : const Color(0xFF475569);
+        isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF475569);
     final fieldBgColor =
-        isDarkMode ? const Color(0xFF141A29) : const Color(0xFFF8FAFC);
+        isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
     final fieldBorderColor =
-        isDarkMode ? Colors.white24 : const Color(0xFFCBD5E1);
+        isDarkMode ? const Color(0xFF334155) : const Color(0xFFCBD5E1);
 
     showDialog<void>(
       context: context,
       builder: (dialogCtx) => Theme(
-        data: isDarkMode ? ThemeData.dark() : ThemeData.light(),
+        data: isDarkMode
+            ? ThemeData.dark().copyWith(
+                dialogTheme: DialogThemeData(backgroundColor: dialogBgColor),
+                scaffoldBackgroundColor: dialogBgColor,
+              )
+            : ThemeData.light().copyWith(
+                dialogTheme:
+                    const DialogThemeData(backgroundColor: Colors.white),
+                scaffoldBackgroundColor: Colors.white,
+              ),
         child: StatefulBuilder(
           builder: (dialogStateCtx, setDialogState) {
             final selectedMember =
@@ -75,7 +84,7 @@ class _PromoterManageConcertScreenState
 
             return AlertDialog(
               backgroundColor: dialogBgColor,
-              surfaceTintColor: dialogBgColor,
+              surfaceTintColor: Colors.transparent,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20)),
               title: Row(

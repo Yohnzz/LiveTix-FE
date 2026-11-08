@@ -6,6 +6,9 @@ import 'admin_theme.dart';
 /// area daftar di bawahnya tetap punya ruang, isi halaman sendiri tetap ikut skala penuh.
 const double _maxTextScale = 1.3;
 
+/// Header seluruh halaman Admin yang disamakan desainnya dengan header Beranda:
+/// gradien biru-indigo, sudut bawah membulat 24px, lingkaran dekoratif halus,
+/// lencana kecil opsional (eyebrow), tombol kembali kontekstual, dan aksi kanan.
 class AdminHeader extends StatelessWidget {
   final String title;
   final String? eyebrow;
@@ -29,65 +32,147 @@ class AdminHeader extends StatelessWidget {
       maxScaleFactor: _maxTextScale,
       child: Container(
         width: double.infinity,
-        decoration: const BoxDecoration(gradient: AdminColors.gradient),
-        padding: EdgeInsets.fromLTRB(20, top + 24, 20, 24),
-        child: _content(),
+        decoration: BoxDecoration(
+          gradient: AdminColors.gradient,
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(24),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1B2A8C).withValues(alpha: 0.22),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -28,
+              top: -20,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 48,
+              bottom: -36,
+              child: Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.05),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, top + 18, 20, 22),
+              child: _content(),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _content() {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         if (onBack != null) ...[
           Container(
-            width: 40,
-            height: 40,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.22),
-              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.24),
+              ),
             ),
             child: IconButton(
               onPressed: onBack,
               tooltip: 'Kembali',
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+              constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+              icon: const Icon(
+                Icons.arrow_back_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
         ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (eyebrow != null)
-                Text(
-                  eyebrow!,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white.withValues(alpha: 0.92),
+              if (eyebrow != null && eyebrow!.trim().isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF4ADE80),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          eyebrow!,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            letterSpacing: 0.3,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                const SizedBox(height: 8),
+              ],
               Semantics(
                 header: true,
                 child: Text(
                   title,
                   style: const TextStyle(
                     fontSize: 22,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     color: Colors.white,
-                    height: 1.25,
+                    height: 1.2,
+                    letterSpacing: -0.3,
                   ),
                 ),
               ),
-              if (subtitle != null) ...[
+              if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
                   subtitle!,
                   style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white.withValues(alpha: 0.92),
+                    fontSize: 12.5,
+                    color: Colors.white.withValues(alpha: 0.85),
                   ),
                 ),
               ],
@@ -135,7 +220,7 @@ class StatusBadge extends StatelessWidget {
         ),
         child: Text(
           status.label,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: fg),
+          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: fg),
         ),
       ),
     );
@@ -150,14 +235,15 @@ class InitialAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AdminColors.isDark(context);
     return MediaQuery.withClampedTextScaling(
       maxScaleFactor: _maxTextScale,
       child: Container(
         width: size,
         height: size,
         alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: AdminColors.avatarBg,
+        decoration: BoxDecoration(
+          color: AdminColors.avatarBgOf(context),
           shape: BoxShape.circle,
         ),
         child: ExcludeSemantics(
@@ -166,7 +252,7 @@ class InitialAvatar extends StatelessWidget {
             style: TextStyle(
               fontSize: size * 0.32,
               fontWeight: FontWeight.w700,
-              color: AdminColors.navy,
+              color: isDark ? Colors.white : AdminColors.navy,
             ),
           ),
         ),
@@ -241,20 +327,37 @@ class AdminCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(16);
-    final card = Material(
-      color: color ?? AdminColors.surface,
-      shape: RoundedRectangleBorder(
+    final radius = BorderRadius.circular(18);
+    final isDark = AdminColors.isDark(context);
+    final resolvedSurface = color ?? AdminColors.surfaceOf(context);
+    final resolvedBorder = borderColor ?? AdminColors.borderOf(context);
+
+    final card = Container(
+      decoration: BoxDecoration(
+        color: resolvedSurface,
         borderRadius: radius,
-        side: BorderSide(color: borderColor ?? AdminColors.border),
+        border: Border.all(color: resolvedBorder),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: onTap == null
-          ? Padding(padding: padding, child: child)
-          : InkWell(
-              onTap: onTap,
-              child: Padding(padding: padding, child: child),
-            ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: onTap == null
+            ? Padding(padding: padding, child: child)
+            : InkWell(
+                onTap: onTap,
+                child: Padding(padding: padding, child: child),
+              ),
+      ),
     );
     if (onTap == null) return card;
     return Semantics(button: true, label: semanticLabel, child: card);
@@ -266,11 +369,11 @@ class AdminLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(48),
+        padding: const EdgeInsets.all(48),
         child: CircularProgressIndicator(
-          color: AdminColors.navy,
+          color: AdminColors.accentOf(context),
           semanticsLabel: 'Memuat data',
         ),
       ),
@@ -296,24 +399,38 @@ class AdminMessageState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textSec = AdminColors.textSecondaryOf(context);
+    final accent = AdminColors.accentOf(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 40, color: AdminColors.textGrey),
-            const SizedBox(height: 12),
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 32, color: accent),
+            ),
+            const SizedBox(height: 14),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: AdminColors.textPrimaryOf(context),
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: AdminColors.textGrey),
+              style: TextStyle(fontSize: 13, color: textSec),
             ),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 16),
@@ -321,8 +438,8 @@ class AdminMessageState extends StatelessWidget {
                 onPressed: onAction,
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(44, 44),
-                  foregroundColor: AdminColors.navy,
-                  side: const BorderSide(color: AdminColors.navy),
+                  foregroundColor: accent,
+                  side: BorderSide(color: accent),
                 ),
                 child: Text(actionLabel!),
               ),
@@ -337,11 +454,12 @@ class AdminMessageState extends StatelessWidget {
 class AdminTabItem<T> {
   final String label;
   final T value;
+  final int? badgeCount;
 
-  const AdminTabItem(this.label, this.value);
+  const AdminTabItem(this.label, this.value, {this.badgeCount});
 }
 
-/// Baris tab teks dengan garis tipis di atas dan bawah, sesuai desain.
+/// Baris tab dengan lencana angka opsional dan indikator modern.
 class AdminTextTabs<T> extends StatelessWidget {
   final List<AdminTabItem<T>> items;
   final T selected;
@@ -358,51 +476,99 @@ class AdminTextTabs<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return MediaQuery.withClampedTextScaling(
       maxScaleFactor: _maxTextScale,
-      child: _bar(),
+      child: _bar(context),
     );
   }
 
-  Widget _bar() {
+  Widget _bar(BuildContext context) {
+    final surface = AdminColors.surfaceOf(context);
+    final border = AdminColors.borderOf(context);
+    final accent = AdminColors.accentOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        color: AdminColors.surface,
+      decoration: BoxDecoration(
+        color: surface,
         border: Border(
-          top: BorderSide(color: AdminColors.border),
-          bottom: BorderSide(color: AdminColors.border),
+          bottom: BorderSide(color: border),
         ),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         child: Row(
           children: [
             for (final item in items)
-              Semantics(
-                button: true,
-                selected: item.value == selected,
-                label: item.label,
-                excludeSemantics: true,
-                child: InkWell(
-                  onTap: () => onChanged(item.value),
-                  child: ConstrainedBox(
-                    constraints:
-                        const BoxConstraints(minHeight: 48, minWidth: 44),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Center(
-                        child: Text(
-                          item.label,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: item.value == selected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            color: item.value == selected
-                                ? AdminColors.navy
-                                : AdminColors.textGrey,
-                          ),
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Semantics(
+                  button: true,
+                  selected: item.value == selected,
+                  label: item.badgeCount != null && item.badgeCount! > 0
+                      ? '${item.label} (${item.badgeCount})'
+                      : item.label,
+                  excludeSemantics: true,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => onChanged(item.value),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      constraints:
+                          const BoxConstraints(minHeight: 40, minWidth: 44),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: item.value == selected
+                            ? accent.withValues(alpha: 0.12)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: item.value == selected
+                              ? accent.withValues(alpha: 0.32)
+                              : Colors.transparent,
                         ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            item.label,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: item.value == selected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: item.value == selected ? accent : textSec,
+                            ),
+                          ),
+                          if (item.badgeCount != null &&
+                              item.badgeCount! > 0) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 1.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: item.value == selected
+                                    ? accent
+                                    : const Color(0xFFEF4444),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '${item.badgeCount}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
@@ -427,7 +593,7 @@ class AdminBottomNav extends StatelessWidget {
 
   static const List<(String, IconData)> _items = [
     ('Beranda', Icons.home_outlined),
-    ('Approval', Icons.check_rounded),
+    ('Approval', Icons.verified_outlined),
     ('Kelola User', Icons.group_outlined),
     ('Profil', Icons.person_outline_rounded),
   ];
@@ -436,15 +602,20 @@ class AdminBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return MediaQuery.withClampedTextScaling(
       maxScaleFactor: _maxTextScale,
-      child: _bar(),
+      child: _bar(context),
     );
   }
 
-  Widget _bar() {
+  Widget _bar(BuildContext context) {
+    final surface = AdminColors.surfaceOf(context);
+    final border = AdminColors.borderOf(context);
+    final accent = AdminColors.accentOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+
     return Container(
-      decoration: const BoxDecoration(
-        color: AdminColors.surface,
-        border: Border(top: BorderSide(color: AdminColors.border)),
+      decoration: BoxDecoration(
+        color: surface,
+        border: Border(top: BorderSide(color: border)),
       ),
       child: SafeArea(
         top: false,
@@ -467,14 +638,24 @@ class AdminBottomNav extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              _items[i].$2,
-                              size: 24,
-                              color: i == currentIndex
-                                  ? AdminColors.navy
-                                  : AdminColors.textGrey,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: i == currentIndex
+                                    ? accent.withValues(alpha: 0.14)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Icon(
+                                _items[i].$2,
+                                size: 22,
+                                color: i == currentIndex ? accent : textSec,
+                              ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 3),
                             Text(
                               _items[i].$1,
                               maxLines: 1,
@@ -484,9 +665,7 @@ class AdminBottomNav extends StatelessWidget {
                                 fontWeight: i == currentIndex
                                     ? FontWeight.w700
                                     : FontWeight.w500,
-                                color: i == currentIndex
-                                    ? AdminColors.navy
-                                    : AdminColors.textGrey,
+                                color: i == currentIndex ? accent : textSec,
                               ),
                             ),
                           ],
@@ -521,9 +700,9 @@ class AdminDecisionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: AdminColors.surface,
-        border: Border(top: BorderSide(color: AdminColors.border)),
+      decoration: BoxDecoration(
+        color: AdminColors.surfaceOf(context),
+        border: Border(top: BorderSide(color: AdminColors.borderOf(context))),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       child: SafeArea(
@@ -592,14 +771,21 @@ class AdminInfoRow extends StatelessWidget {
             width: 112,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 13, color: AdminColors.textGrey),
+              style: TextStyle(
+                fontSize: 13,
+                color: AdminColors.textSecondaryOf(context),
+              ),
             ),
           ),
           Expanded(
             child: Text(
               value.isEmpty ? '-' : value,
               textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AdminColors.textPrimaryOf(context),
+              ),
             ),
           ),
         ],
@@ -621,7 +807,11 @@ class AdminSectionTitle extends StatelessWidget {
         header: true,
         child: Text(
           text,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: AdminColors.textPrimaryOf(context),
+          ),
         ),
       ),
     );

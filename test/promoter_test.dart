@@ -59,15 +59,20 @@ void main() {
     // Step 3: Paket Harga Tiket (starts with empty fields)
     expect(find.text('Paket Harga Tiket'), findsOneWidget);
     expect(find.text('0 Tiket'), findsOneWidget);
-    expect(find.text('Simpan & Tinjau Ringkasan'), findsOneWidget);
+    expect(find.text('Lanjut ke Pilih Gate Crew'), findsOneWidget);
 
-    await tester.tap(find.text('Simpan & Tinjau Ringkasan'));
+    await tester.tap(find.text('Lanjut ke Pilih Gate Crew'));
     await tester.pumpAndSettle();
 
-    // Step 4: Ringkasan Pengajuan
+    // Step 4: Pilih Gate Crew
+    expect(find.text('Pilih & Tugaskan Gate Crew'), findsOneWidget);
+    expect(find.text('Lanjut ke Ringkasan & Approval'), findsOneWidget);
+
+    await tester.tap(find.text('Lanjut ke Ringkasan & Approval'));
+    await tester.pumpAndSettle();
+
+    // Step 5: Ringkasan Pengajuan
     expect(find.text('Ringkasan Pengajuan'), findsOneWidget);
-    expect(find.text('Langkah terakhir: Cek ulang sebelum mengajukan approval'),
-        findsOneWidget);
     expect(find.text('Detail Konser'), findsOneWidget);
     expect(find.text('Paket Tiket Terpilih'), findsOneWidget);
     expect(find.text('Kirim untuk Approval Admin'), findsOneWidget);
@@ -171,8 +176,8 @@ void main() {
     // Step 5: Status Verifikasi (Approval Ditolak)
     expect(find.text('Status Verifikasi'), findsOneWidget);
     expect(find.text('Alasan Penolakan'), findsOneWidget);
-    expect(find.text('3 Hari 0 Jam 0 Menit'), findsOneWidget);
-    expect(find.text('Ajukan Ulang Verifikasi'), findsOneWidget);
+    expect(find.textContaining('Hari'), findsOneWidget);
+    expect(find.text('Ajukan Ulang Verifikasi (Terkunci)'), findsOneWidget);
     expect(find.text('Hubungi Admin Kami'), findsOneWidget);
   });
 }

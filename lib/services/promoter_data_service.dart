@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/approval_models.dart';
 import '../models/promoter_models.dart';
+import '../utils/local_storage.dart';
 import 'admin_service.dart';
 import 'data_service.dart';
 import 'supabase_service.dart';
@@ -74,6 +75,17 @@ class PromoterDataService {
   /// Status verifikasi akun produser: 'unverified' | 'pending' | 'approved' | 'rejected'
   final ValueNotifier<String> verificationStatusNotifier =
       ValueNotifier<String>('approved');
+
+  /// Alasan penolakan akun produser dari Admin (diambil langsung dari database)
+  final ValueNotifier<String?> rejectionReasonNotifier =
+      ValueNotifier<String?>(null);
+
+  /// Waktu penolakan akun produser untuk countdown "Ajukan Ulang" real-time
+  final ValueNotifier<DateTime?> rejectedAtNotifier =
+      ValueNotifier<DateTime?>(null);
+
+  /// Durasi cooldown sebelum produser dapat mengajukan ulang (default 24 jam dari waktu penolakan)
+  static const Duration resubmitCooldownDuration = Duration(hours: 24);
 
   /// PIN 6-digit keamanan Produser (diatur saat verifikasi dokumen & diminta setiap login)
   final ValueNotifier<String> pinCodeNotifier =
@@ -476,9 +488,40 @@ class PromoterDataService {
             promoterRow['pending_ktp_url']?.toString();
         pendingResponsibilityLetterNotifier.value =
             promoterRow['pending_responsibility_letter_url']?.toString();
+        final rejReason = promoterRow['rejection_reason']?.toString();
+        if (rejReason != null && rejReason.trim().isNotEmpty) {
+          rejectionReasonNotifier.value = rejReason.trim();
+          LocalStorage.setString('livetix_producer_rejection_reason', rejReason.trim());
+        }
+        final rejAtRaw = promoterRow['rejected_at']?.toString();
+        if (rejAtRaw != null && rejAtRaw.isNotEmpty) {
+          final parsed = DateTime.tryParse(rejAtRaw);
+          if (parsed != null) {
+            rejectedAtNotifier.value = parsed;
+            LocalStorage.setString(
+              'livetix_producer_rejected_at',
+              parsed.toIso8601String(),
+            );
+          }
+        }
       }
     } catch (e) {
       debugPrint('Error loadProducerProfileFromSupabase: $e');
+    }
+
+    // Fallback baca dari LocalStorage apabila kolom database belum mengembalikan nilai
+    if (rejectionReasonNotifier.value == null) {
+      final savedReason =
+          LocalStorage.getString('livetix_producer_rejection_reason');
+      if (savedReason != null && savedReason.isNotEmpty) {
+        rejectionReasonNotifier.value = savedReason;
+      }
+    }
+    if (rejectedAtNotifier.value == null) {
+      final savedAt = LocalStorage.getString('livetix_producer_rejected_at');
+      if (savedAt != null && savedAt.isNotEmpty) {
+        rejectedAtNotifier.value = DateTime.tryParse(savedAt);
+      }
     }
   }
 
@@ -500,7 +543,25 @@ class PromoterDataService {
               rowProducer == null ||
               rowProducer == currentUserId ||
               row['status'] == 'pending') {
-            supaItems.add(PromoterConcertItem.fromJson(row));
+            var parsed = PromoterConcertItem.fromJson(row);
+            final cid = parsed.id;
+            final cachedReason =
+                LocalStorage.getString('livetix_concert_rej_reason_$cid');
+            final cachedAtStr =
+                LocalStorage.getString('livetix_concert_rej_at_$cid');
+            if ((parsed.rejectionReason == null ||
+                    parsed.rejectionReason!.isEmpty) &&
+                cachedReason != null &&
+                cachedReason.isNotEmpty) {
+              parsed = parsed.copyWith(rejectionReason: cachedReason);
+            }
+            if (parsed.rejectedAt == null &&
+                cachedAtStr != null &&
+                cachedAtStr.isNotEmpty) {
+              parsed =
+                  parsed.copyWith(rejectedAt: DateTime.tryParse(cachedAtStr));
+            }
+            supaItems.add(parsed);
           }
         } catch (e) {
           debugPrint('Error parse promoter concert row: $e');
@@ -687,6 +748,26 @@ class PromoterDataService {
       approvalStatus: ApprovalStatus.pending,
       isVerified: false,
       submittedAt: DateTime.now(),
+      pendingName: pendingPromoterNameNotifier.value,
+      pendingKtpUrl: pendingKtpDocumentNotifier.value,
+      pendingResponsibilityLetterUrl: pendingResponsibilityLetterNotifier.value,
+      requestType: 'profile_edit',
+      legalDocuments: [
+        ProducerDocumentModel(
+          id: 'doc-ktp-$userId',
+          name: 'KTP Penanggung Jawab ($targetKtp)',
+          type: 'JPG',
+          fileSize: '850 KB',
+          fileUrl: targetKtp,
+        ),
+        ProducerDocumentModel(
+          id: 'doc-letter-$userId',
+          name: 'Lembar Penanggung Jawab ($targetLetter)',
+          type: 'PDF',
+          fileSize: '540 KB',
+          fileUrl: targetLetter,
+        ),
+      ],
       submissionDocuments: [
         ProducerDocumentModel(
           id: 'doc-ktp-$userId',
@@ -737,6 +818,10 @@ class PromoterDataService {
   /// Dipanggil saat Admin menyetujui akun produser atau perubahan nama/dokumen produser
   void onAdminApprovedProducer(ProducerApplicationModel approvedModel) {
     verificationStatusNotifier.value = 'approved';
+    rejectionReasonNotifier.value = null;
+    rejectedAtNotifier.value = null;
+    LocalStorage.remove('livetix_producer_rejection_reason');
+    LocalStorage.remove('livetix_producer_rejected_at');
     if (pendingPromoterNameNotifier.value != null &&
         pendingPromoterNameNotifier.value!.isNotEmpty) {
       promoterNameNotifier.value = pendingPromoterNameNotifier.value!;
@@ -756,6 +841,98 @@ class PromoterDataService {
           pendingResponsibilityLetterNotifier.value!;
       pendingResponsibilityLetterNotifier.value = null;
     }
+  }
+
+  /// Dipanggil saat Admin menolak pengajuan Produser agar alasan & waktu penolakan sinkron
+  void onAdminRejectedProducer(String reason, DateTime rejectedAt) {
+    verificationStatusNotifier.value = 'rejected';
+    rejectionReasonNotifier.value = reason.trim();
+    rejectedAtNotifier.value = rejectedAt;
+    LocalStorage.setString('livetix_producer_rejection_reason', reason.trim());
+    LocalStorage.setString(
+      'livetix_producer_rejected_at',
+      rejectedAt.toIso8601String(),
+    );
+  }
+
+  /// Mengambil alasan penolakan konser secara real dari model / AdminService / LocalStorage
+  String getConcertRejectionReason(PromoterConcertItem concert) {
+    if (concert.rejectionReason != null &&
+        concert.rejectionReason!.trim().isNotEmpty) {
+      return concert.rejectionReason!.trim();
+    }
+    final adminConcert = AdminService().concertById(concert.id);
+    if (adminConcert?.rejectionReason != null &&
+        adminConcert!.rejectionReason!.trim().isNotEmpty) {
+      return adminConcert.rejectionReason!.trim();
+    }
+    final saved =
+        LocalStorage.getString('livetix_concert_rej_reason_${concert.id}');
+    if (saved != null && saved.trim().isNotEmpty) {
+      return saved.trim();
+    }
+    return 'Pengajuan konser ditolak oleh Admin. Silakan periksa kembali kelengkapan informasi konser Anda.';
+  }
+
+  /// Mengambil timestamp waktu penolakan konser (persisten saat aplikasi dibuka kembali)
+  DateTime getConcertRejectedAt(PromoterConcertItem concert) {
+    if (concert.rejectedAt != null) return concert.rejectedAt!;
+    final adminConcert = AdminService().concertById(concert.id);
+    if (adminConcert?.rejectedAt != null) return adminConcert!.rejectedAt!;
+    final key = 'livetix_concert_rej_at_${concert.id}';
+    final saved = LocalStorage.getString(key);
+    if (saved != null && saved.isNotEmpty) {
+      final parsed = DateTime.tryParse(saved);
+      if (parsed != null) return parsed;
+    }
+    final now = DateTime.now();
+    LocalStorage.setString(key, now.toIso8601String());
+    return now;
+  }
+
+  /// Mengambil timestamp waktu penolakan verifikasi produser (persisten saat aplikasi dibuka kembali)
+  DateTime getProducerRejectedAt() {
+    if (rejectedAtNotifier.value != null) return rejectedAtNotifier.value!;
+    const key = 'livetix_producer_rejected_at';
+    final saved = LocalStorage.getString(key);
+    if (saved != null && saved.isNotEmpty) {
+      final parsed = DateTime.tryParse(saved);
+      if (parsed != null) {
+        rejectedAtNotifier.value = parsed;
+        return parsed;
+      }
+    }
+    final now = DateTime.now();
+    rejectedAtNotifier.value = now;
+    LocalStorage.setString(key, now.toIso8601String());
+    return now;
+  }
+
+  /// Ajukan ulang konser yang sebelumnya ditolak setelah waktu tunggu selesai
+  void resubmitRejectedConcert(String concertId) {
+    final list = List<PromoterConcertItem>.from(concertsNotifier.value);
+    final idx = list.indexWhere((c) => c.id == concertId);
+    if (idx == -1) return;
+
+    final updated = list[idx].copyWith(
+      status: ConcertStatus.menunggu,
+      rejectionReason: '',
+    );
+    list[idx] = updated;
+    concertsNotifier.value = list;
+    LocalStorage.remove('livetix_concert_rej_reason_$concertId');
+    LocalStorage.remove('livetix_concert_rej_at_$concertId');
+
+    if (SupabaseService.isInitialized) {
+      SupabaseService.client.from('concerts').update({
+        'status': 'pending',
+        'approval_status': 'pending_create',
+        'rejection_reason': null,
+        'rejected_at': null,
+      }).eq('id', concertId).catchError((_) {});
+    }
+
+    _syncConcertToAdmin(updated, requestType: 'create');
   }
 
   /// Tambah/kurangi jumlah Love (Disukai) konser secara real-time saat User menekan tombol Love
@@ -841,6 +1018,7 @@ class PromoterDataService {
       concertJson.remove('ticket_tiers');
       concertJson['producer_name'] = promoterName;
       concertJson['status'] = 'pending'; // Memerlukan approval Admin
+      concertJson['approval_status'] = 'pending_create';
 
       SupabaseService.client.from('concerts').upsert(concertJson).then((_) {
         for (final tier in newConcert.tiers) {
@@ -863,7 +1041,7 @@ class PromoterDataService {
     }
 
     // 2. Hubungkan ke antrean persetujuan Super Admin
-    _syncConcertToAdmin(newConcert);
+    _syncConcertToAdmin(newConcert, requestType: 'create');
 
     return true;
   }
@@ -886,13 +1064,41 @@ class PromoterDataService {
     }
     concertsNotifier.value = list;
 
+    final editPayload = <String, dynamic>{
+      'title': finalConcert.title,
+      'subtitle': finalConcert.dateAndVenue,
+      'date': finalConcert.date,
+      'time': finalConcert.time,
+      'venue': finalConcert.venueName,
+      'venue_address': finalConcert.venueAddress,
+      'description': finalConcert.description,
+      'banner_image_url': finalConcert.posterFileName,
+      'logo_image_url': finalConcert.squareLogoFileName,
+      'total_capacity': finalConcert.totalCapacity,
+      'price': finalConcert.tiers.isNotEmpty
+          ? finalConcert.tiers
+              .map((t) => t.price)
+              .reduce((a, b) => a < b ? a : b)
+          : 0,
+      'ticket_tiers': finalConcert.tiers
+          .map((t) => t.toJson(concertId: finalConcert.id))
+          .toList(),
+    };
+
     if (SupabaseService.isInitialized) {
       final json = finalConcert.toJson(
         promoterId: DataService().currentUser?.id,
       );
       json.remove('ticket_tiers');
+      json['producer_name'] = promoterName;
       if (requiresAdminApproval) {
         json['status'] = 'pending';
+        json['approval_status'] = 'pending_edit';
+        json['pending_edit_payload'] = editPayload;
+      } else {
+        json['status'] = 'published';
+        json['approval_status'] = 'approved';
+        json['pending_edit_payload'] = null;
       }
       SupabaseService.client.from('concerts').upsert(json).catchError((err) {
         debugPrint('Error update concert in Supabase: $err');
@@ -915,7 +1121,11 @@ class PromoterDataService {
     }
 
     if (requiresAdminApproval) {
-      _syncConcertToAdmin(finalConcert, requestType: 'edit');
+      _syncConcertToAdmin(
+        finalConcert,
+        requestType: 'edit',
+        pendingEditPayload: editPayload,
+      );
     }
   }
 
@@ -964,6 +1174,8 @@ class PromoterDataService {
     if (SupabaseService.isInitialized) {
       SupabaseService.client.from('concerts').update({
         'status': 'cancellation_pending',
+        'approval_status': 'pending_cancel',
+        'cancellation_status': 'pending',
         'cancellation_category': category,
         'cancellation_reason': reason,
         'cancellation_attachment': attachmentName,
@@ -978,6 +1190,7 @@ class PromoterDataService {
     if (current != null) {
       final updated = current.copyWith(
         approvalStatus: ApprovalStatus.pending,
+        requestType: 'cancellation',
         cancellationReason: reason,
         attachmentName: attachmentName,
       );
@@ -988,7 +1201,11 @@ class PromoterDataService {
     }
   }
 
-  void _syncConcertToAdmin(PromoterConcertItem item, {String? requestType}) {
+  void _syncConcertToAdmin(
+    PromoterConcertItem item, {
+    String? requestType,
+    Map<String, dynamic>? pendingEditPayload,
+  }) {
     final adminService = AdminService();
     final submission = ConcertSubmissionModel(
       id: item.id,
@@ -1001,10 +1218,14 @@ class PromoterDataService {
       venue: item.venueName,
       totalCapacity: item.totalCapacity,
       status: 'pending',
+      bannerUrl: item.posterFileName,
       approvalStatus: ApprovalStatus.pending,
       submittedAt: DateTime.now(),
       requestType: requestType,
       requestInfo: requestType == 'edit' ? 'Perubahan Data Konser' : null,
+      soldTickets: item.ticketsSold,
+      refundAmount: item.totalRefundAmount,
+      pendingEditPayload: pendingEditPayload,
       tiers: item.tiers
           .map((t) => SubmissionTierModel(
                 id: t.id,

@@ -151,50 +151,78 @@ class Step3TicketPricingScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const Text(
-                      'Warna Aksen: ',
+                      'Warna Kategori:',
                       style: TextStyle(
                         fontSize: 13,
                         color: Color(0xFF0F172A),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () => setModalState(
-                          () => selectedColor = const Color(0xFFC2185B)),
-                      child: Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFC2185B),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: selectedColor == const Color(0xFFC2185B)
-                                ? Colors.black
-                                : Colors.transparent,
-                            width: 2,
-                          ),
-                        ),
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(width: 10),
-                    GestureDetector(
-                      onTap: () => setModalState(
-                          () => selectedColor = const Color(0xFF1B2A8C)),
-                      child: Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1B2A8C),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: selectedColor == const Color(0xFF1B2A8C)
-                                ? Colors.black
-                                : Colors.transparent,
-                            width: 2,
-                          ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildColorChoice(
+                              color: const Color(0xFFEF4444), // Merah
+                              tooltip: 'Merah',
+                              selectedColor: selectedColor,
+                              onSelect: (c) =>
+                                  setModalState(() => selectedColor = c),
+                            ),
+                            const SizedBox(width: 8),
+                            _buildColorChoice(
+                              color: const Color(0xFFFACC15), // Kuning
+                              tooltip: 'Kuning',
+                              selectedColor: selectedColor,
+                              onSelect: (c) =>
+                                  setModalState(() => selectedColor = c),
+                            ),
+                            const SizedBox(width: 8),
+                            _buildColorChoice(
+                              color: const Color(0xFF22C55E), // Hijau
+                              tooltip: 'Hijau',
+                              selectedColor: selectedColor,
+                              onSelect: (c) =>
+                                  setModalState(() => selectedColor = c),
+                            ),
+                            const SizedBox(width: 8),
+                            _buildColorChoice(
+                              color: const Color(0xFF3B82F6), // Biru
+                              tooltip: 'Biru',
+                              selectedColor: selectedColor,
+                              onSelect: (c) =>
+                                  setModalState(() => selectedColor = c),
+                            ),
+                            const SizedBox(width: 8),
+                            _buildColorChoice(
+                              color: const Color(0xFF111827), // Hitam
+                              tooltip: 'Hitam',
+                              selectedColor: selectedColor,
+                              onSelect: (c) =>
+                                  setModalState(() => selectedColor = c),
+                            ),
+                            const SizedBox(width: 8),
+                            _buildColorChoice(
+                              color: const Color(0xFFC2185B), // Magenta
+                              tooltip: 'Magenta',
+                              selectedColor: selectedColor,
+                              onSelect: (c) =>
+                                  setModalState(() => selectedColor = c),
+                            ),
+                            const SizedBox(width: 8),
+                            _buildColorChoice(
+                              color: const Color(0xFF1B2A8C), // Navy
+                              tooltip: 'Navy',
+                              selectedColor: selectedColor,
+                              onSelect: (c) =>
+                                  setModalState(() => selectedColor = c),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -332,7 +360,7 @@ class Step3TicketPricingScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Langkah 3 dari 4: Tambah & ubah tier harga penjualan',
+                      'Langkah 3 dari 5: Tambah & atur kategori harga tiket konser',
                       style: TextStyle(
                         fontSize: 13,
                         color: subtextColor,
@@ -341,8 +369,8 @@ class Step3TicketPricingScreen extends StatelessWidget {
 
                     const SizedBox(height: 16),
 
-                    // Stepper (Steps 1, 2, 3 active)
-                    const PromoterStepIndicator(currentStep: 3),
+                    // Stepper (Steps 1, 2, 3 active dari 5 langkah)
+                    const PromoterStepIndicator(currentStep: 3, totalSteps: 5),
 
                     const SizedBox(height: 24),
 
@@ -565,7 +593,7 @@ class Step3TicketPricingScreen extends StatelessWidget {
                         ),
                       ),
                       child: const Text(
-                        'Simpan & Tinjau Ringkasan',
+                        'Lanjut ke Pilih Gate Crew',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -579,6 +607,40 @@ class Step3TicketPricingScreen extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+
+  static Widget _buildColorChoice({
+    required Color color,
+    required String tooltip,
+    required Color selectedColor,
+    required ValueChanged<Color> onSelect,
+  }) {
+    final isSelected = selectedColor == color;
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: () => onSelect(color),
+        child: Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isSelected ? Colors.black : Colors.white,
+              width: isSelected ? 2.5 : 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

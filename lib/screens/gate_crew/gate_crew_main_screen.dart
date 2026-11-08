@@ -6,6 +6,7 @@ import '../../services/data_service.dart';
 import '../../services/gate_crew_service.dart';
 import '../../utils/file_picker_helper.dart';
 import '../auth/login_screen.dart';
+import '../promoter/producer_customer_service_screen.dart';
 
 class GateCrewMainScreen extends StatefulWidget {
   const GateCrewMainScreen({super.key});
@@ -743,6 +744,20 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
             ),
           ),
           IconButton(
+            tooltip: 'Customer Service LiveTix',
+            icon: const Icon(Icons.support_agent_rounded, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ProducerCustomerServiceScreen(
+                    senderRole: 'Gatecrew',
+                  ),
+                ),
+              );
+            },
+          ),
+          IconButton(
             tooltip: 'Ubah Profil',
             icon: const Icon(Icons.manage_accounts_outlined, color: Colors.white),
             onPressed: _showEditCrewProfileDialog,
@@ -897,6 +912,39 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                 SizedBox(
                   width: double.infinity,
                   height: 46,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ProducerCustomerServiceScreen(
+                            senderRole: 'Gatecrew',
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.support_agent_rounded,
+                        color: Color(0xFF38BDF8), size: 18),
+                    label: const Text(
+                      'Customer Service LiveTix',
+                      style: TextStyle(
+                        color: Color(0xFFE2E8F0),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF38BDF8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
                   child: OutlinedButton(
                     onPressed: _logout,
                     style: OutlinedButton.styleFrom(
@@ -1009,6 +1057,20 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
               ),
               onPressed: DataService().toggleDarkMode,
             ),
+          ),
+          IconButton(
+            tooltip: 'Customer Service LiveTix',
+            icon: const Icon(Icons.support_agent_rounded, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ProducerCustomerServiceScreen(
+                    senderRole: 'Gatecrew',
+                  ),
+                ),
+              );
+            },
           ),
           IconButton(
             tooltip: 'Ubah Profil',

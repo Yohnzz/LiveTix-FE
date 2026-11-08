@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../models/gate_crew_models.dart';
+import '../utils/local_storage.dart';
 import 'data_service.dart';
+import 'promoter_data_service.dart';
 import 'supabase_service.dart';
 
 class AddGateCrewBatchResult {
@@ -27,6 +30,7 @@ class GateCrewService {
   }
 
   static const String defaultSystemCrewPassword = 'crewgate123';
+  static const String _localCacheKey = 'livetix_gate_crews_cache_v2';
 
   static const String csvTemplateContent =
       'email,nama_opsional,no_hp_opsional\n'
@@ -36,9 +40,45 @@ class GateCrewService {
   final ValueNotifier<List<GateCrewMemberModel>> teamCrewNotifier =
       ValueNotifier<List<GateCrewMemberModel>>([]);
 
+  static String _generateValidUuid(int seed) {
+    final hex = seed.abs().toRadixString(16).padLeft(12, '0');
+    final tail = hex.length > 12 ? hex.substring(hex.length - 12) : hex;
+    final mid = ((seed ~/ 1000) % 0xFFFF).toRadixString(16).padLeft(4, '0');
+    return 'd0000000-$mid-4000-8000-$tail';
+  }
+
+  void _persistToLocalCache(List<GateCrewMemberModel> list) {
+    try {
+      LocalStorage.setItem(
+        _localCacheKey,
+        jsonEncode(list.map((e) => e.toJson()).toList()),
+      );
+    } catch (_) {}
+  }
+
+  List<GateCrewMemberModel> _readFromLocalCache() {
+    try {
+      final raw = LocalStorage.getItem(_localCacheKey);
+      if (raw != null && raw.trim().isNotEmpty) {
+        final decoded = jsonDecode(raw) as List<dynamic>;
+        return decoded
+            .whereType<Map<String, dynamic>>()
+            .map(GateCrewMemberModel.fromJson)
+            .toList();
+      }
+    } catch (_) {}
+    return const [];
+  }
+
   void _seedInitialCrew() {
+    final cached = _readFromLocalCache();
     if (SupabaseService.isInitialized) {
-      teamCrewNotifier.value = [];
+      teamCrewNotifier.value = cached;
+      loadTeam();
+      return;
+    }
+    if (cached.isNotEmpty) {
+      teamCrewNotifier.value = cached;
       return;
     }
     teamCrewNotifier.value = [
@@ -49,6 +89,9 @@ class GateCrewService {
         phone: '081377889900',
         approvalStatus: 'approved',
         defaultPassword: defaultSystemCrewPassword,
+        producerId: 'b0000000-0000-0000-0000-000000000002',
+        producerName: 'Soundwave Entertainment',
+        producerEmail: 'produser@livetix.com',
         activeAssignment: GateCrewAssignmentModel(
           id: 'cgc-001',
           concertId: 'featured-1',
@@ -65,24 +108,33 @@ class GateCrewService {
         phone: '081388990011',
         approvalStatus: 'approved',
         defaultPassword: defaultSystemCrewPassword,
+        producerId: 'b0000000-0000-0000-0000-000000000002',
+        producerName: 'Soundwave Entertainment',
+        producerEmail: 'produser@livetix.com',
         activeAssignment: null,
       ),
       const GateCrewMemberModel(
-        id: 'crew-003',
+        id: 'd0000000-0000-0000-0000-000000000006',
         name: 'Andi Ramadhan',
         email: 'andi.gate@livetix.com',
         phone: '081399001122',
         approvalStatus: 'approved',
         defaultPassword: defaultSystemCrewPassword,
+        producerId: 'b0000000-0000-0000-0000-000000000002',
+        producerName: 'Soundwave Entertainment',
+        producerEmail: 'produser@livetix.com',
         activeAssignment: null,
       ),
       const GateCrewMemberModel(
-        id: 'crew-004',
+        id: 'd0000000-0000-0000-0000-000000000007',
         name: 'Deni Saputra',
         email: 'deni.gate@livetix.com',
         phone: '081311223344',
-        approvalStatus: 'approved',
+        approvalStatus: 'pending',
         defaultPassword: defaultSystemCrewPassword,
+        producerId: 'b0000000-0000-0000-0000-000000000002',
+        producerName: 'Soundwave Entertainment',
+        producerEmail: 'produser@livetix.com',
         activeAssignment: null,
       ),
     ];
@@ -97,7 +149,8 @@ class GateCrewService {
         .toList();
 
     final List<String> extracted = [];
-    final emailRegex = RegExp(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}');
+    final emailRegex =
+        RegExp(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}');
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
@@ -129,58 +182,102 @@ class GateCrewService {
     try {
       final crewProfiles = await SupabaseService.client
           .from('profiles')
-          .select('id, name, full_name, email, phone, role, approval_status')
+          .select()
           .ilike('role', 'gatecrew');
 
-      final assignments = await SupabaseService.client
-          .from('concert_gate_crews')
-          .select('*, concerts(title, venue)');
+      List<dynamic> assignments = const [];
+      try {
+        assignments = await SupabaseService.client
+            .from('concert_gate_crews')
+            .select('*, concerts(title, venue)');
+      } catch (_) {}
 
       final Map<String, GateCrewAssignmentModel> assignmentMap = {};
       for (final a in assignments) {
-        final crewId = a['crew_id'] as String?;
-        if (crewId != null) {
+        final crewId = (a['crew_id'] ?? a['crew_user_id'])?.toString();
+        if (crewId != null && crewId.isNotEmpty) {
           final rawConcert = a['concerts'];
           final concertTitle = rawConcert is Map
-              ? (rawConcert['title'] as String? ?? 'Konser LiveTix')
-              : 'Konser LiveTix';
+              ? (rawConcert['title'] as String? ??
+                  (a['concert_title'] as String? ?? 'Konser LiveTix'))
+              : (a['concert_title'] as String? ?? 'Konser LiveTix');
           final venue = rawConcert is Map
-              ? (rawConcert['venue'] as String? ?? 'Venue Konser')
-              : 'Venue Konser';
+              ? (rawConcert['venue'] as String? ??
+                  (a['venue'] as String? ?? 'Venue Konser'))
+              : (a['venue'] as String? ?? 'Venue Konser');
 
           assignmentMap[crewId] = GateCrewAssignmentModel(
-            id: a['id'] as String? ?? '',
-            concertId: a['concert_id'] as String? ?? '',
+            id: a['id']?.toString() ?? '',
+            concertId: a['concert_id']?.toString() ?? '',
             concertTitle: concertTitle,
             venue: venue,
-            gateName: a['gate_name'] as String? ?? 'Gate A',
-            assignedAt:
-                DateTime.tryParse(a['assigned_at'] as String? ?? '') ??
-                    DateTime.now(),
+            gateName:
+                (a['gate_name'] ?? a['gate_section'])?.toString() ?? 'Gate A',
+            assignedAt: DateTime.tryParse(
+                    (a['assigned_at'] ?? a['created_at'])?.toString() ?? '') ??
+                DateTime.now(),
           );
         }
       }
 
+      final cachedByEmail = <String, GateCrewMemberModel>{
+        for (final c in _readFromLocalCache()) c.email.toLowerCase(): c,
+        for (final c in teamCrewNotifier.value) c.email.toLowerCase(): c,
+      };
+
       final List<GateCrewMemberModel> loaded = [];
+      final Set<String> seenEmails = {};
+
       for (final row in crewProfiles) {
-        final id = row['id'] as String;
-        final email = (row['email'] ?? '') as String;
-        final rawName = (row['name'] ?? row['full_name'] ?? '') as String;
+        final id = (row['id'] ?? '').toString();
+        final email = (row['email'] ?? '').toString().trim().toLowerCase();
+        if (email.isNotEmpty) seenEmails.add(email);
+        final cached = cachedByEmail[email];
+
+        final rawName =
+            (row['name'] ?? row['full_name'] ?? '').toString().trim();
         final fallbackName = email.contains('@')
             ? 'Gate Crew (${email.split('@').first})'
             : 'Petugas Gate';
+
+        final rawProducerId = (row['producer_id'] ??
+                cached?.producerId ??
+                'b0000000-0000-0000-0000-000000000002')
+            .toString();
+        final rawProducerName = (row['producer_name'] ??
+                cached?.producerName ??
+                'Soundwave Entertainment')
+            .toString();
+        final rawProducerEmail = (row['producer_email'] ??
+                cached?.producerEmail ??
+                'produser@livetix.com')
+            .toString();
+
         loaded.add(GateCrewMemberModel(
           id: id,
-          name: rawName.trim().isNotEmpty ? rawName.trim() : fallbackName,
+          name: rawName.isNotEmpty ? rawName : fallbackName,
           email: email,
-          phone: (row['phone'] ?? '') as String,
-          approvalStatus: (row['approval_status'] as String?) ?? 'approved',
+          phone: (row['phone'] ?? cached?.phone ?? '-').toString(),
+          approvalStatus:
+              (row['approval_status'] ?? cached?.approvalStatus ?? 'approved')
+                  .toString(),
           defaultPassword: defaultSystemCrewPassword,
-          activeAssignment: assignmentMap[id],
+          producerId: rawProducerId,
+          producerName: rawProducerName,
+          producerEmail: rawProducerEmail,
+          activeAssignment: assignmentMap[id] ?? cached?.activeAssignment,
         ));
       }
 
+      // Pertahankan item di cache lokal yang belum tersinkron karena RLS / constraint
+      for (final entry in cachedByEmail.entries) {
+        if (!seenEmails.contains(entry.key)) {
+          loaded.insert(0, entry.value);
+        }
+      }
+
       teamCrewNotifier.value = loaded;
+      _persistToLocalCache(loaded);
     } catch (e) {
       debugPrint('Error loadTeam GateCrewService: $e');
     }
@@ -191,6 +288,9 @@ class GateCrewService {
   /// Semua email divalidasi harus unik (tidak boleh duplikat di input maupun di sistem).
   Future<AddGateCrewBatchResult> requestAddGateCrewsByProducer({
     required List<String> rawEmails,
+    String? producerId,
+    String? producerName,
+    String? producerEmail,
   }) async {
     final cleaned = rawEmails
         .map((e) => e.trim().toLowerCase())
@@ -249,6 +349,21 @@ class GateCrewService {
       );
     }
 
+    final currentUser = DataService().currentUser;
+    final resolvedProducerId = (producerId?.trim().isNotEmpty == true)
+        ? producerId!.trim()
+        : (currentUser?.id.trim().isNotEmpty == true
+            ? currentUser!.id.trim()
+            : 'b0000000-0000-0000-0000-000000000002');
+    final resolvedProducerName = (producerName?.trim().isNotEmpty == true)
+        ? producerName!.trim()
+        : PromoterDataService().promoterName;
+    final resolvedProducerEmail = (producerEmail?.trim().isNotEmpty == true)
+        ? producerEmail!.trim()
+        : (currentUser?.email.trim().isNotEmpty == true
+            ? currentUser!.email.trim()
+            : 'produser@livetix.com');
+
     final List<GateCrewMemberModel> createdList = [];
     final current = List<GateCrewMemberModel>.from(teamCrewNotifier.value);
     final baseTs = DateTime.now().millisecondsSinceEpoch;
@@ -258,7 +373,72 @@ class GateCrewService {
       final prefix = email.split('@').first;
       final readableName =
           'Crew ${prefix.isNotEmpty ? '${prefix[0].toUpperCase()}${prefix.substring(1)}' : 'Gate'}';
-      final newId = 'crew-$baseTs-$i';
+      String newId = _generateValidUuid(baseTs + i);
+
+      if (SupabaseService.isInitialized) {
+        bool savedViaRpc = false;
+        try {
+          final rpcId = await SupabaseService.client.rpc(
+            'upsert_gate_crew_account',
+            params: {
+              'p_email': email,
+              'p_name': readableName,
+              'p_phone': '-',
+              'p_approval_status': 'pending',
+              'p_password': defaultSystemCrewPassword,
+            },
+          );
+          if (rpcId != null && rpcId.toString().isNotEmpty) {
+            newId = rpcId.toString();
+            savedViaRpc = true;
+          }
+        } catch (rpcErr) {
+          debugPrint('RPC upsert_gate_crew_account fallback: $rpcErr');
+        }
+
+        // Pastikan kolom producer_id, producer_name, producer_email & profil tersimpan di tabel profiles
+        try {
+          await SupabaseService.client.from('profiles').upsert({
+            'id': newId,
+            'username':
+                '${prefix.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_')}_${(baseTs + i) % 100000}',
+            'name': readableName,
+            'full_name': readableName,
+            'email': email,
+            'phone': '-',
+            'role': 'Gatecrew',
+            'approval_status': 'pending',
+            'verification_status': 'pending',
+            'producer_id': resolvedProducerId,
+            'producer_name': resolvedProducerName,
+            'producer_email': resolvedProducerEmail,
+          });
+        } catch (_) {
+          if (!savedViaRpc) {
+            try {
+              await SupabaseService.client.from('profiles').upsert({
+                'id': newId,
+                'name': readableName,
+                'full_name': readableName,
+                'email': email,
+                'phone': '-',
+                'role': 'Gatecrew',
+                'approval_status': 'pending',
+              });
+            } catch (e) {
+              debugPrint('Error requestAddGateCrewsByProducer Supabase: $e');
+            }
+          } else {
+            try {
+              await SupabaseService.client.from('profiles').update({
+                'producer_id': resolvedProducerId,
+                'producer_name': resolvedProducerName,
+                'producer_email': resolvedProducerEmail,
+              }).eq('id', newId);
+            } catch (_) {}
+          }
+        }
+      }
 
       final member = GateCrewMemberModel(
         id: newId,
@@ -267,30 +447,18 @@ class GateCrewService {
         phone: '-',
         approvalStatus: 'pending',
         defaultPassword: defaultSystemCrewPassword,
+        producerId: resolvedProducerId,
+        producerName: resolvedProducerName,
+        producerEmail: resolvedProducerEmail,
         activeAssignment: null,
       );
 
       createdList.add(member);
       current.insert(0, member);
-
-      if (SupabaseService.isInitialized) {
-        try {
-          await SupabaseService.client.from('profiles').upsert({
-            'id': newId,
-            'name': readableName,
-            'full_name': readableName,
-            'email': email,
-            'phone': '-',
-            'role': 'Gatecrew',
-            'approval_status': 'pending',
-          });
-        } catch (e) {
-          debugPrint('Error requestAddGateCrewsByProducer Supabase: $e');
-        }
-      }
     }
 
     teamCrewNotifier.value = current;
+    _persistToLocalCache(current);
 
     return AddGateCrewBatchResult(
       isSuccess: true,
@@ -309,6 +477,7 @@ class GateCrewService {
     final updated = current[idx].copyWith(approvalStatus: 'approved');
     current[idx] = updated;
     teamCrewNotifier.value = current;
+    _persistToLocalCache(current);
 
     // Daftarkan kredensial login dengan password default sistem `crewgate123`
     DataService().registerGateCrewAccountInMemory(
@@ -321,9 +490,23 @@ class GateCrewService {
 
     if (SupabaseService.isInitialized) {
       try {
+        await SupabaseService.client.rpc(
+          'upsert_gate_crew_account',
+          params: {
+            'p_email': updated.email,
+            'p_name': updated.name,
+            'p_phone': updated.phone,
+            'p_approval_status': 'approved',
+            'p_password': updated.defaultPassword,
+          },
+        );
+      } catch (_) {}
+      try {
         await SupabaseService.client.from('profiles').update({
           'approval_status': 'approved',
-        }).eq('id', crewId);
+          'verification_status': 'approved',
+          'is_verified': true,
+        }).or('id.eq.$crewId,email.eq.${updated.email}');
       } catch (e) {
         debugPrint('Error approveGateCrewByAdmin Supabase: $e');
       }
@@ -331,19 +514,41 @@ class GateCrewService {
     return updated;
   }
 
-  /// Admin menolak pengajuan akun Gate Crew
-  Future<void> rejectGateCrewByAdmin(String crewId) async {
+  /// Admin menolak pengajuan akun Gate Crew (status diubah menjadi 'rejected' agar tampil di filter Ditolak)
+  Future<GateCrewMemberModel?> rejectGateCrewByAdmin(String crewId) async {
     final current = List<GateCrewMemberModel>.from(teamCrewNotifier.value);
-    current.removeWhere((c) => c.id == crewId);
+    final idx = current.indexWhere((c) => c.id == crewId);
+    if (idx == -1) return null;
+
+    final updated = current[idx].copyWith(
+      approvalStatus: 'rejected',
+      clearAssignment: true,
+    );
+    current[idx] = updated;
     teamCrewNotifier.value = current;
+    _persistToLocalCache(current);
 
     if (SupabaseService.isInitialized) {
       try {
-        await SupabaseService.client.from('profiles').delete().eq('id', crewId);
+        if (updated.email.isNotEmpty) {
+          await SupabaseService.client
+              .from('profiles')
+              .update({
+                'approval_status': 'rejected',
+                'verification_status': 'rejected',
+              })
+              .or('id.eq.$crewId,email.eq.${updated.email}');
+        } else {
+          await SupabaseService.client.from('profiles').update({
+            'approval_status': 'rejected',
+            'verification_status': 'rejected',
+          }).eq('id', crewId);
+        }
       } catch (e) {
         debugPrint('Error rejectGateCrewByAdmin Supabase: $e');
       }
     }
+    return updated;
   }
 
   /// Tambah Gate Crew baru langsung oleh Admin (otomatis disetujui)
@@ -353,7 +558,40 @@ class GateCrewService {
     String phone = '',
   }) async {
     final trimmedEmail = email.trim().toLowerCase();
-    final newId = 'crew-${DateTime.now().millisecondsSinceEpoch}';
+    final seed = DateTime.now().millisecondsSinceEpoch;
+    String newId = _generateValidUuid(seed);
+
+    if (SupabaseService.isInitialized) {
+      try {
+        final rpcId = await SupabaseService.client.rpc(
+          'upsert_gate_crew_account',
+          params: {
+            'p_email': trimmedEmail,
+            'p_name': name.trim(),
+            'p_phone': phone.trim(),
+            'p_approval_status': 'approved',
+            'p_password': defaultSystemCrewPassword,
+          },
+        );
+        if (rpcId != null && rpcId.toString().isNotEmpty) {
+          newId = rpcId.toString();
+        }
+      } catch (_) {
+        try {
+          await SupabaseService.client.from('profiles').upsert({
+            'id': newId,
+            'name': name.trim(),
+            'full_name': name.trim(),
+            'email': trimmedEmail,
+            'phone': phone.trim(),
+            'role': 'Gatecrew',
+            'approval_status': 'approved',
+          });
+        } catch (e) {
+          debugPrint('Error createGateCrewByAdmin Supabase: $e');
+        }
+      }
+    }
 
     final newMember = GateCrewMemberModel(
       id: newId,
@@ -368,6 +606,7 @@ class GateCrewService {
     final current = List<GateCrewMemberModel>.from(teamCrewNotifier.value);
     current.insert(0, newMember);
     teamCrewNotifier.value = current;
+    _persistToLocalCache(current);
 
     DataService().registerGateCrewAccountInMemory(
       id: newMember.id,
@@ -376,22 +615,6 @@ class GateCrewService {
       phone: newMember.phone,
       password: defaultSystemCrewPassword,
     );
-
-    if (SupabaseService.isInitialized) {
-      try {
-        await SupabaseService.client.from('profiles').upsert({
-          'id': newId,
-          'name': name.trim(),
-          'full_name': name.trim(),
-          'email': trimmedEmail,
-          'phone': phone.trim(),
-          'role': 'Gatecrew',
-          'approval_status': 'approved',
-        });
-      } catch (e) {
-        debugPrint('Error createGateCrewByAdmin Supabase: $e');
-      }
-    }
 
     return newMember;
   }
@@ -418,15 +641,22 @@ class GateCrewService {
     if (idx != -1) {
       current[idx] = current[idx].copyWith(activeAssignment: assignment);
       teamCrewNotifier.value = current;
+      _persistToLocalCache(current);
     }
 
     if (SupabaseService.isInitialized) {
+      final bool isUuid = RegExp(
+              r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+          .hasMatch(crewId);
       try {
         await SupabaseService.client.from('concert_gate_crews').upsert({
-          'id': assignment.id,
           'concert_id': concertId,
+          'concert_title': concertTitle,
+          'venue': venue,
           'crew_id': crewId,
+          if (isUuid) 'crew_user_id': crewId,
           'gate_name': gateName,
+          'gate_section': gateName,
           'assigned_at': assignment.assignedAt.toIso8601String(),
         });
       } catch (e) {
@@ -445,6 +675,7 @@ class GateCrewService {
     if (idx != -1) {
       current[idx] = current[idx].copyWith(clearAssignment: true);
       teamCrewNotifier.value = current;
+      _persistToLocalCache(current);
     }
 
     if (SupabaseService.isInitialized) {
@@ -452,7 +683,8 @@ class GateCrewService {
         await SupabaseService.client
             .from('concert_gate_crews')
             .delete()
-            .match({'concert_id': concertId, 'crew_id': crewId});
+            .eq('concert_id', concertId)
+            .or('crew_id.eq.$crewId,crew_user_id.eq.$crewId');
       } catch (e) {
         debugPrint('Error removeCrewFromConcert Supabase: $e');
       }

@@ -5,7 +5,7 @@
 /// sebelum integrasi Supabase. Kolom lain mengikuti nama kolom ERD.
 library;
 
-enum ApprovalKind { producer, concert }
+enum ApprovalKind { producer, concert, gatecrew }
 
 enum ApprovalStatus {
   pending('pending', 'Menunggu'),
@@ -197,6 +197,7 @@ class ProducerApplicationModel {
   final bool isVerified;
   final ApprovalStatus approvalStatus;
   final String? rejectionReason;
+  final DateTime? rejectedAt;
   final DateTime submittedAt;
   final List<ProducerDocumentModel> legalDocuments;
   final List<ProducerDocumentModel> submissionDocuments;
@@ -204,6 +205,11 @@ class ProducerApplicationModel {
   final int activeConcertsCount;
   final int ticketsSold;
   final int ticketPurchases;
+  final String? pendingName;
+  final String? pendingKtpUrl;
+  final String? pendingResponsibilityLetterUrl;
+  final String? requestType;
+  final List<Map<String, String>> activeConcertSummaries;
 
   const ProducerApplicationModel({
     required this.id,
@@ -218,6 +224,7 @@ class ProducerApplicationModel {
     this.isVerified = false,
     this.approvalStatus = ApprovalStatus.pending,
     this.rejectionReason,
+    this.rejectedAt,
     required this.submittedAt,
     this.legalDocuments = const [],
     this.submissionDocuments = const [],
@@ -225,6 +232,11 @@ class ProducerApplicationModel {
     this.activeConcertsCount = 5,
     this.ticketsSold = 12450,
     this.ticketPurchases = 8,
+    this.pendingName,
+    this.pendingKtpUrl,
+    this.pendingResponsibilityLetterUrl,
+    this.requestType,
+    this.activeConcertSummaries = const [],
   });
 
   String get initials => ApprovalFormat.initialsOf(companyName);
@@ -249,6 +261,9 @@ class ProducerApplicationModel {
       approvalStatus:
           ApprovalStatus.fromValue(json['approval_status'] as String?),
       rejectionReason: json['rejection_reason'] as String?,
+      rejectedAt: json['rejected_at'] != null
+          ? DateTime.tryParse(json['rejected_at'].toString())
+          : null,
       submittedAt: DateTime.parse(json['submitted_at'] as String),
       legalDocuments: rawLegal is List
           ? rawLegal
@@ -282,27 +297,40 @@ class ProducerApplicationModel {
         'is_verified': isVerified,
         'approval_status': approvalStatus.value,
         'rejection_reason': rejectionReason,
+        if (rejectedAt != null) 'rejected_at': rejectedAt!.toIso8601String(),
         'submitted_at': submittedAt.toIso8601String(),
       };
 
   ProducerApplicationModel copyWith({
+    String? companyName,
+    String? email,
+    String? phone,
     String? address,
     bool? isVerified,
     ApprovalStatus? approvalStatus,
     String? rejectionReason,
+    DateTime? rejectedAt,
     List<ProducerDocumentModel>? legalDocuments,
     List<ProducerDocumentModel>? submissionDocuments,
     int? proposedConcertsCount,
     int? activeConcertsCount,
     int? ticketsSold,
     int? ticketPurchases,
+    String? pendingName,
+    bool clearPendingName = false,
+    String? pendingKtpUrl,
+    bool clearPendingKtp = false,
+    String? pendingResponsibilityLetterUrl,
+    bool clearPendingLetter = false,
+    String? requestType,
+    List<Map<String, String>>? activeConcertSummaries,
   }) {
     return ProducerApplicationModel(
       id: id,
       userId: userId,
-      companyName: companyName,
-      email: email,
-      phone: phone,
+      companyName: companyName ?? this.companyName,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
       address: address ?? this.address,
       bankName: bankName,
       bankAccountNumber: bankAccountNumber,
@@ -310,6 +338,7 @@ class ProducerApplicationModel {
       isVerified: isVerified ?? this.isVerified,
       approvalStatus: approvalStatus ?? this.approvalStatus,
       rejectionReason: rejectionReason ?? this.rejectionReason,
+      rejectedAt: rejectedAt ?? this.rejectedAt,
       submittedAt: submittedAt,
       legalDocuments: legalDocuments ?? this.legalDocuments,
       submissionDocuments: submissionDocuments ?? this.submissionDocuments,
@@ -318,6 +347,17 @@ class ProducerApplicationModel {
       activeConcertsCount: activeConcertsCount ?? this.activeConcertsCount,
       ticketsSold: ticketsSold ?? this.ticketsSold,
       ticketPurchases: ticketPurchases ?? this.ticketPurchases,
+      pendingName:
+          clearPendingName ? null : (pendingName ?? this.pendingName),
+      pendingKtpUrl:
+          clearPendingKtp ? null : (pendingKtpUrl ?? this.pendingKtpUrl),
+      pendingResponsibilityLetterUrl: clearPendingLetter
+          ? null
+          : (pendingResponsibilityLetterUrl ??
+              this.pendingResponsibilityLetterUrl),
+      requestType: requestType ?? this.requestType,
+      activeConcertSummaries:
+          activeConcertSummaries ?? this.activeConcertSummaries,
     );
   }
 }
@@ -343,13 +383,14 @@ class SubmissionTierModel {
   }) : remainingQuota = remainingQuota ?? totalQuota;
 
   factory SubmissionTierModel.fromJson(Map<String, dynamic> json) {
-    final total = (json['total_quota'] as num).toInt();
+    final total =
+        ((json['total_quota'] ?? json['quota'] ?? 0) as num).toInt();
     return SubmissionTierModel(
-      id: json['id'] as String,
-      concertId: json['concert_id'] as String,
-      name: json['name'] as String,
-      description: (json['description'] ?? '') as String,
-      price: (json['price'] as num).toInt(),
+      id: (json['id'] ?? '').toString(),
+      concertId: (json['concert_id'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      description: (json['description'] ?? '').toString(),
+      price: ((json['price'] ?? 0) as num).toInt(),
       totalQuota: total,
       remainingQuota: (json['remaining_quota'] as num?)?.toInt() ?? total,
     );
@@ -383,6 +424,7 @@ class ConcertSubmissionModel {
   final String? bannerUrl;
   final ApprovalStatus approvalStatus;
   final String? rejectionReason;
+  final DateTime? rejectedAt;
   final DateTime submittedAt;
   final List<SubmissionTierModel> tiers;
   final String? requestType;
@@ -395,6 +437,7 @@ class ConcertSubmissionModel {
   final int refundAmount;
   final int escrowWithheldAmount;
   final String? cancellationReviewReason;
+  final Map<String, dynamic>? pendingEditPayload;
 
   const ConcertSubmissionModel({
     required this.id,
@@ -410,6 +453,7 @@ class ConcertSubmissionModel {
     this.bannerUrl,
     this.approvalStatus = ApprovalStatus.pending,
     this.rejectionReason,
+    this.rejectedAt,
     required this.submittedAt,
     this.tiers = const [],
     this.requestType,
@@ -422,6 +466,7 @@ class ConcertSubmissionModel {
     this.refundAmount = 2115000000,
     this.escrowWithheldAmount = 2115000000,
     this.cancellationReviewReason,
+    this.pendingEditPayload,
   });
 
   factory ConcertSubmissionModel.fromJson(Map<String, dynamic> json) {
@@ -459,6 +504,9 @@ class ConcertSubmissionModel {
       approvalStatus:
           ApprovalStatus.fromValue(json['approval_status'] as String?),
       rejectionReason: json['rejection_reason'] as String?,
+      rejectedAt: json['rejected_at'] != null
+          ? DateTime.tryParse(json['rejected_at'].toString())
+          : null,
       submittedAt: DateTime.parse(json['submitted_at'] as String),
       tiers: tiersList,
       requestType: json['request_type'] as String?,
@@ -486,6 +534,7 @@ class ConcertSubmissionModel {
         'banner_url': bannerUrl,
         'approval_status': approvalStatus.value,
         'rejection_reason': rejectionReason,
+        if (rejectedAt != null) 'rejected_at': rejectedAt!.toIso8601String(),
         'submitted_at': submittedAt.toIso8601String(),
         if (requestType != null) 'request_type': requestType,
         if (requestInfo != null) 'request_info': requestInfo,
@@ -501,9 +550,19 @@ class ConcertSubmissionModel {
       };
 
   ConcertSubmissionModel copyWith({
+    String? promoterName,
+    String? title,
+    String? subtitle,
+    String? genre,
+    DateTime? dateTime,
+    String? venue,
+    int? totalCapacity,
     String? status,
+    String? bannerUrl,
     ApprovalStatus? approvalStatus,
     String? rejectionReason,
+    DateTime? rejectedAt,
+    List<SubmissionTierModel>? tiers,
     String? requestType,
     String? requestInfo,
     String? cancellationReason,
@@ -514,23 +573,26 @@ class ConcertSubmissionModel {
     int? refundAmount,
     int? escrowWithheldAmount,
     String? cancellationReviewReason,
+    Map<String, dynamic>? pendingEditPayload,
+    bool clearPendingEdit = false,
   }) {
     return ConcertSubmissionModel(
       id: id,
       promoterId: promoterId,
-      promoterName: promoterName,
-      title: title,
-      subtitle: subtitle,
-      genre: genre,
-      dateTime: dateTime,
-      venue: venue,
-      totalCapacity: totalCapacity,
+      promoterName: promoterName ?? this.promoterName,
+      title: title ?? this.title,
+      subtitle: subtitle ?? this.subtitle,
+      genre: genre ?? this.genre,
+      dateTime: dateTime ?? this.dateTime,
+      venue: venue ?? this.venue,
+      totalCapacity: totalCapacity ?? this.totalCapacity,
       status: status ?? this.status,
-      bannerUrl: bannerUrl,
+      bannerUrl: bannerUrl ?? this.bannerUrl,
       approvalStatus: approvalStatus ?? this.approvalStatus,
       rejectionReason: rejectionReason ?? this.rejectionReason,
+      rejectedAt: rejectedAt ?? this.rejectedAt,
       submittedAt: submittedAt,
-      tiers: tiers,
+      tiers: tiers ?? this.tiers,
       requestType: requestType ?? this.requestType,
       requestInfo: requestInfo ?? this.requestInfo,
       cancellationReason: cancellationReason ?? this.cancellationReason,
@@ -542,6 +604,9 @@ class ConcertSubmissionModel {
       escrowWithheldAmount: escrowWithheldAmount ?? this.escrowWithheldAmount,
       cancellationReviewReason:
           cancellationReviewReason ?? this.cancellationReviewReason,
+      pendingEditPayload: clearPendingEdit
+          ? null
+          : (pendingEditPayload ?? this.pendingEditPayload),
     );
   }
 }
@@ -572,9 +637,13 @@ class AdminOverviewStats {
         'active_concerts': activeConcerts,
       };
 
-  AdminOverviewStats copyWith({int? activeProducers, int? activeConcerts}) {
+  AdminOverviewStats copyWith({
+    int? totalUsers,
+    int? activeProducers,
+    int? activeConcerts,
+  }) {
     return AdminOverviewStats(
-      totalUsers: totalUsers,
+      totalUsers: totalUsers ?? this.totalUsers,
       activeProducers: activeProducers ?? this.activeProducers,
       activeConcerts: activeConcerts ?? this.activeConcerts,
     );
@@ -595,9 +664,14 @@ class ApprovalQueueItem {
     required this.submittedAt,
   });
 
-  String get subtitle => kind == ApprovalKind.producer
-      ? 'Pengajuan: Produser Baru · ${ApprovalFormat.dayMonth(submittedAt)}'
-      : 'Pengajuan: Konser Baru · ${ApprovalFormat.dayMonth(submittedAt)}';
+  String get subtitle => switch (kind) {
+        ApprovalKind.producer =>
+          'Pengajuan: Produser Baru · ${ApprovalFormat.dayMonth(submittedAt)}',
+        ApprovalKind.concert =>
+          'Pengajuan: Konser Baru · ${ApprovalFormat.dayMonth(submittedAt)}',
+        ApprovalKind.gatecrew =>
+          'Pengajuan: Gate Crew · ${ApprovalFormat.dayMonth(submittedAt)}',
+      };
 }
 
 /// Transaksi pengguna untuk tab Kelola User (Image 5).

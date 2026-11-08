@@ -59,10 +59,14 @@ class DataService {
   bool _agreementAccepted = DbDummy.defaultGuestAgreementAccepted;
 
   void _initService() {
-    _concerts = List.from(DbDummy.concerts);
+    _concerts = SupabaseService.isInitialized
+        ? <ConcertModel>[]
+        : List.from(DbDummy.concerts);
     _cities = List.from(DbDummy.cities);
     _users = List.from(DbDummy.users);
-    userTicketsNotifier.value = List.from(DbDummy.initialUserTickets);
+    userTicketsNotifier.value = SupabaseService.isInitialized
+        ? <UserTicketModel>[]
+        : List.from(DbDummy.initialUserTickets);
     _agreementAccepted = DbDummy.defaultGuestAgreementAccepted ||
         LocalStorage.getBool(LocalStorage.agreementAcceptedKey);
 
@@ -75,7 +79,12 @@ class DataService {
     if (savedFavs.isNotEmpty) {
       favoriteConcertIdsNotifier.value = savedFavs.toSet();
     } else {
-      favoriteConcertIdsNotifier.value = {'featured-1', 'c2'};
+      favoriteConcertIdsNotifier.value =
+          SupabaseService.isInitialized ? <String>{} : {'featured-1', 'c2'};
+    }
+
+    if (SupabaseService.isInitialized) {
+      fetchConcertsFromSupabase(forceRefresh: true);
     }
   }
 
@@ -203,40 +212,61 @@ class DataService {
 
   // --- API Konser & Event ---
   bool _hasFetchedConcertsFromSupabase = false;
+  Future<List<ConcertModel>>? _ongoingConcertFetch;
 
   /// Memuat daftar konser dan kategori tiket secara langsung dari Supabase Cloud
   Future<List<ConcertModel>> fetchConcertsFromSupabase({bool forceRefresh = false}) async {
     if (!SupabaseService.isInitialized) return _concerts;
     if (_hasFetchedConcertsFromSupabase && !forceRefresh) return _concerts;
+    if (_ongoingConcertFetch != null && !forceRefresh) {
+      return _ongoingConcertFetch!;
+    }
 
+    final future = _doFetchConcertsFromSupabase();
+    _ongoingConcertFetch = future;
+    try {
+      return await future;
+    } finally {
+      if (_ongoingConcertFetch == future) {
+        _ongoingConcertFetch = null;
+      }
+    }
+  }
+
+  Future<List<ConcertModel>> _doFetchConcertsFromSupabase() async {
     try {
       final response = await SupabaseService.client
           .from('concerts')
           .select('*, ticket_tiers(*)')
-          .or('status.eq.published,status.is.null')
           .order('created_at', ascending: false);
 
-      if (response.isNotEmpty) {
-        final List<ConcertModel> liveItems = [];
-        for (final item in response) {
-          try {
-            final parsed = ConcertModel.fromJson(item);
-            if (parsed.isPublished) {
-              liveItems.add(parsed);
-            }
-          } catch (err) {
-            debugPrint('Error parse concert item: $err');
+      final List<ConcertModel> liveItems = [];
+      for (final item in response) {
+        try {
+          final statusStr =
+              (item['approval_status'] ?? item['status'] ?? 'published')
+                  .toString()
+                  .toLowerCase();
+          final isApproved = statusStr == 'published' ||
+              statusStr == 'approved' ||
+              statusStr == 'disetujui';
+          if (!isApproved) continue;
+
+          final parsed = ConcertModel.fromJson(item);
+          if (parsed.isPublished) {
+            liveItems.add(parsed);
           }
-        }
-        if (liveItems.isNotEmpty) {
-          _concerts.clear();
-          _concerts.addAll(liveItems);
-          _hasFetchedConcertsFromSupabase = true;
-          return _concerts;
+        } catch (err) {
+          debugPrint('Error parse concert item: $err');
         }
       }
+      _concerts
+        ..clear()
+        ..addAll(liveItems);
+      _hasFetchedConcertsFromSupabase = true;
+      return _concerts;
     } catch (e) {
-      debugPrint('Gagal fetch konser dari Supabase, menggunakan data lokal: $e');
+      debugPrint('Gagal fetch konser dari Supabase: $e');
     }
     return _concerts;
   }
@@ -340,7 +370,14 @@ class DataService {
 
   /// Mengambil satu konser unggulan (Featured Concert) untuk kompatibilitas
   Future<ConcertModel> getFeaturedEvent() async {
-    await Future.delayed(const Duration(milliseconds: 50));
+    if (SupabaseService.isInitialized && !_hasFetchedConcertsFromSupabase) {
+      await fetchConcertsFromSupabase();
+    } else {
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+    if (_concerts.isEmpty) {
+      return DbDummy.concerts.first;
+    }
     return _concerts.firstWhere(
       (c) => c.id == 'featured-1',
       orElse: () => _concerts.first,
@@ -486,6 +523,7 @@ class DataService {
     }
 
     if (!SupabaseService.isInitialized) return;
+    await fetchConcertsFromSupabase(forceRefresh: true);
     try {
       final authUser = SupabaseService.client.auth.currentUser;
       if (authUser == null) {

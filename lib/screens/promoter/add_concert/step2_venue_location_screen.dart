@@ -323,7 +323,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Langkah 2 dari 4: Cari dan tentukan lokasi venue konser langsung dari Google Maps',
+                'Langkah 2 dari 5: Cari dan tentukan lokasi venue konser langsung dari Google Maps',
                 style: TextStyle(
                   fontSize: 13,
                   color: subtextColor,
@@ -332,8 +332,8 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
 
               const SizedBox(height: 16),
 
-              // Stepper (Steps 1 & 2 active)
-              const PromoterStepIndicator(currentStep: 2),
+              // Stepper (Steps 1 & 2 active dari 5 langkah)
+              const PromoterStepIndicator(currentStep: 2, totalSteps: 5),
 
               const SizedBox(height: 20),
 
@@ -700,6 +700,24 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                 onSearchTap: () {
                   setState(() => _isSearching = true);
                   _searchFocusNode.requestFocus();
+                },
+                onCoordinatesChanged: (lat, lng) {
+                  setState(() {
+                    _currentLatitude = lat;
+                    _currentLongitude = lng;
+                  });
+                },
+                onLocationSelected: (name, address, lat, lng) {
+                  setState(() {
+                    _currentVenueName = name;
+                    _currentVenueAddress = address;
+                    _currentLatitude = lat;
+                    _currentLongitude = lng;
+                    _manualNameController.text = name;
+                    _manualAddressController.text = address;
+                  });
+                  widget.onVenueChanged
+                      ?.call(name, address, _currentSearchQuery);
                 },
               ),
 
