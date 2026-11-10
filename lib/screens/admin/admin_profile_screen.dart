@@ -7,6 +7,7 @@ import '../home/home_screen.dart';
 import '../promoter/producer_customer_service_screen.dart';
 import 'admin_notification_screen.dart';
 import 'admin_shell.dart';
+import 'admin_withdraw_screen.dart';
 import 'widgets/admin_theme.dart';
 import 'widgets/admin_widgets.dart';
 
@@ -350,6 +351,30 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                       const ProducerCustomerServiceScreen(
                                     isAdminInbox: true,
                                   ),
+                                ),
+                              );
+                            },
+                          ),
+                          Divider(height: 1, color: border),
+
+                          // Menu 4: Penarikan Fee Admin (3%)
+                          _ProfileMenuRow(
+                            icon: Icons.payments_outlined,
+                            iconBgColor: const Color(0xFFF3E8FF),
+                            iconColor: const Color(0xFF7C3AED),
+                            title: 'Penarikan Fee Admin',
+                            subtitle:
+                                'Kelola mutasi 3% & penarikan saldo fee platform',
+                            trailing: Icon(
+                              Icons.chevron_right_rounded,
+                              color: textSec,
+                              size: 20,
+                            ),
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      const AdminWithdrawScreen(),
                                 ),
                               );
                             },

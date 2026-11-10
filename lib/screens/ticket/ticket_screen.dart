@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../models/concert_model.dart';
 import '../../models/ticket_order_model.dart';
-import '../../services/dummy_data_service.dart';
+import '../../services/data_service.dart';
 import '../../widgets/qr_code_view.dart';
 import '../../widgets/share_gate_qr_sheet.dart';
 import '../auth/login_screen.dart';
+import '../checkout/payment_screen.dart';
 import '../refund/cancelled_ticket_detail_screen.dart';
 import '../refund/refund_status_screen.dart';
 
@@ -20,6 +22,12 @@ class TicketScreen extends StatefulWidget {
 class _TicketScreenState extends State<TicketScreen> {
   int _selectedTabIndex = 0; // 0: Aktif, 1: Riwayat
 
+  @override
+  void initState() {
+    super.initState();
+    DataService().fetchUserTicketsFromSupabase();
+  }
+
   void _goToLogin() {
     Navigator.push(
       context,
@@ -28,6 +36,17 @@ class _TicketScreenState extends State<TicketScreen> {
   }
 
   void _onViewTicketPressed(UserTicketModel ticket) {
+    if (ticket.isPendingPayment) {
+      final orderToPay = ticket.pendingOrder ?? _reconstructOrderFromTicket(ticket);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentScreen(order: orderToPay),
+        ),
+      );
+      return;
+    }
+
     if (ticket.status == 'Reffund' || ticket.isCancelled) {
       if (ticket.refundData != null) {
         // Jika sudah diajukan, tampilkan tracking status refund
@@ -50,6 +69,63 @@ class _TicketScreenState extends State<TicketScreen> {
       // Tiket Aktif normal -> Tampilkan modal E-Tiket Aktif
       _showActiveTicketModal(ticket);
     }
+  }
+
+  OrderModel _reconstructOrderFromTicket(UserTicketModel ticket) {
+    final price = ticket.totalPrice ~/ (ticket.quantity > 0 ? ticket.quantity : 1);
+    final tax = (ticket.totalPrice * 0.05).round();
+
+    final tier = TicketTierModel(
+      id: 'tier-${ticket.category}',
+      name: ticket.category,
+      description: ticket.category,
+      price: price,
+    );
+
+    final defaultConcert = ConcertModel(
+      id: 'c-pending-${ticket.id}',
+      title: ticket.concertTitle,
+      subtitle: ticket.displaySubtitle,
+      date: ticket.date.isNotEmpty ? ticket.date : '2026-11-20',
+      time: ticket.time.isNotEmpty ? ticket.time : '19.00 WIB',
+      venue: ticket.venue.isNotEmpty ? ticket.venue : 'LiveTix Arena',
+      price: price,
+      category: 'Pop',
+      tag: 'Trending',
+      badgeColor: const Color(0xFF1B2A8C),
+      iconBgColor: const Color(0xFFE0EAFF),
+      iconColor: const Color(0xFF1B2A8C),
+      ticketTiers: [tier],
+    );
+
+    PaymentCategory cat = PaymentCategory.qris;
+    final mUpper = ticket.paymentMethod.toUpperCase();
+    if (mUpper.contains('VA') || mUpper.contains('BANK')) {
+      cat = PaymentCategory.bank;
+    } else if (mUpper.contains('GOPAY') ||
+        mUpper.contains('DANA') ||
+        mUpper.contains('SHOPEE')) {
+      cat = PaymentCategory.ewallet;
+    }
+
+    return OrderModel(
+      orderId: ticket.id,
+      concert: defaultConcert,
+      tier: tier,
+      quantity: ticket.quantity,
+      ticketPrice: price,
+      serviceFee: 5000,
+      taxAndAdmin: tax,
+      transactionFee: 0,
+      totalAmount: ticket.totalPrice,
+      customerName: DataService().currentUser?.name ?? 'Penonton LiveTix',
+      customerEmail: DataService().currentUser?.email ?? 'user@livetix.com',
+      paymentCategory: cat,
+      paymentProvider: ticket.paymentMethod,
+      qrString: ticket.qrData,
+      qrCodeUrl: ticket.qrCodeUrl,
+      expiresAt: DateTime.now().add(const Duration(minutes: 60)),
+    );
   }
 
   void _showActiveTicketModal(UserTicketModel ticket) {
@@ -129,6 +205,11 @@ class _TicketScreenState extends State<TicketScreen> {
                 ),
                 const SizedBox(height: 18),
                 AppQrCodeView(
+                  qrData: (ticket.qrData != null && ticket.qrData!.isNotEmpty)
+                      ? ticket.qrData
+                      : (ticket.bookingCode.isNotEmpty
+                          ? ticket.bookingCode
+                          : ticket.id),
                   qrCodeUrl: ticket.qrCodeUrl,
                   qrCodeBytes: ticket.qrCodeBytes,
                   size: 164,
@@ -398,34 +479,110 @@ class _TicketScreenState extends State<TicketScreen> {
 
   Widget _buildUserTicketView() {
     return ValueListenableBuilder<List<UserTicketModel>>(
-      valueListenable: DummyDataService().userTicketsNotifier,
+      valueListenable: DataService().userTicketsNotifier,
       builder: (context, tickets, _) {
         final filteredTickets = _selectedTabIndex == 0
             ? tickets.where((t) => !t.isCompleted).toList()
             : tickets.where((t) => t.isCompleted).toList();
 
-        return ListView(
-          padding: const EdgeInsets.only(bottom: 24),
-          children: [
-            ...filteredTickets.map((ticket) => _buildFigmaTicketCard(ticket)),
-            const SizedBox(height: 8),
+        return RefreshIndicator(
+          color: AppColors.primary,
+          onRefresh: () async {
+            await DataService().fetchUserTicketsFromSupabase();
+          },
+          child: filteredTickets.isEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(top: 24, bottom: 24),
+                  children: [
+                    _buildEmptyUserTickets(_selectedTabIndex == 0),
+                  ],
+                )
+              : ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 24),
+                  children: [
+                    ...filteredTickets.map((ticket) => _buildFigmaTicketCard(ticket)),
+                    const SizedBox(height: 8),
 
-            // Kotak Bergaris Putus-putus "Belum ada tiket lain"
-            _buildEmptyStateDashedBox(),
-          ],
+                    // Kotak Bergaris Putus-putus "Belum ada tiket lain"
+                    _buildEmptyStateDashedBox(),
+                  ],
+                ),
         );
       },
     );
   }
 
+  Widget _buildEmptyUserTickets(bool isActiveTab) {
+    final isDark = AppColors.isDark(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : const Color(0xFFF2F4F7),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isActiveTab ? Icons.confirmation_number_outlined : Icons.history_rounded,
+                size: 32,
+                color: isDark ? AppColors.darkTextSecondary : const Color(0xFF667085),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isActiveTab ? 'Belum Ada Tiket Aktif' : 'Belum Ada Riwayat Tiket',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: isDark ? AppColors.darkText : AppColors.textDark,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isActiveTab
+                  ? 'Kamu belum memiliki tiket konser aktif saat ini. Jelajahi konser seru dan pesan tiket favoritmu sekarang!'
+                  : 'Tiket konser yang telah selesai dihadiri atau dibatalkan akan muncul di riwayat ini.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildFigmaTicketCard(UserTicketModel ticket) {
+    final isPending = ticket.isPendingPayment;
     final isRefund = ticket.status == 'Reffund' || ticket.isCancelled;
     final stripeColor = ticket.stripeColor ??
-        (isRefund ? const Color(0xFFC2185B) : const Color(0xFF1B2A8C));
+        (isPending
+            ? const Color(0xFFF59E0B)
+            : isRefund
+                ? const Color(0xFFC2185B)
+                : const Color(0xFF1B2A8C));
     final iconBgColor = ticket.iconBgColor ??
-        (isRefund ? const Color(0xFFFCE7F3) : const Color(0xFFE0EAFF));
+        (isPending
+            ? const Color(0xFFFEF3C7)
+            : isRefund
+                ? const Color(0xFFFCE7F3)
+                : const Color(0xFFE0EAFF));
     final iconColor = ticket.iconColor ??
-        (isRefund ? const Color(0xFFC2185B) : const Color(0xFF1B2A8C));
+        (isPending
+            ? const Color(0xFFD97706)
+            : isRefund
+                ? const Color(0xFFC2185B)
+                : const Color(0xFF1B2A8C));
 
     final isDark = AppColors.isDark(context);
 
@@ -447,10 +604,14 @@ class _TicketScreenState extends State<TicketScreen> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _onViewTicketPressed(ticket),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
               // Garis Warna Sisi Kiri (Biru / Magenta)
               Container(
                 width: 5,
@@ -514,7 +675,7 @@ class _TicketScreenState extends State<TicketScreen> {
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
-                                  ticket.concertSubtitle,
+                                  ticket.displaySubtitle,
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: isDark ? AppColors.darkTextSecondary : const Color(0xFF667085),
@@ -569,12 +730,20 @@ class _TicketScreenState extends State<TicketScreen> {
                           runSpacing: 8,
                           children: [
                             Text(
-                              isRefund
-                                  ? '${ticket.daysLeft} hari lagi'
-                                  : '${ticket.daysLeft} hari lagi · ${ticket.qrScanQuota}x scan',
+                              isPending
+                                  ? 'Batas waktu 1 jam · ${ticket.paymentMethod}'
+                                  : isRefund
+                                      ? '${ticket.daysLeft} hari lagi'
+                                      : '${ticket.daysLeft} hari lagi · ${ticket.qrScanQuota}x scan',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: isDark ? AppColors.darkTextSecondary : const Color(0xFF475467),
+                                fontWeight:
+                                    isPending ? FontWeight.w600 : FontWeight.normal,
+                                color: isPending
+                                    ? const Color(0xFFD97706)
+                                    : (isDark
+                                        ? AppColors.darkTextSecondary
+                                        : const Color(0xFF475467)),
                               ),
                             ),
                             Wrap(
@@ -582,31 +751,27 @@ class _TicketScreenState extends State<TicketScreen> {
                               runSpacing: 8,
                               crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                if (!isRefund && !ticket.isCompleted)
+                                if (isPending)
                                   SizedBox(
                                     height: 44,
-                                    child: OutlinedButton.icon(
+                                    child: ElevatedButton.icon(
                                       onPressed: () =>
-                                          ShareGateQrSheet.show(context, ticket),
-                                      icon: const Icon(
-                                        Icons.share_rounded,
-                                        size: 15,
-                                        color: AppColors.primary,
-                                      ),
+                                          _onViewTicketPressed(ticket),
+                                      icon: const Icon(Icons.payment_rounded,
+                                          size: 16),
                                       label: const Text(
-                                        'Bagikan QR',
+                                        'Bayar Sekarang',
                                         style: TextStyle(
-                                          fontSize: 12,
+                                          fontSize: 12.5,
                                           fontWeight: FontWeight.w700,
-                                          color: AppColors.primary,
                                         ),
                                       ),
-                                      style: OutlinedButton.styleFrom(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFFD97706),
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                        ),
-                                        side: const BorderSide(
-                                          color: AppColors.primary,
+                                          horizontal: 14,
                                         ),
                                         shape: RoundedRectangleBorder(
                                           borderRadius:
@@ -614,32 +779,68 @@ class _TicketScreenState extends State<TicketScreen> {
                                         ),
                                       ),
                                     ),
-                                  ),
-                                SizedBox(
-                                  height: 44,
-                                  child: ElevatedButton(
-                                    onPressed: () =>
-                                        _onViewTicketPressed(ticket),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF1D2939),
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
+                                  )
+                                else ...[
+                                  if (!isRefund && !ticket.isCompleted)
+                                    SizedBox(
+                                      height: 44,
+                                      child: OutlinedButton.icon(
+                                        onPressed: () =>
+                                            ShareGateQrSheet.show(context, ticket),
+                                        icon: const Icon(
+                                          Icons.share_rounded,
+                                          size: 15,
+                                          color: AppColors.primary,
+                                        ),
+                                        label: const Text(
+                                          'Bagikan QR',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                          ),
+                                          side: const BorderSide(
+                                            color: AppColors.primary,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                    child: const Text(
-                                      'Lihat tiket',
-                                      style: TextStyle(
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w600,
+                                  SizedBox(
+                                    height: 44,
+                                    child: ElevatedButton(
+                                      onPressed: () =>
+                                          _onViewTicketPressed(ticket),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF1D2939),
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Lihat tiket',
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ],
                             ),
                           ],
@@ -653,7 +854,9 @@ class _TicketScreenState extends State<TicketScreen> {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildStatusBadge(String status) {
@@ -663,6 +866,10 @@ class _TicketScreenState extends State<TicketScreen> {
     if (status == 'Aktif') {
       bg = const Color(0xFFECFDF5);
       text = const Color(0xFF065F46);
+    } else if (status.toLowerCase().contains('menunggu') ||
+        status.toLowerCase().contains('pending')) {
+      bg = const Color(0xFFFEF3C7);
+      text = const Color(0xFF92400E);
     } else if (status == 'Reffund' || status.toLowerCase().contains('refund')) {
       bg = const Color(0xFFFEE2E2);
       text = const Color(0xFF991B1B);

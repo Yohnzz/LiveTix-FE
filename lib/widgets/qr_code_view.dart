@@ -1,13 +1,13 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../core/app_colors.dart';
 
 /// Komponen tampilan QR Code terpusat untuk aplikasi LiveTix.
-/// Menggunakan sementara `assets/images/qrcode.png` selama pengujian user,
-/// dan otomatis beralih ke `qrCodeBytes` atau `qrCodeUrl` dari backend saat terhubung.
+/// Menggunakan `qrData` dengan `qr_flutter` untuk merender QR Code asli yang scannable (bukan dummy),
+/// dan otomatis mendukung `qrCodeBytes` atau `qrCodeUrl` dari backend.
 class AppQrCodeView extends StatelessWidget {
-  static const String defaultTestingAssetPath = 'assets/images/qrcode.png';
-
+  final String? qrData;
   final String? qrCodeUrl;
   final Uint8List? qrCodeBytes;
   final double size;
@@ -18,6 +18,7 @@ class AppQrCodeView extends StatelessWidget {
 
   const AppQrCodeView({
     super.key,
+    this.qrData,
     this.qrCodeUrl,
     this.qrCodeBytes,
     this.size = 156,
@@ -27,24 +28,38 @@ class AppQrCodeView extends StatelessWidget {
     this.semanticLabel = 'Kode QR LiveTix',
   });
 
-  Widget _buildDefaultAssetImage(double innerSize) {
-    return Image.asset(
-      defaultTestingAssetPath,
-      width: innerSize,
-      height: innerSize,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.none,
-      errorBuilder: (_, __, ___) => Center(
-        child: Icon(
-          Icons.qr_code_2_rounded,
-          size: innerSize * 0.8,
-          color: AppColors.textDark,
-        ),
+  Widget _buildVectorPlaceholder(double innerSize) {
+    return Center(
+      child: Icon(
+        Icons.qr_code_2_rounded,
+        size: innerSize * 0.85,
+        color: isDisabled ? const Color(0xFF94A3B8) : AppColors.textDark,
       ),
     );
   }
 
   Widget _buildQrImage(double innerSize) {
+    // 1. Prioritas Utama: Jika qrData diberikan (string QRIS dari Midtrans atau kode e-tiket unik dari database Supabase)
+    final effectiveData = qrData?.trim() ?? '';
+    if (effectiveData.isNotEmpty) {
+      return QrImageView(
+        data: effectiveData,
+        version: QrVersions.auto,
+        size: innerSize,
+        gapless: false,
+        eyeStyle: QrEyeStyle(
+          eyeShape: QrEyeShape.square,
+          color: isDisabled ? const Color(0xFF94A3B8) : Colors.black,
+        ),
+        dataModuleStyle: QrDataModuleStyle(
+          dataModuleShape: QrDataModuleShape.square,
+          color: isDisabled ? const Color(0xFF94A3B8) : Colors.black,
+        ),
+        errorStateBuilder: (cxt, err) => _buildVectorPlaceholder(innerSize),
+      );
+    }
+
+    // 2. Jika diberikan byte gambar mentah
     if (qrCodeBytes != null && qrCodeBytes!.isNotEmpty) {
       return Image.memory(
         qrCodeBytes!,
@@ -52,50 +67,68 @@ class AppQrCodeView extends StatelessWidget {
         height: innerSize,
         fit: BoxFit.contain,
         filterQuality: FilterQuality.none,
-        errorBuilder: (_, __, ___) => _buildDefaultAssetImage(innerSize),
+        errorBuilder: (_, __, ___) => _buildVectorPlaceholder(innerSize),
       );
     }
 
+    // 3. Jika diberikan URL gambar resmi (CDN / Midtrans)
     final url = qrCodeUrl?.trim() ?? '';
-    if (url.isNotEmpty) {
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        return Image.network(
-          url,
-          width: innerSize,
-          height: innerSize,
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.none,
-          loadingBuilder: (context, child, progress) {
-            if (progress == null) return child;
-            return SizedBox(
-              width: innerSize,
-              height: innerSize,
-              child: const Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.2,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            );
-          },
-          errorBuilder: (_, __, ___) => _buildDefaultAssetImage(innerSize),
-        );
-      }
-      return Image.asset(
+    if (url.isNotEmpty && (url.startsWith('http://') || url.startsWith('https://'))) {
+      return Image.network(
         url,
         width: innerSize,
         height: innerSize,
         fit: BoxFit.contain,
         filterQuality: FilterQuality.none,
-        errorBuilder: (_, __, ___) => _buildDefaultAssetImage(innerSize),
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return SizedBox(
+            width: innerSize,
+            height: innerSize,
+            child: const Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          );
+        },
+        errorBuilder: (_, __, ___) => _buildVectorPlaceholder(innerSize),
       );
     }
 
-    return _buildDefaultAssetImage(innerSize);
+    // 4. Fallback Dinamis jika label semantik memuat kode booking / ID tiket nyata
+    if (semanticLabel.isNotEmpty &&
+        !semanticLabel.toLowerCase().contains('kode qr livetix')) {
+      final cleanLabelData = semanticLabel
+          .replaceAll('Kode QR E-Tiket', '')
+          .replaceAll('Kode Barcode QRIS Pembayaran LiveTix', '')
+          .trim();
+      if (cleanLabelData.isNotEmpty) {
+        return QrImageView(
+          data: cleanLabelData,
+          version: QrVersions.auto,
+          size: innerSize,
+          gapless: false,
+          eyeStyle: QrEyeStyle(
+            eyeShape: QrEyeShape.square,
+            color: isDisabled ? const Color(0xFF94A3B8) : Colors.black,
+          ),
+          dataModuleStyle: QrDataModuleStyle(
+            dataModuleShape: QrDataModuleShape.square,
+            color: isDisabled ? const Color(0xFF94A3B8) : Colors.black,
+          ),
+          errorStateBuilder: (cxt, err) => _buildVectorPlaceholder(innerSize),
+        );
+      }
+    }
+
+    // Fallback bersih menggunakan ikon vektor tanpa ketergantungan file asset eksternal
+    return _buildVectorPlaceholder(innerSize);
   }
 
   @override

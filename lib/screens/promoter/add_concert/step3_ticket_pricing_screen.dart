@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/promoter_models.dart';
 import '../../../services/promoter_data_service.dart';
+import '../../../utils/uuid_utils.dart';
 import '../widgets/promoter_step_indicator.dart';
 
 class Step3TicketPricingScreen extends StatelessWidget {
@@ -246,7 +247,7 @@ class Step3TicketPricingScreen extends StatelessWidget {
                       if (name.isEmpty || price <= 0 || quota <= 0) return;
 
                       final newTier = PromoterTicketTier(
-                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        id: UuidUtils.generateV4(),
                         name: name,
                         price: price,
                         quota: quota,

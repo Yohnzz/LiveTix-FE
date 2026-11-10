@@ -2,13 +2,13 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../models/ticket_order_model.dart';
-import '../widgets/qr_code_view.dart';
 
 /// Menghasilkan gambar PNG kartu QR Gate resmi LiveTix lengkap dengan:
 /// - Nama Konser & Tanggal Konser
-/// - Gambar QR Code tajam (sementara `assets/images/qrcode.png` atau byte backend)
+/// - Gambar QR Code tajam asli dari data tiket backend/database
 /// - Informasi Gate, Kode Booking, & Kuota Multi-Scan (maks 4x scan)
 /// - Watermark `LiveTix` diagonal dan cap footer resmi
 class GateQrImageGenerator {
@@ -16,21 +16,19 @@ class GateQrImageGenerator {
 
   static Future<ui.Image?> _decodeQrImage(UserTicketModel ticket) async {
     try {
-      Uint8List rawBytes;
       if (ticket.qrCodeBytes != null && ticket.qrCodeBytes!.isNotEmpty) {
-        rawBytes = ticket.qrCodeBytes!;
-      } else {
-        final assetPath = (ticket.qrCodeUrl != null &&
-                ticket.qrCodeUrl!.trim().isNotEmpty &&
-                !ticket.qrCodeUrl!.startsWith('http'))
-            ? ticket.qrCodeUrl!.trim()
-            : AppQrCodeView.defaultTestingAssetPath;
-        final data = await rootBundle.load(assetPath);
-        rawBytes = data.buffer.asUint8List();
+        final codec = await ui.instantiateImageCodec(ticket.qrCodeBytes!);
+        final frame = await codec.getNextFrame();
+        return frame.image;
       }
-      final codec = await ui.instantiateImageCodec(rawBytes);
-      final frame = await codec.getNextFrame();
-      return frame.image;
+
+      // Render QR code asli secara dinamis langsung dari data tiket backend
+      final painter = QrPainter(
+        data: ticket.effectiveQrData,
+        version: QrVersions.auto,
+        gapless: false,
+      );
+      return await painter.toImage(320);
     } catch (_) {
       return null;
     }

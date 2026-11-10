@@ -144,7 +144,7 @@ void main() {
       }
 
       expect(find.byType(GateCrewMainScreen), findsOneWidget);
-      expect(find.text('Anda Tidak Memiliki Tugas Gate'), findsOneWidget);
+      expect(find.text('Akun anda tidak terinvite event manapun'), findsOneWidget);
     });
   });
 }

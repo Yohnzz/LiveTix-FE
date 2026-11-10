@@ -3,6 +3,7 @@ import '../../../models/promoter_models.dart';
 import '../../../services/gate_crew_service.dart';
 import '../../../services/promoter_data_service.dart';
 import '../../../utils/file_picker_helper.dart';
+import '../../../utils/uuid_utils.dart';
 import '../concert_status_detail_screen.dart';
 import '../widgets/responsive_promoter_wrapper.dart';
 import 'step1_detail_poster_screen.dart';
@@ -297,7 +298,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
         : 'Jadwal Segera Diumumkan';
 
     final newConcert = PromoterConcertItem(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: UuidUtils.generateV4(),
       title: resolvedTitle,
       dateAndVenue: '$resolvedDate · $resolvedVenue',
       date: resolvedDate,

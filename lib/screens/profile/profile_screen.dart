@@ -1,12 +1,12 @@
 import '../admin/admin_shell.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../models/ticket_order_model.dart';
 import '../../models/user_model.dart';
 import '../../services/data_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
 import '../promoter/producer_customer_service_screen.dart';
-import '../promoter/promoter_main_screen.dart';
 import 'edit_profile_screen.dart';
 import 'refund_payment_method_screen.dart';
 
@@ -259,23 +259,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: _subtitleColor,
               ),
             ),
-            const SizedBox(height: 12),
-            _buildMenuItem(
-              icon: Icons.campaign_outlined,
-              title: 'Portal Produser / Pengelola Konser',
-              iconColor: AppColors.accent,
-              textColor: AppColors.accent,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const PromoterMainScreen(),
-                  ),
-                );
-              },
-            ),
             if (_dataService.currentUser?.role.toLowerCase() == 'admin') ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               _buildMenuItem(
                 icon: Icons.admin_panel_settings_outlined,
                 title: 'Portal Super Admin',
@@ -552,27 +537,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatsCard() {
-    final user = _dataService.currentUser;
-    final tickets = '${user?.ticketsBought ?? 0}';
-    final concerts = '${user?.concertsAttended ?? 0}';
-    final reviews = '${user?.reviewsCount ?? 0}';
+    return ValueListenableBuilder<List<UserTicketModel>>(
+      valueListenable: _dataService.userTicketsNotifier,
+      builder: (context, ticketsList, _) {
+        final totalBought = ticketsList.length;
+        final totalActive = ticketsList
+            .where((t) => t.status == 'Aktif' && !t.isCompleted && !t.isCancelled)
+            .length;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _borderColor),
-      ),
-      child: Row(
-        children: [
-          Expanded(child: _buildStatItem(tickets, 'Tiket dibeli')),
-          Container(height: 32, width: 1, color: _borderColor),
-          Expanded(child: _buildStatItem(concerts, 'Konser dihadiri')),
-          Container(height: 32, width: 1, color: _borderColor),
-          Expanded(child: _buildStatItem(reviews, 'Ulasan')),
-        ],
-      ),
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            color: _cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _borderColor),
+          ),
+          child: Row(
+            children: [
+              Expanded(child: _buildStatItem('$totalBought', 'Tiket dibeli')),
+              Container(height: 32, width: 1, color: _borderColor),
+              Expanded(child: _buildStatItem('$totalActive', 'Total tiket aktif')),
+            ],
+          ),
+        );
+      },
     );
   }
 

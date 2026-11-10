@@ -422,8 +422,26 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                 children: teamList.map((crew) {
                                   final isSelected =
                                       _selectedCrewGates.containsKey(crew.id);
-                                  final gateName =
-                                      _selectedCrewGates[crew.id] ?? 'Gate A';
+                                  const gateOptions = [
+                                    'Gate A (Utama / VIP)',
+                                    'Gate B (Festival Barat)',
+                                    'Gate C (Tribun Timur)',
+                                    'Gate D (Festival Selatan)',
+                                    'Semua Gate (Supervisor Scan)',
+                                  ];
+
+                                  String normalizeGate(String? raw) {
+                                    if (raw == null) return gateOptions.first;
+                                    if (gateOptions.contains(raw)) return raw;
+                                    if (raw.contains('Gate A')) return 'Gate A (Utama / VIP)';
+                                    if (raw.contains('Gate B')) return 'Gate B (Festival Barat)';
+                                    if (raw.contains('Gate C')) return 'Gate C (Tribun Timur)';
+                                    if (raw.contains('Gate D')) return 'Gate D (Festival Selatan)';
+                                    return gateOptions.first;
+                                  }
+
+                                  final rawGate = _selectedCrewGates[crew.id];
+                                  final gateName = normalizeGate(rawGate);
 
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 8),
@@ -453,7 +471,7 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                             setState(() {
                                               if (val == true) {
                                                 _selectedCrewGates[crew.id] =
-                                                    'Gate A';
+                                                    gateOptions.first;
                                               } else {
                                                 _selectedCrewGates
                                                     .remove(crew.id);
@@ -508,17 +526,12 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                                 dropdownColor: isDarkMode
                                                     ? const Color(0xFF1B2232)
                                                     : Colors.white,
-                                                items: const [
-                                                  DropdownMenuItem(
-                                                      value: 'Gate A',
-                                                      child: Text('Gate A')),
-                                                  DropdownMenuItem(
-                                                      value: 'Gate B',
-                                                      child: Text('Gate B')),
-                                                  DropdownMenuItem(
-                                                      value: 'Gate C',
-                                                      child: Text('Gate C')),
-                                                ],
+                                                items: gateOptions
+                                                    .map((g) => DropdownMenuItem(
+                                                          value: g,
+                                                          child: Text(g),
+                                                        ))
+                                                    .toList(),
                                                 onChanged: (newGate) {
                                                   if (newGate != null) {
                                                     setState(() {

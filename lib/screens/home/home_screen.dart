@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/concert_model.dart';
+import '../../models/ticket_order_model.dart';
 import '../../models/user_model.dart';
 import '../../services/data_service.dart';
 import '../../widgets/user_avatar.dart';
@@ -116,6 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'ConcertDetailScreen'),
         builder: (_) => ConcertDetailScreen(
           concert: concert,
           isGuest: widget.isGuest,
@@ -490,8 +492,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             );
 
-            final notifButton = _buildNotificationBadgeButton(isDark);
-
             final identityRow = Row(
               children: [
                 const GuestAvatarIcon(size: 48),
@@ -538,8 +538,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      notifButton,
-                      const SizedBox(width: 8),
                       Expanded(child: loginButton),
                     ],
                   ),
@@ -550,8 +548,6 @@ class _HomeScreenState extends State<HomeScreen> {
             return Row(
               children: [
                 Expanded(child: identityRow),
-                const SizedBox(width: 6),
-                notifButton,
                 const SizedBox(width: 8),
                 loginButton,
               ],
@@ -664,75 +660,136 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Tombol notifikasi interaktif dengan badge penomoran di atas titik
+  List<Map<String, dynamic>> _getRealNotifications() {
+    if (_dataService.isGuest || _dataService.currentUser == null) {
+      return const [];
+    }
+    final tickets = _dataService.userTicketsNotifier.value;
+    if (tickets.isEmpty) {
+      return const [];
+    }
+
+    final List<Map<String, dynamic>> items = [];
+    final activeTickets = tickets
+        .where((t) => t.status == 'Aktif' && !t.isCompleted && !t.isCancelled)
+        .toList();
+    final cancelledTickets =
+        tickets.where((t) => t.status == 'Reffund' || t.isCancelled).toList();
+
+    for (final ticket in activeTickets.take(3)) {
+      items.add({
+        'icon': Icons.confirmation_number_outlined,
+        'title': 'Tiket Konser Terbit',
+        'desc':
+            'E-tiket resmi dan QR Code gate ${ticket.concertTitle} (${ticket.category}) sudah aktif dan siap digunakan.',
+        'time': 'Aktif',
+      });
+      if (ticket.date.isNotEmpty &&
+          ticket.date != 'Jadwal Segera Diumumkan' &&
+          ticket.date != 'null') {
+        items.add({
+          'icon': Icons.event_available_rounded,
+          'title': 'Jadwal Konser',
+          'desc':
+              'Konser ${ticket.concertTitle} dijadwalkan pada ${ticket.date} di ${ticket.venue}.',
+          'time': ticket.daysLeft > 0 ? '${ticket.daysLeft} hari lagi' : 'Mendatang',
+        });
+      }
+    }
+
+    for (final ticket in cancelledTickets.take(2)) {
+      items.add({
+        'icon': Icons.replay_circle_filled_rounded,
+        'title': 'Pemberitahuan Refund',
+        'desc':
+            'Konser ${ticket.concertTitle} dibatalkan. Pengembalian dana tiket Anda sedang diproses oleh pihak penyelenggara.',
+        'time': 'Proses Refund',
+      });
+    }
+
+    return items;
+  }
+
+  /// Tombol notifikasi interaktif dengan badge penomoran di atas titik berdasarkan data real database
   Widget _buildNotificationBadgeButton(bool isDark) {
-    return Semantics(
-      button: true,
-      label: 'Notifikasi, 3 pesan belum dibaca',
-      child: Tooltip(
-        message: 'Notifikasi',
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
-            onTap: _showNotificationsSheet,
-            borderRadius: BorderRadius.circular(12),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(
-                      Icons.notifications_outlined,
-                      size: 24,
-                      color: isDark ? AppColors.darkText : AppColors.textDark,
-                    ),
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: Container(
-                        padding: const EdgeInsets.all(1.5),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
+    return ValueListenableBuilder<List<UserTicketModel>>(
+      valueListenable: _dataService.userTicketsNotifier,
+      builder: (context, _, __) {
+        final notifs = _getRealNotifications();
+        final count = notifs.length;
+
+        return Semantics(
+          button: true,
+          label: count > 0 ? 'Notifikasi, $count pesan baru' : 'Notifikasi',
+          child: Tooltip(
+            message: 'Notifikasi',
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                onTap: _showNotificationsSheet,
+                borderRadius: BorderRadius.circular(12),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.center,
+                      children: [
+                        Icon(
+                          Icons.notifications_outlined,
+                          size: 24,
+                          color: isDark ? AppColors.darkText : AppColors.textDark,
                         ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE11D48),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isDark ? AppColors.darkSurface : Colors.white,
-                            width: 1.5,
+                        if (count > 0)
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: Container(
+                              padding: const EdgeInsets.all(1.5),
+                              constraints: const BoxConstraints(
+                                minWidth: 16,
+                                minHeight: 16,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE11D48),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isDark ? AppColors.darkSurface : Colors.white,
+                                  width: 1.5,
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                '$count',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.0,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Text(
-                          '3',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w700,
-                            height: 1.0,
-                          ),
-                        ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   /// Membuka lembar notifikasi interaktif saat ikon lonceng diklik
   void _showNotificationsSheet() {
     final isDark = AppColors.isDark(context);
+    final notifs = _getRealNotifications();
+
     showModalBottomSheet(
       context: context,
       backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
@@ -742,11 +799,12 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) {
         return SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
                   child: Container(
@@ -771,7 +829,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     Text(
-                      '3 baru',
+                      notifs.isNotEmpty ? '${notifs.length} baru' : '0 baru',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -781,34 +839,38 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                _buildNotificationItem(
-                  icon: Icons.confirmation_number_outlined,
-                  title: 'Tiket Konser Terbit',
-                  desc: 'E-tiket resmi dan QR Code gate kamu sudah aktif dan siap digunakan.',
-                  time: '10 menit lalu',
-                  isDark: isDark,
-                ),
-                const SizedBox(height: 12),
-                _buildNotificationItem(
-                  icon: Icons.event_available_rounded,
-                  title: 'Pengingat Konser',
-                  desc: 'Konser Soundwave Fest 2026 di Malang akan berlangsung dalam 14 hari.',
-                  time: '1 jam lalu',
-                  isDark: isDark,
-                ),
-                const SizedBox(height: 12),
-                _buildNotificationItem(
-                  icon: Icons.local_offer_outlined,
-                  title: 'Promo Spesial Presale',
-                  desc: 'Dapatkan potongan biaya admin transaksi untuk metode e-wallet pilihan minggu ini.',
-                  time: '3 jam lalu',
-                  isDark: isDark,
-                ),
+                if (notifs.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Text(
+                        'Belum ada notifikasi transaksi atau tiket.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  ...notifs.map((n) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildNotificationItem(
+                        icon: n['icon'] as IconData,
+                        title: n['title'] as String,
+                        desc: n['desc'] as String,
+                        time: n['time'] as String,
+                        isDark: isDark,
+                      ),
+                    );
+                  }),
               ],
             ),
           ),
-        );
-      },
+        ),
+      );
+    },
     );
   }
 

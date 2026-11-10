@@ -178,41 +178,6 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-
-                // Tombol Uji Coba Simulasi Cooldown untuk Pengujian Developer
-                Center(
-                  child: TextButton.icon(
-                    key: const Key('simulate_cooldown_reset_button'),
-                    onPressed: () {
-                      if (isCooldown) {
-                        // Atur pembaruan menjadi 8 hari yang lalu agar cooldown selesai
-                        DataService().setRefundAccountCooldownDaysAgo(8);
-                      } else {
-                        // Atur pembaruan menjadi 1 hari yang lalu agar cooldown aktif kembali
-                        DataService().setRefundAccountCooldownDaysAgo(1);
-                      }
-                      setState(() {});
-                    },
-                    icon: Icon(
-                      isCooldown
-                          ? Icons.lock_open_rounded
-                          : Icons.lock_clock_rounded,
-                      size: 16,
-                      color: AppColors.primary,
-                    ),
-                    label: Text(
-                      isCooldown
-                          ? 'Simulasi Testing: Buka Kunci Cooldown'
-                          : 'Simulasi Testing: Kunci Cooldown 1 Minggu',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),

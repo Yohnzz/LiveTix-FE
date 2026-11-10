@@ -8,7 +8,7 @@ class SupabaseConfig {
     return dotenv.env['SUPABASE_URL'] ??
         const String.fromEnvironment(
           'SUPABASE_URL',
-          defaultValue: 'https://ljjnbovuihyymdmrikuq.supabase.co',
+          defaultValue: 'https://arvydukozxjvwwhqnbth.supabase.co',
         );
   }
 
@@ -19,7 +19,7 @@ class SupabaseConfig {
         const String.fromEnvironment(
           'SUPABASE_ANON_KEY',
           defaultValue:
-              'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxqam5ib3Z1aWh5eW1kbXJpa3VxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM3NDIxOTAsImV4cCI6MjEwOTMxODE5MH0.yIyqPVDKzLQeIamn4MxyNm6NfFauiFmS673tuUxuxNU',
+              'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFydnlkdWtvenhqdnd3aHFuYnRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5MjQ1NjIsImV4cCI6MjEwNzUwMDU2Mn0.KN3YCrdKlI4BWFpSUtiNZip1O07nglxgC9FvEeUaWlg',
         );
   }
 

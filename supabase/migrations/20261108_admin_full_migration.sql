@@ -493,3 +493,51 @@ CREATE POLICY "CS Messages Insert All" ON public.cs_messages FOR INSERT WITH CHE
 
 DROP POLICY IF EXISTS "CS Messages Update All" ON public.cs_messages;
 CREATE POLICY "CS Messages Update All" ON public.cs_messages FOR UPDATE USING (true) WITH CHECK (true);
+
+-- 9. Tabel Validasi Check-In Tiket Gate Crew (public.ticket_checkins)
+CREATE TABLE IF NOT EXISTS public.ticket_checkins (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  concert_id UUID,
+  concert_title TEXT,
+  ticket_code TEXT NOT NULL,
+  booking_code TEXT,
+  attendee_name TEXT,
+  category TEXT,
+  gate_name TEXT DEFAULT 'Gate A',
+  crew_id UUID,
+  crew_email TEXT,
+  crew_name TEXT,
+  scanned_count INTEGER DEFAULT 1,
+  quota INTEGER DEFAULT 1,
+  status TEXT DEFAULT 'Berhasil',
+  notes TEXT,
+  checked_in_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.ticket_checkins
+  ADD COLUMN IF NOT EXISTS concert_id UUID,
+  ADD COLUMN IF NOT EXISTS concert_title TEXT,
+  ADD COLUMN IF NOT EXISTS ticket_code TEXT,
+  ADD COLUMN IF NOT EXISTS booking_code TEXT,
+  ADD COLUMN IF NOT EXISTS attendee_name TEXT,
+  ADD COLUMN IF NOT EXISTS category TEXT,
+  ADD COLUMN IF NOT EXISTS gate_name TEXT,
+  ADD COLUMN IF NOT EXISTS crew_id UUID,
+  ADD COLUMN IF NOT EXISTS crew_email TEXT,
+  ADD COLUMN IF NOT EXISTS crew_name TEXT,
+  ADD COLUMN IF NOT EXISTS scanned_count INTEGER DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS quota INTEGER DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Berhasil',
+  ADD COLUMN IF NOT EXISTS notes TEXT,
+  ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+ALTER TABLE public.ticket_checkins ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Ticket Checkins Select All" ON public.ticket_checkins;
+CREATE POLICY "Ticket Checkins Select All" ON public.ticket_checkins FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Ticket Checkins Insert All" ON public.ticket_checkins;
+CREATE POLICY "Ticket Checkins Insert All" ON public.ticket_checkins FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Ticket Checkins Update All" ON public.ticket_checkins;
+CREATE POLICY "Ticket Checkins Update All" ON public.ticket_checkins FOR UPDATE USING (true) WITH CHECK (true);

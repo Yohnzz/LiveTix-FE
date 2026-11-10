@@ -96,7 +96,14 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
 
   Future<void> _refreshAssignments() async {
     setState(() => _isRefreshing = true);
+    final user = DataService().currentUser;
     await GateCrewService().loadTeam();
+    if (user != null) {
+      await GateCrewService().fetchDirectAssignmentForUser(
+        userId: user.id,
+        userEmail: user.email,
+      );
+    }
     await Future.delayed(const Duration(milliseconds: 600));
     if (mounted) {
       setState(() => _isRefreshing = false);
@@ -248,6 +255,21 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                                   'quota': quota,
                                 });
                               });
+                              final user = DataService().currentUser;
+                              GateCrewService().recordTicketCheckIn(
+                                concertId: 'featured-1',
+                                concertTitle: concertTitle,
+                                bookingCode: bookingCode,
+                                attendeeName: name,
+                                category: category,
+                                gateName: _selectedGate,
+                                crewId: user?.id ?? '',
+                                crewEmail: user?.email ?? '',
+                                crewName: user?.name ?? 'Petugas Gate',
+                                scannedCount: 1,
+                                quota: quota,
+                                status: 'Berhasil',
+                              );
                               Navigator.pop(ctx);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -293,7 +315,22 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                                     'quota': quota,
                                   });
                                 });
-                                Navigator.pop(ctx);
+                                final user = DataService().currentUser;
+                              GateCrewService().recordTicketCheckIn(
+                                concertId: 'featured-1',
+                                concertTitle: concertTitle,
+                                bookingCode: bookingCode,
+                                attendeeName: name,
+                                category: category,
+                                gateName: _selectedGate,
+                                crewId: user?.id ?? '',
+                                crewEmail: user?.email ?? '',
+                                crewName: user?.name ?? 'Petugas Gate',
+                                scannedCount: 1,
+                                quota: quota,
+                                status: 'Berhasil',
+                              );
+                              Navigator.pop(ctx);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
@@ -341,6 +378,24 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                                 'quota': quota,
                               });
                             });
+                            final user = DataService().currentUser;
+                            GateCrewService().recordTicketCheckIn(
+                              concertId: 'featured-1',
+                              concertTitle: concertTitle,
+                              bookingCode: bookingCode,
+                              attendeeName: name,
+                              category: category,
+                              gateName: _selectedGate,
+                              crewId: user?.id ?? '',
+                              crewEmail: user?.email ?? '',
+                              crewName: user?.name ?? 'Petugas Gate',
+                              scannedCount: 0,
+                              quota: quota,
+                              status: isFullyUsed
+                                  ? 'Ditolak (Habis Kuota)'
+                                  : 'Ditolak (Invalid)',
+                              notes: invalidReason,
+                            );
                           }
                           Navigator.pop(ctx);
                         },
@@ -796,9 +851,9 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                 ),
                 const SizedBox(height: 24),
 
-                // Judul & Pesan Sesuai Permintaan User
+                // Judul & Pesan Sesuai Permintaan User: Akun anda tidak terinvite event manapun
                 const Text(
-                  'Anda Tidak Memiliki Tugas Gate',
+                  'Akun anda tidak terinvite event manapun',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 20,
@@ -809,7 +864,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                 ),
                 const SizedBox(height: 10),
                 const Text(
-                  'Anda belum ditugaskan ke konser manapun oleh pihak produser. Hubungi pihak promotor atau admin agar Anda dapat di-invite menjadi staf tiket di konser yang berlangsung.',
+                  'Anda belum di-invite ke konser atau event manapun oleh pihak produser. Akses kamera dan pemindaian QR code dinonaktifkan hingga akun Anda ditugaskan ke pos gate konser.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13.5,
@@ -855,7 +910,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: const Text(
-                              'Standby',
+                              'Tidak Terinvite',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -870,7 +925,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                       const SizedBox(height: 8),
                       _buildDarkInfoRow('Email Akun', email),
                       const SizedBox(height: 8),
-                      _buildDarkInfoRow('Akses Scanner', 'Dinonaktifkan'),
+                      _buildDarkInfoRow('Akses Kamera & QR', 'Dinonaktifkan'),
                     ],
                   ),
                 ),

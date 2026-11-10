@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
-import '../../data/db_dummy.dart';
 import '../../models/concert_model.dart';
 import '../../services/data_service.dart';
 import '../../widgets/concert_media.dart';
@@ -30,11 +29,7 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.concert.ticketTiers.isNotEmpty) {
-      _tiers = List.from(widget.concert.ticketTiers);
-    } else {
-      _tiers = List.from(DbDummy.concerts.first.ticketTiers);
-    }
+    _tiers = List.from(widget.concert.ticketTiers);
     _fetchFreshDetail();
   }
 
@@ -50,9 +45,15 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
     }
   }
 
-  TicketTierModel get _selectedTier => _tiers[_selectedTierIndex];
+  TicketTierModel? get _selectedTier =>
+      _tiers.isNotEmpty && _selectedTierIndex < _tiers.length
+          ? _tiers[_selectedTierIndex]
+          : null;
 
   void _onOrderTicketPressed() {
+    final activeTier = _selectedTier;
+    if (activeTier == null || activeTier.isSoldOut) return;
+
     if (widget.isGuest || DataService().isGuest) {
       // Guest dibatasi: wajib login sebelum memesan tiket
       showDialog(
@@ -106,7 +107,7 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
         context,
         MaterialPageRoute(
           builder: (_) => SelectTicketScreen(
-            concert: widget.concert,
+            concert: widget.concert.copyWith(ticketTiers: _tiers),
             initialTier: _selectedTier,
           ),
         ),
@@ -157,14 +158,36 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
                     const SizedBox(height: 14),
 
                     // Daftar Pilihan Kategori Tiket
-                    ...List.generate(_tiers.length, (index) {
-                      final tier = _tiers[index];
-                      final isSelected = _selectedTierIndex == index;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildTicketTierCard(tier, isSelected, index),
-                      );
-                    }),
+                    if (_tiers.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.info_outline, color: AppColors.textGrey, size: 20),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Kategori tiket untuk konser ini sedang disiapkan oleh promotor.',
+                                style: TextStyle(fontSize: 13, color: AppColors.textGrey),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      ...List.generate(_tiers.length, (index) {
+                        final tier = _tiers[index];
+                        final isSelected = _selectedTierIndex == index;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _buildTicketTierCard(tier, isSelected, index),
+                        );
+                      }),
 
                     const SizedBox(height: 100),
                   ],
@@ -492,6 +515,8 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
   }
 
   Widget _buildBottomBar() {
+    final tier = _selectedTier;
+    final hasTier = tier != null;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: const BoxDecoration(
@@ -513,7 +538,11 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _selectedTier.formattedPrice,
+                    hasTier
+                        ? tier.formattedPrice
+                        : (widget.concert.price > 0
+                            ? widget.concert.formattedPrice
+                            : 'Rp 0'),
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -527,19 +556,23 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
             SizedBox(
               height: 48,
               child: ElevatedButton(
-                onPressed: _onOrderTicketPressed,
+                onPressed: hasTier && !tier.isSoldOut ? _onOrderTicketPressed : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   elevation: 0,
+                  disabledBackgroundColor: const Color(0xFFE2E8F0),
+                  disabledForegroundColor: const Color(0xFF94A3B8),
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                child: const Text(
-                  'Pesan tiket',
-                  style: TextStyle(
+                child: Text(
+                  !hasTier
+                      ? 'Tiket Belum Tersedia'
+                      : (tier.isSoldOut ? 'Tiket Habis' : 'Pesan tiket'),
+                  style: const TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w600,
                   ),

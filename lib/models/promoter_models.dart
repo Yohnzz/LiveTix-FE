@@ -182,6 +182,7 @@ class PromoterConcertItem {
   final ConcertStatus status;
   final String likesCount;
   final List<PromoterTicketTier> tiers;
+  final List<String> gates;
 
   // Cancellation and Refund fields
   final ConcertCancellationStatus cancellationStatus;
@@ -213,20 +214,21 @@ class PromoterConcertItem {
     this.posterFileName = 'poster_harmoni_final.png',
     this.squareLogoFileName = 'logo_soundwave_square.png',
     this.status = ConcertStatus.disetujui,
-    this.likesCount = '4.2k',
+    this.likesCount = '0',
     this.tiers = const [],
+    this.gates = const ['Gate A (Utama)', 'Gate B (Festival)', 'Gate C (Tribun)'],
     this.cancellationStatus = ConcertCancellationStatus.none,
     this.cancellationCategory = 'Perizinan',
     this.cancellationReason = '',
     this.cancellationAttachment,
     this.cancellationSubmissionDate = '19 Okt 2026, 14:02',
     this.cancellationApprovalDate = '20 Okt 2026, 09:15',
-    this.ticketsSold = 4200,
-    this.affectedBuyersCount = 1860,
-    this.totalRefundAmount = 2115000000,
-    this.refundDoneCount = 2940,
-    this.refundProcessingCount = 1050,
-    this.refundPendingAccountCount = 210,
+    this.ticketsSold = 0,
+    this.affectedBuyersCount = 0,
+    this.totalRefundAmount = 0,
+    this.refundDoneCount = 0,
+    this.refundProcessingCount = 0,
+    this.refundPendingAccountCount = 0,
     this.isCompleted = false,
     this.grossRevenue = 0,
     this.rejectionReason,
@@ -253,7 +255,14 @@ class PromoterConcertItem {
     if (ticketsSold > 0 && tiers.isNotEmpty) {
       return ticketsSold * tiers.first.price;
     }
-    return estimatedRevenue;
+    return 0;
+  }
+
+  int get remainingTickets =>
+      (totalCapacity - ticketsSold).clamp(0, totalCapacity);
+
+  String get formattedRemainingTickets {
+    return '${PromoterTicketTier.formatNumber(remainingTickets)} Tiket';
   }
 
   String get formattedGrossRevenue {
@@ -296,6 +305,7 @@ class PromoterConcertItem {
     ConcertStatus? status,
     String? likesCount,
     List<PromoterTicketTier>? tiers,
+    List<String>? gates,
     ConcertCancellationStatus? cancellationStatus,
     String? cancellationCategory,
     String? cancellationReason,
@@ -327,6 +337,7 @@ class PromoterConcertItem {
       status: status ?? this.status,
       likesCount: likesCount ?? this.likesCount,
       tiers: tiers ?? this.tiers,
+      gates: gates ?? this.gates,
       cancellationStatus: cancellationStatus ?? this.cancellationStatus,
       cancellationCategory: cancellationCategory ?? this.cancellationCategory,
       cancellationReason: cancellationReason ?? this.cancellationReason,
@@ -425,6 +436,10 @@ class PromoterConcertItem {
       ),
       likesCount: json['likes_count']?.toString() ?? '0',
       tiers: tiersList,
+      gates: (json['gates'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const ['Gate A (Utama)', 'Gate B (Festival)', 'Gate C (Tribun)'],
       ticketsSold: (json['tickets_sold'] as num?)?.toInt() ?? 0,
       isCompleted: (json['is_completed'] as bool?) ?? false,
       grossRevenue: (json['gross_revenue'] as num?)?.toInt() ?? 0,
@@ -477,6 +492,7 @@ class PromoterConcertItem {
           : 0,
       'likes_count': numericLikes,
       'tickets_sold': ticketsSold,
+      'gates': gates,
       'is_completed': isCompleted,
       'gross_revenue': resolvedGrossRevenue,
       if (rejectionReason != null) 'rejection_reason': rejectionReason,

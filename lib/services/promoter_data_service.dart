@@ -4,6 +4,7 @@ import '../models/promoter_models.dart';
 import '../utils/local_storage.dart';
 import 'admin_service.dart';
 import 'data_service.dart';
+import 'payment_gateway_service.dart';
 import 'supabase_service.dart';
 
 class PromoterDataService {
@@ -21,6 +22,8 @@ class PromoterDataService {
   final ValueNotifier<bool> isDarkModeNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<int> activeBalanceNotifier =
       ValueNotifier<int>(1845000000);
+  final ValueNotifier<int> pendingBalanceNotifier =
+      ValueNotifier<int>(450000000);
   final ValueNotifier<List<PromoterTransactionItem>> transactionsNotifier =
       ValueNotifier<List<PromoterTransactionItem>>([]);
   final ValueNotifier<List<PromoterConcertFinanceSummary>>
@@ -116,34 +119,25 @@ class PromoterDataService {
 
   final int quotaMax = 3;
 
-  // Dashboard Metrics (Computed dynamically from database when Supabase is initialized)
+  // Dashboard Metrics (Dihitung akurat dari data konser & pesanan yang lunas)
   int get totalConcerts {
-    if (SupabaseService.isInitialized) {
-      return concertsNotifier.value.length;
-    }
-    return 12;
+    return concertsNotifier.value.length;
   }
 
   int get ticketsSold {
-    if (SupabaseService.isInitialized) {
-      return concertsNotifier.value.fold<int>(
-        0,
-        (sum, c) => sum + c.ticketsSold,
-      );
-    }
-    return 8450;
+    return concertsNotifier.value.fold<int>(
+      0,
+      (sum, c) => sum + c.ticketsSold,
+    );
   }
 
   final String ticketsSoldGrowth = '+15% bulan ini';
 
   int get totalRevenue {
-    if (SupabaseService.isInitialized) {
-      return concertsNotifier.value.fold<int>(
-        0,
-        (sum, c) => sum + c.resolvedGrossRevenue,
-      );
-    }
-    return 2115000000;
+    return concertsNotifier.value.fold<int>(
+      0,
+      (sum, c) => sum + c.resolvedGrossRevenue,
+    );
   }
 
   final double revenueGrowth = 8.2;
@@ -237,13 +231,13 @@ class PromoterDataService {
         status: ConcertStatus.disetujui,
         likesCount: '4.2k',
         posterFileName: 'poster_soundwave.png',
-        ticketsSold: 4200,
-        grossRevenue: 1050000000,
-        affectedBuyersCount: 1860,
-        totalRefundAmount: 2115000000,
-        refundDoneCount: 2940,
-        refundProcessingCount: 1050,
-        refundPendingAccountCount: 210,
+        ticketsSold: 0,
+        grossRevenue: 0,
+        affectedBuyersCount: 0,
+        totalRefundAmount: 0,
+        refundDoneCount: 0,
+        refundProcessingCount: 0,
+        refundPendingAccountCount: 0,
         cancellationSubmissionDate: '19 Okt 2026, 14:02',
         cancellationApprovalDate: '20 Okt 2026, 09:15',
         cancellationReason:
@@ -349,44 +343,8 @@ class PromoterDataService {
       ),
     ];
 
-    concertFinanceSummariesNotifier.value = [
-      const PromoterConcertFinanceSummary(
-        id: 'c-1',
-        concertTitle: 'Soundwave Fest 2026',
-        ticketsSold: 4200,
-        totalCapacity: 5000,
-        grossAmount: 1050000000,
-        systemFeePercent: 5.0,
-        systemFeeAmount: 52500000,
-        netAmount: 997500000,
-        vipTicketsSold: 800,
-        vipGross: 400000000,
-        festivalTicketsSold: 3400,
-        festivalGross: 650000000,
-        payoutStatus: 'Payout Sukses',
-        transferDestination: 'Ditransfer ke Mandiri (***8842)',
-        transferDate: '15 Oktober 2026',
-        payoutTransactionId: '#TX-PY9088312',
-      ),
-      const PromoterConcertFinanceSummary(
-        id: 'c-2',
-        concertTitle: 'Java Jazz Tribute 2026',
-        ticketsSold: 4250,
-        totalCapacity: 4250,
-        grossAmount: 1065000000,
-        systemFeePercent: 5.0,
-        systemFeeAmount: 53250000,
-        netAmount: 1011750000,
-        vipTicketsSold: 1250,
-        vipGross: 500000000,
-        festivalTicketsSold: 3000,
-        festivalGross: 565000000,
-        payoutStatus: 'Payout Sukses',
-        transferDestination: 'Ditransfer ke BCA (***9901)',
-        transferDate: '10 Oktober 2026',
-        payoutTransactionId: '#TX-PY9081120',
-      ),
-    ];
+    concertFinanceSummariesNotifier.value = [];
+    _rebuildFinanceSummariesFromConcerts();
   }
 
   void toggleTheme() {
@@ -505,6 +463,16 @@ class PromoterDataService {
           }
         }
       }
+
+      // Ambil saldo ledger realtime (saldo tertahan dan saldo tersedia)
+      PaymentGatewayService().getPromoterBalance(targetId).then((bal) {
+        if (bal.availableBalance > 0 || bal.pendingBalance > 0) {
+          activeBalanceNotifier.value = bal.availableBalance;
+          pendingBalanceNotifier.value = bal.pendingBalance;
+        }
+      }).catchError((err) {
+        debugPrint('Error getPromoterBalance: $err');
+      });
     } catch (e) {
       debugPrint('Error loadProducerProfileFromSupabase: $e');
     }
@@ -530,6 +498,42 @@ class PromoterDataService {
     if (!SupabaseService.isInitialized) return;
     try {
       final currentUserId = DataService().currentUser?.id;
+
+      // Ambil metrik penjualan aktual langsung dari tabel orders / tickets Supabase
+      final Map<String, int> actualSoldMap = {};
+      final Map<String, int> actualRevenueMap = {};
+      try {
+        final paidOrders = await SupabaseService.client
+            .from('orders')
+            .select('concert_id, quantity, gross_amount, total_amount')
+            .eq('payment_status', 'PAID');
+        for (final o in paidOrders) {
+          final cid = o['concert_id']?.toString() ?? '';
+          if (cid.isNotEmpty) {
+            final qty = (o['quantity'] as num?)?.toInt() ?? 1;
+            final rev = ((o['gross_amount'] ?? o['total_amount']) as num?)?.toInt() ?? 0;
+            actualSoldMap[cid] = (actualSoldMap[cid] ?? 0) + qty;
+            actualRevenueMap[cid] = (actualRevenueMap[cid] ?? 0) + rev;
+          }
+        }
+      } catch (errMetrics) {
+        debugPrint('Catat order penjualan Supabase: $errMetrics');
+      }
+
+      try {
+        final paidTickets = await SupabaseService.client
+            .from('tickets')
+            .select('concert_id, qr_scan_quota')
+            .eq('status', 'ACTIVE');
+        for (final t in paidTickets) {
+          final cid = t['concert_id']?.toString() ?? '';
+          if (cid.isNotEmpty && !actualSoldMap.containsKey(cid)) {
+            final qty = (t['qr_scan_quota'] as num?)?.toInt() ?? 1;
+            actualSoldMap[cid] = (actualSoldMap[cid] ?? 0) + qty;
+          }
+        }
+      } catch (_) {}
+
       final response = await SupabaseService.client
           .from('concerts')
           .select('*, ticket_tiers(*)')
@@ -545,6 +549,16 @@ class PromoterDataService {
               row['status'] == 'pending') {
             var parsed = PromoterConcertItem.fromJson(row);
             final cid = parsed.id;
+
+            // Hubungkan penjualan aktual dari database (0 jika belum ada yang terbeli)
+            final actualSold = actualSoldMap[cid] ?? 0;
+            final actualRev = actualRevenueMap[cid] ??
+                (actualSold * (parsed.tiers.isNotEmpty ? parsed.tiers.first.price : 0));
+            parsed = parsed.copyWith(
+              ticketsSold: actualSold,
+              grossRevenue: actualRev,
+            );
+
             final cachedReason =
                 LocalStorage.getString('livetix_concert_rej_reason_$cid');
             final cachedAtStr =
@@ -571,6 +585,21 @@ class PromoterDataService {
       _rebuildFinanceSummariesFromConcerts();
     } catch (err) {
       debugPrint('Error fetch promoter concerts: $err');
+    }
+  }
+
+  /// Mencatat penjualan tiket baru ke memori Produser secara real-time
+  void recordTicketSale(String concertId, int quantity, int grossAmount) {
+    final list = List<PromoterConcertItem>.from(concertsNotifier.value);
+    final idx = list.indexWhere((c) => c.id == concertId);
+    if (idx != -1) {
+      final old = list[idx];
+      list[idx] = old.copyWith(
+        ticketsSold: old.ticketsSold + quantity,
+        grossRevenue: old.resolvedGrossRevenue + grossAmount,
+      );
+      concertsNotifier.value = list;
+      _rebuildFinanceSummariesFromConcerts();
     }
   }
 

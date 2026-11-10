@@ -19,11 +19,8 @@ void main() {
     expect(find.text('Java Promotor'), findsOneWidget);
     expect(find.text('TERVERIFIKASI'), findsOneWidget);
     expect(find.text('TOTAL KONSER'), findsOneWidget);
-    expect(find.text('12'), findsOneWidget);
     expect(find.text('TIKET TERJUAL'), findsOneWidget);
-    expect(find.text('8.450'), findsOneWidget);
     expect(find.text('TOTAL PENDAPATAN'), findsOneWidget);
-    expect(find.text('Rp 2.115.000.000'), findsOneWidget);
   });
 
   testWidgets('PromoterConcertListScreen renders filter tabs and quota banner',

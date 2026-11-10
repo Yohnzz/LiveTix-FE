@@ -152,10 +152,10 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
     const userVenue = PromoterVenueLocation(
       name: 'Lokasi Anda Saat Ini',
       address:
-          'Jl. Sukarno Hatta No. 45, Lowokwaru, Kota Malang, Jawa Timur 65141',
-      city: 'Malang',
-      latitude: -7.9421,
-      longitude: 112.6152,
+          '',
+      city: '',
+      latitude: 0,
+      longitude: 0,
     );
     _selectVenue(userVenue);
   }

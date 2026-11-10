@@ -34,13 +34,19 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
       return;
     }
 
-    final cleanPhone = rawPhone.replaceAll(RegExp(r'[^0-9]'), '');
+    var cleanPhone = rawPhone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '62${cleanPhone.substring(1)}';
+    }
     final message = Uri.encodeComponent(
       'Halo Admin LiveTix, saya Produser (${PromoterDataService().promoterName}) ingin menghubungi Layanan Bantuan / CS.',
     );
     final url = 'https://wa.me/$cleanPhone?text=$message';
     final opened = await openExternalUrl(url);
-    if (!opened && context.mounted) {
+    if (!opened) {
+      await openExternalUrl('whatsapp://send?phone=$cleanPhone&text=$message');
+    }
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Mengarahkan ke WhatsApp Admin: +$cleanPhone'),

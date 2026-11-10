@@ -231,6 +231,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'ConcertDetailScreen'),
         builder: (_) => ConcertDetailScreen(
           concert: concert,
           isGuest: widget.isGuest,

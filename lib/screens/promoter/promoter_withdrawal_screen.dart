@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/promoter_models.dart';
+import '../../services/data_service.dart';
+import '../../services/payment_gateway_service.dart';
 import '../../services/promoter_data_service.dart';
 import 'promoter_withdrawal_history_screen.dart';
 import 'widgets/responsive_promoter_wrapper.dart';
@@ -52,6 +54,12 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
 
     if (_parsedAmount <= 0) {
       setState(() => _errorMessage = 'Nominal penarikan harus lebih dari Rp 0.');
+      return;
+    }
+
+    if (_parsedAmount < 50000) {
+      setState(() =>
+          _errorMessage = 'Nominal penarikan minimum ke rekening/e-wallet adalah Rp 50.000.');
       return;
     }
 
@@ -273,10 +281,19 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
 
   void _executeWithdrawal() {
     final service = PromoterDataService();
+    final user = DataService().currentUser;
     service.withdrawBalance(
       amount: _parsedAmount,
       targetBank: 'BCA',
       targetAccount: '***9901',
+    );
+
+    PaymentGatewayService().requestProducerWithdrawal(
+      producerId: user?.id ?? 'b0000000-0000-0000-0000-000000000002',
+      amount: _parsedAmount,
+      bankName: 'BCA',
+      accountNumber: '880812345678',
+      accountName: service.promoterName,
     );
 
     showDialog(
@@ -472,6 +489,44 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
                                     fontWeight: FontWeight.w800,
                                     color: Color(0xFF1B2A8C), // Navy
                                     letterSpacing: -0.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isDarkMode
+                                        ? Colors.black26
+                                        : const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: cardBorder),
+                                  ),
+                                  child: ValueListenableBuilder<int>(
+                                    valueListenable:
+                                        service.pendingBalanceNotifier,
+                                    builder: (context, pending, _) {
+                                      return Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.lock_clock_rounded,
+                                            size: 15,
+                                            color: Color(0xFFF59E0B),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              'Saldo Tertahan: Rp${PromoterTicketTier.formatNumber(pending)} (Konser Belum Selesai)',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: subtextColor,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
                                   ),
                                 ),
                               ],

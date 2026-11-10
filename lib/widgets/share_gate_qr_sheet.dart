@@ -83,9 +83,7 @@ class _ShareGateQrSheetState extends State<ShareGateQrSheet> {
       return _cachedPngBytes!;
     }
     if (QrShare.testOverride != null) {
-      final assetData =
-          await rootBundle.load(AppQrCodeView.defaultTestingAssetPath);
-      return assetData.buffer.asUint8List();
+      return _fallbackPngBytes;
     }
     final generated = await GateQrImageGenerator.generatePngBytes(widget.ticket);
     if (generated.isNotEmpty) {
@@ -314,6 +312,11 @@ class _ShareGateQrSheetState extends State<ShareGateQrSheet> {
                           child: Column(
                             children: [
                               AppQrCodeView(
+                                qrData: (ticket.qrData != null && ticket.qrData!.isNotEmpty)
+                                    ? ticket.qrData
+                                    : (ticket.bookingCode.isNotEmpty
+                                        ? ticket.bookingCode
+                                        : ticket.id),
                                 qrCodeUrl: ticket.qrCodeUrl,
                                 qrCodeBytes: ticket.qrCodeBytes,
                                 size: 164,

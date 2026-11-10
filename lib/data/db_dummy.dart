@@ -518,50 +518,6 @@ class DbDummy {
     ),
   ];
 
-  // 6. Data Tiket Awal Pengguna
-  static final List<UserTicketModel> initialUserTickets = [
-    const UserTicketModel(
-      id: 'TKT-001',
-      bookingCode: 'SWF-8891-2A',
-      concertTitle: 'Soundwave Fest 2026',
-      concertSubtitle: '12 Okt · Stadion Gajayana',
-      category: 'Festival',
-      date: '12 Okt 2026',
-      time: '17.00 WIB',
-      gate: 'Gate B',
-      block: 'FEST-04',
-      venue: 'Stadion Gajayana, Malang',
-      quantity: 2,
-      totalPrice: 715000,
-      status: 'Aktif',
-      isCompleted: false,
-      daysLeft: 26,
-      hasStar: true,
-      stripeColor: Color(0xFF1B2A8C),
-      iconBgColor: Color(0xFFE0EAFF),
-      iconColor: Color(0xFF1B2A8C),
-    ),
-    const UserTicketModel(
-      id: 'TKT-002',
-      bookingCode: 'NDN-3341-8X',
-      concertTitle: 'Nadin Amizah Live',
-      concertSubtitle: '20 Okt · Sasana Krida',
-      category: 'Tribun',
-      date: '20 Okt 2026',
-      time: '19.30 WIB',
-      gate: 'Gate A',
-      block: 'TRI-02',
-      venue: 'Sasana Krida, Malang',
-      quantity: 1,
-      totalPrice: 196500,
-      status: 'Reffund',
-      isCompleted: false,
-      isCancelled: true,
-      daysLeft: 34,
-      hasStar: false,
-      stripeColor: Color(0xFFC2185B),
-      iconBgColor: Color(0xFFFCE7F3),
-      iconColor: Color(0xFFC2185B),
-    ),
-  ];
+  // 6. Data Tiket Awal Pengguna (Kosong secara default agar pengguna baru tidak memiliki tiket dummy)
+  static const List<UserTicketModel> initialUserTickets = [];
 }

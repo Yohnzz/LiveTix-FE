@@ -265,6 +265,7 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
             child: Column(
               children: [
                 AppQrCodeView(
+                  qrData: _issuedTicket.effectiveQrData,
                   qrCodeUrl: _issuedTicket.qrCodeUrl,
                   qrCodeBytes: _issuedTicket.qrCodeBytes,
                   size: 160,

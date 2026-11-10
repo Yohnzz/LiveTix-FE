@@ -37,6 +37,24 @@ class GateCrewAssignmentModel {
         'gate_name': gateName,
         'assigned_at': assignedAt.toIso8601String(),
       };
+
+  GateCrewAssignmentModel copyWith({
+    String? id,
+    String? concertId,
+    String? concertTitle,
+    String? venue,
+    String? gateName,
+    DateTime? assignedAt,
+  }) {
+    return GateCrewAssignmentModel(
+      id: id ?? this.id,
+      concertId: concertId ?? this.concertId,
+      concertTitle: concertTitle ?? this.concertTitle,
+      venue: venue ?? this.venue,
+      gateName: gateName ?? this.gateName,
+      assignedAt: assignedAt ?? this.assignedAt,
+    );
+  }
 }
 
 class GateCrewMemberModel {

@@ -6,6 +6,7 @@ import '../models/promoter_models.dart';
 import '../utils/local_storage.dart';
 import 'data_service.dart';
 import 'gate_crew_service.dart';
+import 'payment_gateway_service.dart';
 import 'promoter_data_service.dart';
 import 'supabase_service.dart';
 
@@ -1555,6 +1556,11 @@ class AdminService {
           });
       _recomputeRefundsFromConcerts(concertsNotifier.value);
       _rebuildNotificationsFromDatabase();
+      // Kunci dana dan balikkan biaya admin 3% di ledger keuangan
+      PaymentGatewayService().cancelConcertAndLockFunds(
+        concertId: id,
+        reason: 'Pembatalan konser disetujui oleh admin',
+      );
     }
 
     // 2. Sync ke PromoterDataService

@@ -193,9 +193,13 @@ class GateCrewService {
       } catch (_) {}
 
       final Map<String, GateCrewAssignmentModel> assignmentMap = {};
+      final Map<String, GateCrewAssignmentModel> assignmentByEmail = {};
       for (final a in assignments) {
         final crewId = (a['crew_id'] ?? a['crew_user_id'])?.toString();
-        if (crewId != null && crewId.isNotEmpty) {
+        final crewEmail =
+            (a['crew_email'] ?? '')?.toString().trim().toLowerCase();
+        if ((crewId != null && crewId.isNotEmpty) ||
+            (crewEmail != null && crewEmail.isNotEmpty)) {
           final rawConcert = a['concerts'];
           final concertTitle = rawConcert is Map
               ? (rawConcert['title'] as String? ??
@@ -206,7 +210,7 @@ class GateCrewService {
                   (a['venue'] as String? ?? 'Venue Konser'))
               : (a['venue'] as String? ?? 'Venue Konser');
 
-          assignmentMap[crewId] = GateCrewAssignmentModel(
+          final model = GateCrewAssignmentModel(
             id: a['id']?.toString() ?? '',
             concertId: a['concert_id']?.toString() ?? '',
             concertTitle: concertTitle,
@@ -217,6 +221,13 @@ class GateCrewService {
                     (a['assigned_at'] ?? a['created_at'])?.toString() ?? '') ??
                 DateTime.now(),
           );
+
+          if (crewId != null && crewId.isNotEmpty) {
+            assignmentMap[crewId] = model;
+          }
+          if (crewEmail != null && crewEmail.isNotEmpty) {
+            assignmentByEmail[crewEmail] = model;
+          }
         }
       }
 
@@ -265,7 +276,9 @@ class GateCrewService {
           producerId: rawProducerId,
           producerName: rawProducerName,
           producerEmail: rawProducerEmail,
-          activeAssignment: assignmentMap[id] ?? cached?.activeAssignment,
+          activeAssignment: assignmentMap[id] ??
+              assignmentByEmail[email] ??
+              cached?.activeAssignment,
         ));
       }
 
@@ -626,6 +639,8 @@ class GateCrewService {
     required String concertTitle,
     required String venue,
     String gateName = 'Gate A',
+    String? crewEmail,
+    String? crewName,
   }) async {
     final assignment = GateCrewAssignmentModel(
       id: 'cgc-${DateTime.now().millisecondsSinceEpoch}',
@@ -638,6 +653,14 @@ class GateCrewService {
 
     final current = List<GateCrewMemberModel>.from(teamCrewNotifier.value);
     final idx = current.indexWhere((c) => c.id == crewId);
+    final member = idx != -1 ? current[idx] : null;
+    final resolvedEmail = (crewEmail?.trim().isNotEmpty == true)
+        ? crewEmail!.trim().toLowerCase()
+        : (member?.email.trim().toLowerCase() ?? '');
+    final resolvedName = (crewName?.trim().isNotEmpty == true)
+        ? crewName!.trim()
+        : (member?.name ?? 'Petugas Gate');
+
     if (idx != -1) {
       current[idx] = current[idx].copyWith(activeAssignment: assignment);
       teamCrewNotifier.value = current;
@@ -655,6 +678,8 @@ class GateCrewService {
           'venue': venue,
           'crew_id': crewId,
           if (isUuid) 'crew_user_id': crewId,
+          if (resolvedEmail.isNotEmpty) 'crew_email': resolvedEmail,
+          if (resolvedName.isNotEmpty) 'crew_name': resolvedName,
           'gate_name': gateName,
           'gate_section': gateName,
           'assigned_at': assignment.assignedAt.toIso8601String(),
@@ -672,6 +697,7 @@ class GateCrewService {
   }) async {
     final current = List<GateCrewMemberModel>.from(teamCrewNotifier.value);
     final idx = current.indexWhere((c) => c.id == crewId);
+    final email = idx != -1 ? current[idx].email.trim().toLowerCase() : '';
     if (idx != -1) {
       current[idx] = current[idx].copyWith(clearAssignment: true);
       teamCrewNotifier.value = current;
@@ -680,18 +706,163 @@ class GateCrewService {
 
     if (SupabaseService.isInitialized) {
       try {
-        await SupabaseService.client
+        var query = SupabaseService.client
             .from('concert_gate_crews')
             .delete()
-            .eq('concert_id', concertId)
-            .or('crew_id.eq.$crewId,crew_user_id.eq.$crewId');
+            .eq('concert_id', concertId);
+        if (email.isNotEmpty) {
+          await query.or(
+              'crew_id.eq.$crewId,crew_user_id.eq.$crewId,crew_email.ilike.$email');
+        } else {
+          await query.or('crew_id.eq.$crewId,crew_user_id.eq.$crewId');
+        }
       } catch (e) {
         debugPrint('Error removeCrewFromConcert Supabase: $e');
       }
     }
   }
 
-  /// Cek apakah user Gate Crew yang sedang login memiliki tugas aktif
+  /// Produser mengundang Gate Crew baru dan langsung menugaskannya ke pos gate tertentu
+  Future<GateCrewMemberModel> inviteAndAssignCrewByProducer({
+    required String concertId,
+    required String concertTitle,
+    required String email,
+    required String name,
+    required String phone,
+    required String gateName,
+  }) async {
+    final baseTs = DateTime.now().millisecondsSinceEpoch;
+    final newId = _generateValidUuid(baseTs);
+    final resolvedName = name.trim().isNotEmpty ? name.trim() : 'Crew Gate';
+    final resolvedEmail = email.trim().toLowerCase();
+    final resolvedPhone = phone.trim().isNotEmpty ? phone.trim() : '-';
+
+    final assignment = GateCrewAssignmentModel(
+      id: 'cgc-$baseTs',
+      concertId: concertId,
+      concertTitle: concertTitle,
+      venue: 'Stadion Utama',
+      gateName: gateName,
+      assignedAt: DateTime.now(),
+    );
+
+    final member = GateCrewMemberModel(
+      id: newId,
+      name: resolvedName,
+      email: resolvedEmail,
+      phone: resolvedPhone,
+      approvalStatus: 'approved',
+      defaultPassword: defaultSystemCrewPassword,
+      activeAssignment: assignment,
+    );
+
+    final current = List<GateCrewMemberModel>.from(teamCrewNotifier.value);
+    current.insert(0, member);
+    teamCrewNotifier.value = current;
+    _persistToLocalCache(current);
+
+    DataService().registerGateCrewAccountInMemory(
+      id: newId,
+      name: resolvedName,
+      email: resolvedEmail,
+      phone: resolvedPhone,
+      password: defaultSystemCrewPassword,
+    );
+
+    if (SupabaseService.isInitialized) {
+      try {
+        await SupabaseService.client.from('profiles').upsert({
+          'id': newId,
+          'name': resolvedName,
+          'full_name': resolvedName,
+          'email': resolvedEmail,
+          'phone': resolvedPhone,
+          'role': 'Gatecrew',
+          'approval_status': 'approved',
+          'verification_status': 'approved',
+        });
+        await SupabaseService.client.from('concert_gate_crews').upsert({
+          'concert_id': concertId,
+          'crew_id': newId,
+          'crew_email': resolvedEmail,
+          'crew_name': resolvedName,
+          'gate_name': gateName,
+          'gate_section': gateName,
+          'assigned_at': DateTime.now().toIso8601String(),
+        });
+      } catch (e) {
+        debugPrint('Error inviteAndAssignCrewByProducer Supabase: $e');
+      }
+    }
+
+    return member;
+  }
+
+  /// Produser mengubah pos gate penugasan kru tertentu
+  Future<void> updateCrewGateAssignment({
+    required String crewId,
+    required String concertId,
+    required String newGateName,
+  }) async {
+    final current = List<GateCrewMemberModel>.from(teamCrewNotifier.value);
+    final idx = current.indexWhere((c) => c.id == crewId);
+    if (idx != -1 && current[idx].activeAssignment != null) {
+      final updatedAssignment =
+          current[idx].activeAssignment!.copyWith(gateName: newGateName);
+      current[idx] = current[idx].copyWith(activeAssignment: updatedAssignment);
+      teamCrewNotifier.value = current;
+      _persistToLocalCache(current);
+
+      if (SupabaseService.isInitialized) {
+        try {
+          await SupabaseService.client.from('concert_gate_crews').update({
+            'gate_name': newGateName,
+            'gate_section': newGateName,
+          }).eq('concert_id', concertId).eq('crew_email', current[idx].email);
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// Membagi seluruh Gate Crew yang ditugaskan secara merata ke seluruh pos gate yang tersedia
+  Future<void> autoDistributeCrewAcrossGates({
+    required String concertId,
+    required String concertTitle,
+    required List<String> gates,
+  }) async {
+    if (gates.isEmpty) return;
+    final current = List<GateCrewMemberModel>.from(teamCrewNotifier.value);
+    final assigned = current
+        .where((c) =>
+            c.activeAssignment != null &&
+            (c.activeAssignment!.concertId == concertId ||
+                c.activeAssignment!.concertTitle.toLowerCase() ==
+                    concertTitle.toLowerCase()))
+        .toList();
+
+    for (var i = 0; i < assigned.length; i++) {
+      final targetGate = gates[i % gates.length];
+      final crew = assigned[i];
+      final updatedAssignment =
+          crew.activeAssignment!.copyWith(gateName: targetGate);
+      final idx = current.indexWhere((c) => c.id == crew.id);
+      if (idx != -1) {
+        current[idx] = crew.copyWith(activeAssignment: updatedAssignment);
+      }
+      if (SupabaseService.isInitialized) {
+        try {
+          await SupabaseService.client.from('concert_gate_crews').update({
+            'gate_name': targetGate,
+            'gate_section': targetGate,
+          }).eq('concert_id', concertId).eq('crew_email', crew.email);
+        } catch (_) {}
+      }
+    }
+    teamCrewNotifier.value = current;
+    _persistToLocalCache(current);
+  }
+
+  /// Cek apakah user Gate Crew yang sedang login memiliki tugas aktif (memori & cache)
   GateCrewAssignmentModel? getAssignmentForUser(String userId,
       {String? userEmail}) {
     final lowerEmail = userEmail?.trim().toLowerCase();
@@ -705,5 +876,230 @@ class GateCrewService {
       }
     }
     return null;
+  }
+
+  /// Query langsung status penugasan Gate Crew dari tabel `concert_gate_crews` di Supabase
+  Future<GateCrewAssignmentModel?> fetchDirectAssignmentForUser({
+    required String userId,
+    String? userEmail,
+  }) async {
+    if (!SupabaseService.isInitialized) {
+      return getAssignmentForUser(userId, userEmail: userEmail);
+    }
+    try {
+      final lowerEmail = userEmail?.trim().toLowerCase() ?? '';
+      final isUuid = RegExp(
+              r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+          .hasMatch(userId);
+
+      List<dynamic> rows = const [];
+      final baseQuery = SupabaseService.client
+          .from('concert_gate_crews')
+          .select('*, concerts(title, venue, is_active, status)');
+
+      if (isUuid && lowerEmail.isNotEmpty) {
+        rows = await baseQuery.or(
+            'crew_user_id.eq.$userId,crew_id.eq.$userId,crew_email.ilike.$lowerEmail');
+      } else if (isUuid) {
+        rows = await baseQuery.or('crew_user_id.eq.$userId,crew_id.eq.$userId');
+      } else if (lowerEmail.isNotEmpty) {
+        rows = await baseQuery
+            .or('crew_id.eq.$userId,crew_email.ilike.$lowerEmail');
+      } else {
+        rows = await baseQuery.eq('crew_id', userId);
+      }
+
+      if (rows.isNotEmpty) {
+        final a = rows.first;
+        final rawConcert = a['concerts'];
+        final concertTitle = rawConcert is Map
+            ? (rawConcert['title'] as String? ??
+                (a['concert_title'] as String? ?? 'Konser LiveTix'))
+            : (a['concert_title'] as String? ?? 'Konser LiveTix');
+        final venue = rawConcert is Map
+            ? (rawConcert['venue'] as String? ??
+                (a['venue'] as String? ?? 'Venue Konser'))
+            : (a['venue'] as String? ?? 'Venue Konser');
+
+        final assignment = GateCrewAssignmentModel(
+          id: a['id']?.toString() ?? '',
+          concertId: a['concert_id']?.toString() ?? '',
+          concertTitle: concertTitle,
+          venue: venue,
+          gateName:
+              (a['gate_name'] ?? a['gate_section'])?.toString() ?? 'Gate A',
+          assignedAt: DateTime.tryParse(
+                  (a['assigned_at'] ?? a['created_at'])?.toString() ?? '') ??
+              DateTime.now(),
+        );
+
+        // Update ke notifier memori
+        final current = List<GateCrewMemberModel>.from(teamCrewNotifier.value);
+        final idx = current.indexWhere((c) =>
+            c.id == userId ||
+            (lowerEmail.isNotEmpty && c.email.toLowerCase() == lowerEmail));
+        if (idx != -1) {
+          current[idx] = current[idx].copyWith(activeAssignment: assignment);
+          teamCrewNotifier.value = current;
+          _persistToLocalCache(current);
+        }
+        return assignment;
+      }
+    } catch (e) {
+      debugPrint('Error fetchDirectAssignmentForUser Supabase: $e');
+    }
+    return getAssignmentForUser(userId, userEmail: userEmail);
+  }
+
+  /// Catat riwayat check-in tiket ke Supabase `ticket_checkins` dan cache lokal
+  Future<bool> recordTicketCheckIn({
+    required String concertId,
+    required String concertTitle,
+    required String bookingCode,
+    required String attendeeName,
+    required String category,
+    required String gateName,
+    required String crewId,
+    required String crewEmail,
+    required String crewName,
+    required int scannedCount,
+    required int quota,
+    required String status,
+    String? notes,
+  }) async {
+    final entry = {
+      'id': 'chk-${DateTime.now().millisecondsSinceEpoch}',
+      'concert_id': concertId,
+      'concert_title': concertTitle,
+      'ticket_code': bookingCode,
+      'booking_code': bookingCode,
+      'attendee_name': attendeeName,
+      'name': attendeeName,
+      'category': category,
+      'gate_name': gateName,
+      'crew_id': crewId,
+      'crew_email': crewEmail,
+      'crew_name': crewName,
+      'scanned_count': scannedCount,
+      'scannedCount': scannedCount,
+      'quota': quota,
+      'status': status,
+      'notes': notes,
+      'time': 'Baru saja',
+      'bookingCode': bookingCode,
+      'checked_in_at': DateTime.now().toIso8601String(),
+    };
+
+    // Simpan ke cache lokal
+    try {
+      final cacheKey = 'livetix_checkins_${concertId}_$gateName';
+      final existingRaw = LocalStorage.getItem(cacheKey);
+      final List<dynamic> list =
+          existingRaw != null ? jsonDecode(existingRaw) as List<dynamic> : [];
+      list.insert(0, entry);
+      LocalStorage.setItem(cacheKey, jsonEncode(list.take(100).toList()));
+    } catch (_) {}
+
+    // Simpan ke Supabase jika terhubung
+    if (SupabaseService.isInitialized) {
+      try {
+        await SupabaseService.client.from('ticket_checkins').insert({
+          'concert_id': concertId,
+          'concert_title': concertTitle,
+          'ticket_code': bookingCode,
+          'booking_code': bookingCode,
+          'attendee_name': attendeeName,
+          'category': category,
+          'gate_name': gateName,
+          'crew_id': crewId,
+          'crew_email': crewEmail,
+          'crew_name': crewName,
+          'scanned_count': scannedCount,
+          'quota': quota,
+          'status': status,
+          'notes': notes,
+        });
+        return true;
+      } catch (e) {
+        debugPrint('Error recordTicketCheckIn Supabase: $e');
+      }
+    }
+    return true;
+  }
+
+  /// Ambil riwayat log check-in terkini dari database Supabase / cache lokal
+  Future<List<Map<String, dynamic>>> loadCheckInHistory({
+    required String concertId,
+    String gateName = 'Gate A',
+  }) async {
+    if (SupabaseService.isInitialized) {
+      try {
+        final rows = await SupabaseService.client
+            .from('ticket_checkins')
+            .select()
+            .eq('concert_id', concertId)
+            .order('checked_in_at', ascending: false)
+            .limit(30);
+
+        if (rows.isNotEmpty) {
+          return rows.map<Map<String, dynamic>>((r) {
+            return {
+              'name': (r['attendee_name'] ?? 'Pengunjung').toString(),
+              'category': (r['category'] ?? 'Reguler').toString(),
+              'bookingCode':
+                  (r['booking_code'] ?? r['ticket_code'] ?? '-').toString(),
+              'time': 'Tervalidasi',
+              'status': (r['status'] ?? 'Berhasil').toString(),
+              'scannedCount': (r['scanned_count'] as num?)?.toInt() ?? 1,
+              'quota': (r['quota'] as num?)?.toInt() ?? 1,
+            };
+          }).toList();
+        }
+      } catch (e) {
+        debugPrint('Error loadCheckInHistory Supabase: $e');
+      }
+    }
+
+    try {
+      final cacheKey = 'livetix_checkins_${concertId}_$gateName';
+      final raw = LocalStorage.getItem(cacheKey);
+      if (raw != null) {
+        final list = jsonDecode(raw) as List<dynamic>;
+        return list.whereType<Map<String, dynamic>>().toList();
+      }
+    } catch (_) {}
+
+    return const [];
+  }
+
+  /// Ambil ringkasan statistik scan gate dari Supabase
+  Future<Map<String, int>> loadGateCheckInStats({
+    required String concertId,
+  }) async {
+    int checkedIn = 0;
+    int rejected = 0;
+
+    if (SupabaseService.isInitialized) {
+      try {
+        final rows = await SupabaseService.client
+            .from('ticket_checkins')
+            .select('status, scanned_count')
+            .eq('concert_id', concertId);
+
+        for (final r in rows) {
+          final status = (r['status'] ?? '').toString().toLowerCase();
+          if (status.contains('berhasil')) {
+            checkedIn += (r['scanned_count'] as num?)?.toInt() ?? 1;
+          } else if (status.contains('tolak') || status.contains('invalid')) {
+            rejected += 1;
+          }
+        }
+        return {'totalCheckedIn': checkedIn, 'totalRejected': rejected};
+      } catch (e) {
+        debugPrint('Error loadGateCheckInStats Supabase: $e');
+      }
+    }
+
+    return {'totalCheckedIn': checkedIn, 'totalRejected': rejected};
   }
 }

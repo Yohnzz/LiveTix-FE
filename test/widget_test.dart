@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:livetix/core/app_colors.dart';
 import 'package:livetix/data/db_dummy.dart';
 import 'package:livetix/models/ticket_order_model.dart';
@@ -12,7 +13,6 @@ import 'package:livetix/screens/auth/forgot_password_screen.dart';
 import 'package:livetix/screens/auth/login_screen.dart';
 import 'package:livetix/screens/auth/otp_screen.dart';
 import 'package:livetix/screens/auth/reset_password_screen.dart';
-import 'package:livetix/screens/checkout/ewallet_app_screen.dart';
 import 'package:livetix/screens/checkout/order_summary_screen.dart';
 import 'package:livetix/screens/checkout/payment_method_screen.dart';
 import 'package:livetix/screens/checkout/payment_screen.dart';
@@ -663,11 +663,11 @@ void main() {
     await tester.tap(find.text('Pilih Metode'));
     await tester.pumpAndSettle();
     expect(find.byType(PaymentMethodScreen), findsOneWidget);
-    expect(find.text('QRIS'), findsOneWidget);
-    expect(find.text('E-Wallet'), findsOneWidget);
-    expect(find.text('Bank (Virtual Account)'), findsOneWidget);
+    expect(find.text('QRIS (Universal)'), findsOneWidget);
+    expect(find.text('E-Wallet'), findsNothing);
+    expect(find.text('Bank (Virtual Account)'), findsNothing);
 
-    // Pilih QRIS (1 jenis) -> langsung masuk ke menu Barcode QRIS di PaymentScreen
+    // Pilih QRIS (Universal) -> langsung masuk ke menu Barcode QRIS di PaymentScreen
     await tester.tap(find.byKey(const Key('payment_method_qris')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
@@ -675,16 +675,15 @@ void main() {
     expect(find.text('Barcode QRIS'), findsOneWidget);
     expect(find.text('01'), findsOneWidget); // Batas waktu awal 1 jam
     expect(find.byType(AppQrCodeView), findsOneWidget);
-
-    final qrAssetImage = tester.widget<Image>(
+    expect(find.byKey(const Key('download_qris_button')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('download_qris_button')));
+    await tester.pump();
+    expect(
       find.descendant(
         of: find.byType(AppQrCodeView),
-        matching: find.byType(Image),
+        matching: find.byType(QrImageView),
       ),
-    );
-    expect(
-      (qrAssetImage.image as AssetImage).assetName,
-      equals('assets/images/qrcode.png'),
+      findsOneWidget,
     );
 
     // Konfirmasi pembayaran QRIS -> berhasil -> masuk ke PaymentSuccessScreen
@@ -692,6 +691,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1000));
     await tester.pumpAndSettle();
+
+    final simBtn = find.textContaining('Simulasi Bayar Berhasil');
+    if (simBtn.evaluate().isNotEmpty) {
+      await tester.tap(simBtn);
+      await tester.pumpAndSettle();
+    }
 
     expect(find.byType(PaymentSuccessScreen), findsOneWidget);
     expect(find.text('Pembayaran berhasil!'), findsOneWidget);
@@ -745,7 +750,7 @@ void main() {
   });
 
   testWidgets(
-      'Alur Pembayaran E-Wallet (GoPay, DANA, ShopeePay): PIN 6 digit, kembali belum bayar (Menunggu 1 Jam + 2 tombol), dan berhasil langsung ke Menu Tiket',
+      'Alur Pembayaran QRIS Universal: Hanya QRIS yang tampil di pilihan pembayaran, barcode QRIS scannable, dan tombol Unduh QR Code berfungsi baik',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(375, 860);
     tester.view.devicePixelRatio = 1.0;
@@ -757,7 +762,7 @@ void main() {
 
     final concert = DbDummy.concerts[2]; // Feast Live Session
     final order = OrderModel(
-      orderId: 'ORD-EWALLET-902',
+      orderId: 'ORD-QRIS-902',
       concert: concert,
       tier: concert.ticketTiers.first,
       quantity: 2,
@@ -767,6 +772,8 @@ void main() {
       serviceFee: 15000,
       taxAndAdmin: 70500,
       totalAmount: 725500,
+      paymentCategory: PaymentCategory.qris,
+      paymentProvider: 'QRIS',
     );
 
     await tester.pumpWidget(
@@ -774,188 +781,28 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Klik dropdown E-Wallet -> menampilkan GoPay, DANA, dan ShopeePay
-    await tester.tap(find.byKey(const Key('payment_method_ewallet_toggle')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('ewallet_option_gopay')), findsOneWidget);
-    expect(find.byKey(const Key('ewallet_option_dana')), findsOneWidget);
-    expect(find.byKey(const Key('ewallet_option_shopeepay')), findsOneWidget);
-    expect(find.text('GoPay'), findsOneWidget);
-    expect(find.text('DANA'), findsWidgets);
-    expect(find.text('ShopeePay'), findsOneWidget);
+    // Verifikasi bahwa pilihan E-Wallet dan Bank sudah dihapus, hanya QRIS Universal yang tampil
+    expect(find.text('QRIS (Universal)'), findsOneWidget);
+    expect(find.text('E-Wallet'), findsNothing);
+    expect(find.text('Bank (Virtual Account)'), findsNothing);
 
-    // Pilih ShopeePay -> masuk Detail Pembayaran dengan rincian biaya & tombol Lanjut ke Aplikasi ShopeePay
-    await tester.ensureVisible(find.byKey(const Key('ewallet_option_shopeepay')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('ewallet_option_shopeepay')));
+    // Tap QRIS -> masuk ke halaman PaymentScreen
+    await tester.tap(find.byKey(const Key('payment_method_qris')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.byType(PaymentScreen), findsOneWidget);
-    expect(find.text('E-Wallet ShopeePay'), findsOneWidget);
-    expect(find.text('Menunggu pembayaran'), findsOneWidget);
-    expect(find.text('Rincian pembayaran & biaya admin'), findsOneWidget);
-    expect(find.text('Biaya admin & pajak'), findsOneWidget);
-    expect(find.text('Lanjut ke Aplikasi ShopeePay'), findsOneWidget);
+    expect(find.text('Barcode QRIS'), findsOneWidget);
+    expect(find.byType(AppQrCodeView), findsOneWidget);
 
-    // Klik Lanjut ke Aplikasi ShopeePay -> masuk ke simulasi aplikasi ShopeePay
-    await tester.tap(find.byKey(const Key('continue_to_ewallet_app_button')));
+    // Verifikasi tombol Unduh QR Code Pembayaran
+    expect(find.byKey(const Key('download_qris_button')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('download_qris_button')));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
-    expect(find.byType(EWalletPaymentAppScreen), findsOneWidget);
-    expect(find.text('Aplikasi ShopeePay'), findsOneWidget);
-    // Total setelah biaya admin transaksi ShopeePay Rp1.500 ditambahkan: Rp725.500 + Rp1.500 = Rp727.000
-    expect(find.text('Rp727.000'), findsWidgets);
-
-    // Kembali ke menu pembayaran TANPA memasukkan PIN terlebih dahulu
-    await tester.ensureVisible(find.text('Nanti Saja, Kembali ke LiveTix'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Nanti Saja, Kembali ke LiveTix'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
-    expect(find.byType(PaymentScreen), findsOneWidget);
-
-    // Di detail pembayaran kini tampil 2 tombol: Cek Pembayaran & Lanjut ke Aplikasi
-    expect(find.byKey(const Key('check_ewallet_payment_button')), findsOneWidget);
-    expect(find.byKey(const Key('reopen_ewallet_app_button')), findsOneWidget);
-    expect(find.text('Cek Pembayaran'), findsOneWidget);
-    expect(find.text('Lanjut ke Aplikasi'), findsOneWidget);
-
-    // Klik Cek Pembayaran saat belum bayar -> status masih Menunggu pembayaran sesuai batas 1 jam
-    await tester.tap(find.byKey(const Key('check_ewallet_payment_button')));
-    await tester.pump();
-    expect(find.text('Menunggu pembayaran'), findsOneWidget);
-    expect(find.byType(TicketScreen), findsNothing);
-
-    // Klik Lanjut ke Aplikasi kembali -> masukkan PIN 6 digit -> bayar -> kembali ke LiveTix
-    await tester.tap(find.byKey(const Key('reopen_ewallet_app_button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
-    expect(find.byType(EWalletPaymentAppScreen), findsOneWidget);
-
-    await tester.enterText(find.byKey(const Key('ewallet_pin_field')), '123');
-    await tester.ensureVisible(find.byKey(const Key('ewallet_pay_now_button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('ewallet_pay_now_button')));
-    await tester.pump();
-    expect(find.textContaining('Masukkan tepat 6 digit'), findsOneWidget);
-
-    await tester.enterText(find.byKey(const Key('ewallet_pin_field')), '123456');
-    await tester.tap(find.byKey(const Key('ewallet_pay_now_button')));
-    await tester.pump();
-    expect(find.text('Pembayaran ShopeePay Berhasil'), findsOneWidget);
-
-    await tester.ensureVisible(
-      find.byKey(const Key('ewallet_return_to_livetix_button')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('ewallet_return_to_livetix_button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
-    expect(find.byType(PaymentScreen), findsOneWidget);
-    expect(find.text('Pembayaran berhasil'), findsOneWidget);
-
-    // Klik Cek Pembayaran setelah berhasil -> langsung ke Menu Tiket & memunculkan tiket terbeli
-    await tester.tap(find.byKey(const Key('check_ewallet_payment_button')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byType(TicketScreen), findsOneWidget);
-    expect(find.text('Feast Live Session'), findsOneWidget);
-  });
-
-  testWidgets(
-      'Alur Pembayaran Bank (BCA, Mandiri, BRI, SeaBank) menyesuaikan aturan aplikasi tiap bank',
-      (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(375, 860);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    final concert = DbDummy.concerts.first;
-    final order = OrderModel(
-      orderId: 'ORD-BANK-771',
-      concert: concert,
-      tier: concert.ticketTiers.last,
-      quantity: 1,
-      customerName: 'Rafi Firmansyah',
-      customerEmail: 'rafi@email.com',
-      ticketPrice: 220000,
-      serviceFee: 15000,
-      taxAndAdmin: 28500,
-      totalAmount: 263500,
-    );
-
-    await tester.pumpWidget(
-      MaterialApp(home: PaymentMethodScreen(order: order)),
-    );
-    await tester.pumpAndSettle();
-
-    // Buka dropdown Bank -> tampil BCA, Mandiri, BRI, SeaBank
-    await tester.ensureVisible(find.byKey(const Key('payment_method_bank_toggle')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('payment_method_bank_toggle')));
-    await tester.pumpAndSettle();
-    expect(find.text('Bank BCA'), findsOneWidget);
-    expect(find.text('Bank Mandiri'), findsOneWidget);
-    expect(find.text('Bank BRI'), findsOneWidget);
-    expect(find.text('Bank SeaBank'), findsOneWidget);
-
-    // 1. Uji Bank Mandiri (Multipayment kode 89022 via Livin' by Mandiri)
-    await tester.ensureVisible(find.byKey(const Key('bank_option_mandiri')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('bank_option_mandiri')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.byType(PaymentScreen), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byType(PaymentScreen),
-        matching: find.text('MANDIRI'),
-      ),
-      findsOneWidget,
-    );
-    expect(find.textContaining('89022'), findsWidgets);
-    expect(find.textContaining('Multipayment'), findsWidgets);
-    await tester.tap(find.byTooltip('Kembali'));
-    await tester.pumpAndSettle();
-
-    // 2. Uji Bank BRI (BRIVA kode 77889 via BRImo)
-    await tester.ensureVisible(find.byKey(const Key('bank_option_bri')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('bank_option_bri')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.byType(PaymentScreen), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byType(PaymentScreen),
-        matching: find.text('BRI'),
-      ),
-      findsOneWidget,
-    );
-    expect(find.textContaining('BRIVA'), findsWidgets);
-    expect(find.textContaining('BRImo'), findsWidgets);
-    await tester.tap(find.byTooltip('Kembali'));
-    await tester.pumpAndSettle();
-
-    // 3. Uji SeaBank (Aplikasi SeaBank Transfer > Virtual Account kode 7821)
-    await tester.ensureVisible(find.byKey(const Key('bank_option_seabank')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('bank_option_seabank')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.byType(PaymentScreen), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byType(PaymentScreen),
-        matching: find.text('SEABANK'),
-      ),
-      findsOneWidget,
-    );
-    expect(find.textContaining('SeaBank'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets(
-      'Metode Pembayaran Profil: khusus penerimaan refund, cooldown 1 minggu, dan form rekening',
+      'Metode Pembayaran Profil: akun baru belum memiliki rekening refund (tanpa dummy), tanpa tombol simulasi, dan registrasi rekening berhasil',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(375, 860);
     tester.view.devicePixelRatio = 1.0;
@@ -963,8 +810,8 @@ void main() {
 
     final dataService = DataService();
     dataService.loginSync('rafi@email.com', '123456');
-    // Set pembaruan rekening 2 hari yang lalu sehingga cooldown 1 minggu aktif
-    dataService.setRefundAccountCooldownDaysAgo(2);
+    // Akun baru belum memiliki rekening refund terdaftar (null, bukan dummy)
+    dataService.refundAccountNotifier.value = null;
 
     await tester.pumpWidget(
       const MaterialApp(home: RefundPaymentMethodScreen()),
@@ -978,34 +825,27 @@ void main() {
       findsOneWidget,
     );
 
-    // 2. Verifikasi status cooldown 1 minggu (7 hari) aktif dan tombol ubah terkunci (disabled)
-    expect(find.textContaining('Masa Cooldown Aktif'), findsOneWidget);
-    final disabledButton = tester.widget<ElevatedButton>(
+    // 2. Verifikasi state awal akun baru: belum ada rekening (kosong, bukan dummy BCA)
+    expect(find.text('Belum Ada Rekening Refund'), findsOneWidget);
+    expect(find.text('Bank BCA'), findsNothing);
+    expect(find.textContaining('8808'), findsNothing);
+
+    // 3. Verifikasi tombol simulasi developer telah dihapus
+    expect(find.byKey(const Key('simulate_cooldown_reset_button')), findsNothing);
+
+    // 4. Tombol Daftarkan Rekening Refund aktif
+    final registerBtn = tester.widget<ElevatedButton>(
       find.byKey(const Key('edit_refund_account_button')),
     );
-    expect(disabledButton.onPressed, isNull);
+    expect(registerBtn.onPressed, isNotNull);
+    expect(find.text('Daftarkan Rekening Refund'), findsOneWidget);
 
-    // 3. Uji tombol simulasi testing untuk menyelesaikan masa cooldown 1 minggu
-    await tester.ensureVisible(find.byKey(const Key('simulate_cooldown_reset_button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('simulate_cooldown_reset_button')));
-    await tester.pumpAndSettle();
-    expect(find.text('Masa Cooldown Selesai'), findsOneWidget);
-
-    final enabledButton = tester.widget<ElevatedButton>(
-      find.byKey(const Key('edit_refund_account_button')),
-    );
-    expect(enabledButton.onPressed, isNotNull);
-
-    // 4. Klik Ubah Rekening Refund -> membuka modal pengaturan rekening refund
-    await tester.ensureVisible(find.byKey(const Key('edit_refund_account_button')));
-    await tester.pumpAndSettle();
+    // 5. Klik Daftarkan Rekening Refund -> membuka modal pengaturan rekening refund
     await tester.tap(find.byKey(const Key('edit_refund_account_button')));
     await tester.pumpAndSettle();
-
     expect(find.text('Atur Rekening Penerima Refund'), findsOneWidget);
 
-    // Ganti ke E-Wallet DANA
+    // Pilih E-Wallet DANA
     await tester.ensureVisible(find.text('E-Wallet'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('E-Wallet'));
@@ -1033,7 +873,7 @@ void main() {
     await tester.tap(find.byKey(const Key('save_refund_account_submit_button')));
     await tester.pumpAndSettle();
 
-    // 5. Modal tertutup, rekening terverifikasi terdaftar, dan cooldown 1 minggu aktif kembali
+    // 6. Modal tertutup, rekening terdaftar dan masa cooldown 1 minggu aktif
     expect(find.text('Atur Rekening Penerima Refund'), findsNothing);
     expect(find.textContaining('0812 •••• •••• 5432'), findsOneWidget);
     expect(find.textContaining('Masa Cooldown Aktif'), findsOneWidget);
@@ -1062,6 +902,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    // Verifikasi statistik profil: hanya 2 metrik database (Tiket dibeli & Total tiket aktif)
+    expect(find.text('Tiket dibeli'), findsOneWidget);
+    expect(find.text('Total tiket aktif'), findsOneWidget);
+    expect(find.text('Konser dihadiri'), findsNothing);
+    expect(find.text('Ulasan'), findsNothing);
 
     // 1. Verifikasi Bahasa telah dihapus dari PREFERENSI
     expect(find.text('Bahasa'), findsNothing);
@@ -1101,6 +947,26 @@ void main() {
     final dataService = DataService();
     dataService.loginSync('rafi@email.com', '123456');
 
+    // Berikan data tiket nyata pengguna untuk memicu notifikasi tiket
+    dataService.userTicketsNotifier.value = [
+      const UserTicketModel(
+        id: 'tkt-test-1',
+        bookingCode: 'LTX-TEST-01',
+        concertTitle: 'Soundwave Fest 2026',
+        concertSubtitle: '12 Okt · Stadion Gajayana',
+        category: 'Festival',
+        date: '12 Okt 2026',
+        time: '19.00 WIB',
+        gate: 'Gate A',
+        block: 'FEST-01',
+        venue: 'Stadion Gajayana',
+        quantity: 2,
+        totalPrice: 350000,
+        status: 'Aktif',
+        daysLeft: 14,
+      ),
+    ];
+
     await tester.pumpWidget(
       const MaterialApp(
         home: HomeScreen(
@@ -1113,9 +979,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
-    // 1. Verifikasi ikon notifikasi & badge angka 3 hadir di header profil
+    // 1. Verifikasi ikon notifikasi & badge angka hadir di header profil
     expect(find.byIcon(Icons.notifications_outlined), findsOneWidget);
-    expect(find.text('3'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
 
     // 2. Ikon > tetap ada di sebelah kanan notifikasi
     expect(find.byIcon(Icons.chevron_right_rounded), findsWidgets);
@@ -1125,15 +991,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Notifikasi'), findsOneWidget);
-    expect(find.text('3 baru'), findsOneWidget);
+    expect(find.text('2 baru'), findsOneWidget);
     expect(find.text('Tiket Konser Terbit'), findsOneWidget);
-    expect(find.text('Pengingat Konser'), findsOneWidget);
-    expect(find.text('Promo Spesial Presale'), findsOneWidget);
+    expect(find.text('Jadwal Konser'), findsOneWidget);
 
     // Tutup modal notifikasi dengan tap area luar
     await tester.tapAt(const Offset(20, 20));
     await tester.pumpAndSettle();
-    expect(find.text('3 baru'), findsNothing);
+    expect(find.text('2 baru'), findsNothing);
   });
 
   testWidgets(

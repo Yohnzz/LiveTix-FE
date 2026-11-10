@@ -172,6 +172,7 @@ class CancelledTicketDetailScreen extends StatelessWidget {
       child: Column(
         children: [
           AppQrCodeView(
+            qrData: ticket.effectiveQrData,
             qrCodeUrl: ticket.qrCodeUrl,
             qrCodeBytes: ticket.qrCodeBytes,
             size: 124,

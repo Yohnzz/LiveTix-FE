@@ -9,6 +9,7 @@ import '../models/concert_model.dart';
 import '../models/ticket_order_model.dart';
 import '../models/user_model.dart';
 import '../utils/local_storage.dart';
+import '../utils/uuid_utils.dart';
 
 /// Service akses data pusat aplikasi LiveTix.
 /// Bertindak sebagai lapisan abstraksi (Data Access Layer) di atas db_dummy.dart.
@@ -29,15 +30,7 @@ class DataService {
 
   // Rekening khusus penerimaan refund dengan masa cooldown 1 minggu (7 hari) demi keamanan akun
   final ValueNotifier<UserRefundAccount?> refundAccountNotifier =
-      ValueNotifier<UserRefundAccount?>(
-    UserRefundAccount(
-      provider: 'Bank BCA',
-      accountNumber: '8808 1234 5678 9012',
-      accountHolderName: 'Rafi Firmansyah',
-      accountType: 'bank',
-      lastUpdated: DateTime.now().subtract(const Duration(days: 2)),
-    ),
-  );
+      ValueNotifier<UserRefundAccount?>(null);
 
   // Konfigurasi perkiraan biaya admin transaksi per kanal (dapat diatur dinamis oleh admin)
   final Map<String, int> _transactionFees = {
@@ -64,27 +57,57 @@ class DataService {
         : List.from(DbDummy.concerts);
     _cities = List.from(DbDummy.cities);
     _users = List.from(DbDummy.users);
-    userTicketsNotifier.value = SupabaseService.isInitialized
-        ? <UserTicketModel>[]
-        : List.from(DbDummy.initialUserTickets);
+    // Pulihkan tiket tersimpan dari cache lokal jika ada (filter tiket dummy lawas)
+    final savedTicketsRaw = LocalStorage.getString('livetix_saved_user_tickets');
+    if (savedTicketsRaw != null && savedTicketsRaw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(savedTicketsRaw) as List<dynamic>;
+        final cachedTickets = decoded
+            .map((e) => UserTicketModel.fromJson(e as Map<String, dynamic>))
+            .where((t) =>
+                t.id != 'TKT-001' &&
+                t.id != 'TKT-002' &&
+                t.concertTitle != 'Soundwave Fest 2026' &&
+                t.concertTitle != 'Nadin Amizah Live')
+            .toList();
+        userTicketsNotifier.value = cachedTickets;
+      } catch (_) {
+        userTicketsNotifier.value = <UserTicketModel>[];
+      }
+    } else {
+      userTicketsNotifier.value = <UserTicketModel>[];
+    }
     _agreementAccepted = DbDummy.defaultGuestAgreementAccepted ||
         LocalStorage.getBool(LocalStorage.agreementAcceptedKey);
 
-    // Tema tampilan: default Dark pada data dummy sesuai permintaan pengguna
+    // Pulihkan rekening refund yang telah didaftarkan pengguna jika ada
+    final savedRefund = LocalStorage.getString('livetix_saved_refund_account');
+    if (savedRefund != null && savedRefund.isNotEmpty) {
+      try {
+        final map = jsonDecode(savedRefund) as Map<String, dynamic>;
+        refundAccountNotifier.value = UserRefundAccount(
+          provider: map['provider'] as String? ?? 'Bank BCA',
+          accountNumber: map['accountNumber'] as String? ?? '',
+          accountHolderName: map['accountHolderName'] as String? ?? '',
+          accountType: map['accountType'] as String? ?? 'bank',
+          lastUpdated:
+              DateTime.tryParse(map['lastUpdated'] as String? ?? '') ??
+                  DateTime.now(),
+        );
+      } catch (_) {}
+    }
+
+    // Tema tampilan: default Dark
     final savedTheme = LocalStorage.getString('livetix_dark_mode');
     isDarkModeNotifier.value = savedTheme == null ? true : LocalStorage.getBool('livetix_dark_mode');
 
-    // Data konser disukai (Favorit / Love)
+    // Data konser disukai (Favorit / Love) - murni dari penyimpanan pengguna
     final savedFavs = LocalStorage.getStringList('livetix_favorite_ids');
-    if (savedFavs.isNotEmpty) {
-      favoriteConcertIdsNotifier.value = savedFavs.toSet();
-    } else {
-      favoriteConcertIdsNotifier.value =
-          SupabaseService.isInitialized ? <String>{} : {'featured-1', 'c2'};
-    }
+    favoriteConcertIdsNotifier.value = savedFavs.isNotEmpty ? savedFavs.toSet() : <String>{};
 
     if (SupabaseService.isInitialized) {
       fetchConcertsFromSupabase(forceRefresh: true);
+      fetchUserTicketsFromSupabase();
     }
   }
 
@@ -376,10 +399,20 @@ class DataService {
       await Future.delayed(const Duration(milliseconds: 50));
     }
     if (_concerts.isEmpty) {
-      return DbDummy.concerts.first;
+      return const ConcertModel(
+        id: 'no-concert',
+        title: 'Belum Ada Konser',
+        subtitle: 'Segera Hadir di LiveTix',
+        date: 'Segera',
+        time: '',
+        venue: 'LiveTix Arena',
+        price: 0,
+        category: 'Live',
+        tag: 'Segera Hadir',
+      );
     }
     return _concerts.firstWhere(
-      (c) => c.id == 'featured-1',
+      (c) => c.status == 'published' || c.bannerImageUrl != null || c.bannerImageBytes != null,
       orElse: () => _concerts.first,
     );
   }
@@ -391,9 +424,14 @@ class DataService {
     } else {
       await Future.delayed(const Duration(milliseconds: 50));
     }
-    const highlightIds = {'featured-1', 'c4', 'c6', 'c9', 'c2'};
-    final items = _concerts.where((c) => highlightIds.contains(c.id)).toList();
-    return items.isNotEmpty ? items : _concerts.take(5).toList();
+    final featured = _concerts
+        .where((c) =>
+            c.bannerImageUrl != null ||
+            c.bannerImageBytes != null ||
+            c.status == 'published')
+        .toList();
+    if (featured.isNotEmpty) return featured;
+    return _concerts.take(5).toList();
   }
 
   /// Memperbarui aset gambar konser oleh Produser (banner persegi panjang & logo persegi)
@@ -464,6 +502,9 @@ class DataService {
       if (existingUser.role == 'Produser') {
         PromoterDataService().isPinUnlockedThisSession = false;
       }
+      if (SupabaseService.isInitialized) {
+        fetchUserTicketsFromSupabase();
+      }
       return existingUser;
     }
 
@@ -494,6 +535,9 @@ class DataService {
     );
     _users.add(fallback);
     currentUserNotifier.value = fallback;
+    if (SupabaseService.isInitialized) {
+      fetchUserTicketsFromSupabase();
+    }
     return fallback;
   }
 
@@ -524,6 +568,7 @@ class DataService {
 
     if (!SupabaseService.isInitialized) return;
     await fetchConcertsFromSupabase(forceRefresh: true);
+    await fetchUserTicketsFromSupabase();
     try {
       final authUser = SupabaseService.client.auth.currentUser;
       if (authUser == null) {
@@ -626,6 +671,9 @@ class DataService {
       if (user.role == 'Produser') {
         PromoterDataService().isPinUnlockedThisSession = false;
         await PromoterDataService().loadProducerProfileFromSupabase();
+      }
+      if (SupabaseService.isInitialized) {
+        await fetchUserTicketsFromSupabase();
       }
       return user;
     }
@@ -953,8 +1001,12 @@ class DataService {
   /// Logout akun pengguna dan reset state ke mode Guest
   void logout() {
     currentUserNotifier.value = null;
+    userTicketsNotifier.value = <UserTicketModel>[];
+    refundAccountNotifier.value = null;
     PromoterDataService().isPinUnlockedThisSession = false;
     LocalStorage.remove(LocalStorage.savedUserKey);
+    LocalStorage.remove('livetix_saved_user_tickets');
+    LocalStorage.remove('livetix_saved_refund_account');
     if (SupabaseService.isInitialized) {
       try {
         SupabaseService.client.auth.signOut();
@@ -978,23 +1030,102 @@ class DataService {
   /// Mengecek apakah order dengan ID tertentu sudah berhasil dibayar
   bool isOrderPaid(String orderId) => _paidOrderIds.contains(orderId);
 
+  /// Menyimpan pesanan tiket dalam status PENDING (Menunggu Pembayaran)
+  /// agar user dapat melihatnya di tab Tiket Saya dan dapat melanjutkan pembayaran.
+  UserTicketModel addPendingOrderTicket(OrderModel order) {
+    final cleanCode = order.orderId.replaceAll('ORD-', '');
+    final bookingCode = 'LTX-$cleanCode-2A';
+    final existingIndex =
+        userTicketsNotifier.value.indexWhere((t) => t.id == order.orderId);
+
+    final sDate = order.concert.shortDate.replaceAll('null', '').trim();
+    final sVenue = order.concert.venue.replaceAll('null', '').trim();
+    final safeSub = (sDate.isNotEmpty && sVenue.isNotEmpty)
+        ? '$sDate · $sVenue'
+        : (sVenue.isNotEmpty ? sVenue : (sDate.isNotEmpty ? sDate : 'Jadwal Segera Diumumkan'));
+
+    final pendingTicket = UserTicketModel(
+      id: order.orderId,
+      bookingCode: bookingCode,
+      concertTitle: order.concert.title,
+      concertSubtitle: safeSub,
+      category: order.tier.name,
+      date: order.concert.date,
+      time: order.concert.time.isNotEmpty ? order.concert.time : '19.00 WIB',
+      gate: 'Gate B',
+      block: 'FEST-04',
+      venue: order.concert.venue,
+      quantity: order.quantity,
+      totalPrice: order.totalAmount,
+      status: 'Menunggu Pembayaran',
+      isCompleted: false,
+      daysLeft: 14,
+      hasStar: false,
+      stripeColor: const Color(0xFFF59E0B),
+      iconBgColor: const Color(0xFFFEF3C7),
+      iconColor: const Color(0xFFD97706),
+      qrCodeUrl: order.qrCodeUrl,
+      qrCodeBytes: order.qrCodeBytes,
+      qrData: order.qrString,
+      qrScanQuota: order.quantity,
+      paymentMethod: order.paymentMethod,
+      pendingOrder: order,
+    );
+
+    final list = List<UserTicketModel>.from(userTicketsNotifier.value);
+    if (existingIndex != -1) {
+      list[existingIndex] = pendingTicket;
+    } else {
+      list.insert(0, pendingTicket);
+    }
+    userTicketsNotifier.value = list;
+    return pendingTicket;
+  }
+
   /// Menerbitkan tiket konser resmi dari pesanan yang lunas (idempoten berdasarkan orderId).
   /// Satu QR Code diterbitkan per pesanan dengan kuota scan sesuai jumlah tiket (maks 4x scan).
   UserTicketModel completeOrderPayment(OrderModel order) {
     _paidOrderIds.add(order.orderId);
+    final cleanCode = order.orderId.replaceAll('ORD-', '');
+    final bookingCode = 'LTX-$cleanCode-2A';
+
     final existingIndex =
         userTicketsNotifier.value.indexWhere((t) => t.id == order.orderId);
     if (existingIndex != -1) {
-      return userTicketsNotifier.value[existingIndex];
+      final existing = userTicketsNotifier.value[existingIndex];
+      if (existing.status == 'Aktif' && !existing.isPendingPayment) {
+        return existing;
+      }
+      final updatedTicket = existing.copyWith(
+        status: 'Aktif',
+        isCompleted: false,
+        paymentMethod: order.paymentMethod,
+        qrCodeUrl: order.qrCodeUrl,
+        qrCodeBytes: order.qrCodeBytes,
+        qrData: bookingCode,
+        pendingOrder: null,
+      );
+      final list = List<UserTicketModel>.from(userTicketsNotifier.value);
+      list[existingIndex] = updatedTicket;
+      userTicketsNotifier.value = list;
+      _saveUserTicketsToLocalStorage();
+
+      PromoterDataService().recordTicketSale(order.concert.id, order.quantity, order.totalAmount);
+      _syncTicketToSupabase(order, bookingCode, validUserId: currentUser?.id);
+      return updatedTicket;
     }
 
-    final cleanCode = order.orderId.replaceAll('ORD-', '');
-    final bookingCode = 'LTX-$cleanCode-2A';
+    final sDate = order.concert.shortDate.replaceAll('null', '').trim();
+    final sVenue = order.concert.venue.replaceAll('null', '').trim();
+    final safeSub = (sDate.isNotEmpty && sVenue.isNotEmpty)
+        ? '$sDate · $sVenue'
+        : (sVenue.isNotEmpty ? sVenue : (sDate.isNotEmpty ? sDate : 'Jadwal Segera Diumumkan'));
+
     final newTicket = UserTicketModel(
       id: order.orderId,
       bookingCode: bookingCode,
       concertTitle: order.concert.title,
-      concertSubtitle: '${order.concert.shortDate} · ${order.concert.venue}',
+      concertSubtitle: safeSub,
       category: order.tier.name,
       date: order.concert.date,
       time: order.concert.time.isNotEmpty ? order.concert.time : '19.00 WIB',
@@ -1012,12 +1143,233 @@ class DataService {
       iconColor: const Color(0xFF1B2A8C),
       qrCodeUrl: order.qrCodeUrl,
       qrCodeBytes: order.qrCodeBytes,
+      qrData: bookingCode,
       qrScanQuota: order.quantity,
       paymentMethod: order.paymentMethod,
     );
 
     addPurchasedTicket(newTicket);
+    PromoterDataService().recordTicketSale(order.concert.id, order.quantity, order.totalAmount);
+    _syncTicketToSupabase(order, bookingCode, validUserId: currentUser?.id);
     return newTicket;
+  }
+
+  void _syncTicketToSupabase(OrderModel order, String bookingCode, {String? validUserId}) {
+    if (!SupabaseService.isInitialized) return;
+    final rawUserId = validUserId ?? currentUser?.id;
+    final uuidRegex = RegExp(
+        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+    final sanitizedUserId = (rawUserId != null && uuidRegex.hasMatch(rawUserId))
+        ? rawUserId
+        : (SupabaseService.client.auth.currentUser?.id);
+
+    final rawConcertId = order.concert.id;
+    final validConcertUuid = (uuidRegex.hasMatch(rawConcertId)) ? rawConcertId : null;
+    final validTierUuid = UuidUtils.ensureValidUuid(order.tier.id);
+
+    final orderPayload = {
+      'id': order.orderId,
+      if (sanitizedUserId != null) 'user_id': sanitizedUserId,
+      'concert_id': order.concert.id,
+      'tier_id': validTierUuid,
+      'quantity': order.quantity,
+      'subtotal_amount': order.totalAmount,
+      'total_amount': order.totalAmount,
+      'gross_amount': order.totalAmount,
+      'payment_method': order.paymentMethod,
+      'payment_status': 'PAID',
+      'customer_name': order.customerName,
+      'customer_email': order.customerEmail,
+      'paid_at': DateTime.now().toIso8601String(),
+    };
+
+    SupabaseService.client.from('orders').upsert(orderPayload).catchError((err) {
+      debugPrint('Error sync order ke Supabase: $err');
+      final errStr = err.toString();
+      if (errStr.contains('22P02') || errStr.contains('uuid')) {
+        final fallback = Map<String, dynamic>.from(orderPayload)
+          ..remove('user_id')
+          ..remove('concert_id')
+          ..remove('tier_id');
+        SupabaseService.client.from('orders').upsert(fallback).catchError((_) {});
+      }
+    });
+
+    final ticketPayload = {
+      'id': UuidUtils.generateV4(),
+      'order_id': order.orderId,
+      if (sanitizedUserId != null) 'user_id': sanitizedUserId,
+      if (validConcertUuid != null) 'concert_id': validConcertUuid,
+      'tier_id': validTierUuid,
+      'booking_code': bookingCode,
+      'ticket_code': bookingCode,
+      'qr_token': 'LTX-${order.orderId}',
+      'tier_name': order.tier.name,
+      'gate_name': 'Gate A',
+      'venue': order.concert.venue,
+      'concert_title': order.concert.title,
+      'concert_date': order.concert.date,
+      'concert_time':
+          order.concert.time.isNotEmpty ? order.concert.time : '19.00 WIB',
+      'status': 'ACTIVE',
+      'is_active': true,
+      'qr_scan_quota': order.quantity,
+      'qr_scans_used': 0,
+      'scans_used': 0,
+    };
+
+    SupabaseService.client.from('tickets').upsert(ticketPayload).then((_) {
+      fetchUserTicketsFromSupabase();
+    }).catchError((err) {
+      debugPrint('Error sync ticket ke Supabase: $err');
+      final errStr = err.toString();
+      if (errStr.contains('22P02') || errStr.contains('uuid')) {
+        final fallback = Map<String, dynamic>.from(ticketPayload)
+          ..remove('user_id')
+          ..remove('concert_id');
+        SupabaseService.client
+            .from('tickets')
+            .upsert(fallback)
+            .then((_) => fetchUserTicketsFromSupabase())
+            .catchError((e) => debugPrint('Retry fallback ticket error: $e'));
+      }
+    });
+  }
+
+  /// Sinkronisasi tiket resmi pengguna langsung dari tabel tickets Supabase Cloud
+  Future<void> fetchUserTicketsFromSupabase() async {
+    if (!SupabaseService.isInitialized) return;
+    try {
+      final user = currentUser;
+      final rawUserId = user?.id;
+      final uuidRegex = RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+      final validUserId = (rawUserId != null && uuidRegex.hasMatch(rawUserId))
+          ? rawUserId
+          : (SupabaseService.client.auth.currentUser?.id);
+
+      var query = SupabaseService.client.from('tickets').select();
+      if (validUserId != null) {
+        query = query.or('user_id.eq.$validUserId,user_id.is.null');
+      }
+      final List<dynamic> rows =
+          await query.order('issued_at', ascending: false);
+      if (rows.isNotEmpty) {
+        // Ambil data detail pesanan terkait dari tabel orders
+        final Map<String, Map<String, dynamic>> ordersMap = {};
+        try {
+          final orderIds = rows
+              .map((r) => r['order_id']?.toString())
+              .where((id) => id != null && id.isNotEmpty)
+              .toSet()
+              .toList();
+          if (orderIds.isNotEmpty) {
+            final List<dynamic> orderRows = await SupabaseService.client
+                .from('orders')
+                .select('id, total_amount, gross_amount, payment_method, tier_name, created_at')
+                .filter('id', 'in', orderIds);
+            for (final o in orderRows) {
+              final oid = o['id']?.toString();
+              if (oid != null) ordersMap[oid] = Map<String, dynamic>.from(o);
+            }
+          }
+        } catch (_) {}
+
+        final List<UserTicketModel> fetched = [];
+        for (final r in rows) {
+          final quota = (r['qr_scan_quota'] as num?)?.toInt() ?? 1;
+          final statusStr = r['status']?.toString().toUpperCase() ?? 'ACTIVE';
+          final isCompleted = statusStr == 'SUDAH DIPAKAI' || statusStr == 'USED';
+          final displayStatus = isCompleted
+              ? 'Selesai'
+              : ((statusStr == 'DIREFUND' || statusStr == 'REFUNDED')
+                  ? 'Refund Selesai'
+                  : 'Aktif');
+
+          final tCode = r['booking_code']?.toString() ??
+              r['ticket_code']?.toString() ??
+              'LTX-001';
+
+          final rawDate = r['concert_date']?.toString();
+          final cDate = (rawDate != null && rawDate != 'null' && rawDate.trim().isNotEmpty)
+              ? rawDate.trim()
+              : '';
+          final rawVenue = r['venue']?.toString();
+          final vVenue = (rawVenue != null && rawVenue != 'null' && rawVenue.trim().isNotEmpty)
+              ? rawVenue.trim()
+              : '';
+
+          final safeSubtitle = (cDate.isNotEmpty && vVenue.isNotEmpty)
+              ? '$cDate · $vVenue'
+              : (vVenue.isNotEmpty ? vVenue : (cDate.isNotEmpty ? cDate : 'Jadwal Segera Diumumkan'));
+
+          final orderIdStr = r['order_id']?.toString();
+          final orderData = orderIdStr != null ? ordersMap[orderIdStr] : null;
+
+          final realPrice = (orderData?['gross_amount'] as num?)?.toInt() ??
+              (orderData?['total_amount'] as num?)?.toInt() ??
+              (r['price'] as num?)?.toInt() ??
+              0;
+
+          final realPaymentMethod =
+              orderData?['payment_method']?.toString() ?? 'QRIS Universal';
+
+          int daysRemaining = 14;
+          final issuedAt = DateTime.tryParse(r['issued_at']?.toString() ?? '');
+          if (issuedAt != null) {
+            final diff = 30 - DateTime.now().difference(issuedAt).inDays;
+            daysRemaining = diff < 0 ? 0 : diff;
+          }
+
+          fetched.add(UserTicketModel(
+            id: r['order_id']?.toString() ?? r['id'].toString(),
+            bookingCode: tCode,
+            concertTitle: r['concert_title']?.toString() ?? 'Konser LiveTix',
+            concertSubtitle: safeSubtitle,
+            category: r['tier_name']?.toString() ?? orderData?['tier_name']?.toString() ?? 'Reguler',
+            date: cDate.isNotEmpty ? cDate : 'Jadwal Segera Diumumkan',
+            time: r['concert_time']?.toString() ?? '19.00 WIB',
+            gate: r['gate_name']?.toString() ?? 'Gate A',
+            block: 'FEST-01',
+            venue: vVenue.isNotEmpty ? vVenue : 'LiveTix Arena',
+            quantity: quota,
+            totalPrice: realPrice > 0 ? realPrice : 350000,
+            status: displayStatus,
+            isCompleted: isCompleted,
+            daysLeft: daysRemaining,
+            hasStar: true,
+            stripeColor: const Color(0xFF1B2A8C),
+            iconBgColor: const Color(0xFFE0EAFF),
+            iconColor: const Color(0xFF1B2A8C),
+            qrCodeUrl: null,
+            qrData: tCode,
+            qrScanQuota: quota,
+            paymentMethod: realPaymentMethod,
+          ));
+        }
+
+        // Pertahankan SEMUA tiket lokal (baik pending maupun aktif yang baru dibeli) yang belum tersinkron
+        final localRetained = userTicketsNotifier.value
+            .where((t) => !fetched.any((f) => f.id == t.id || (t.bookingCode.isNotEmpty && f.bookingCode == t.bookingCode)))
+            .toList();
+
+        final combined = [...localRetained, ...fetched];
+        userTicketsNotifier.value = combined;
+        _saveUserTicketsToLocalStorage();
+      } else {
+        // Jika belum ada tiket dari Supabase, jangan hapus tiket lokal yang ada!
+        _saveUserTicketsToLocalStorage();
+      }
+    } catch (e) {
+      debugPrint('Error fetchUserTicketsFromSupabase: $e');
+    }
+  }
+
+  void _saveUserTicketsToLocalStorage() {
+    try {
+      final list = userTicketsNotifier.value.map((t) => t.toJson()).toList();
+      LocalStorage.setString('livetix_saved_user_tickets', jsonEncode(list));
+    } catch (_) {}
   }
 
   /// Mengambil tiket pengguna yang aktif dan riwayat
@@ -1042,6 +1394,7 @@ class DataService {
       updated.insert(0, ticket);
     }
     userTicketsNotifier.value = updated;
+    _saveUserTicketsToLocalStorage();
   }
 
   /// Pengajuan refund tiket yang dibatalkan
@@ -1095,13 +1448,28 @@ class DataService {
       return false;
     }
 
-    refundAccountNotifier.value = UserRefundAccount(
+    final newAccount = UserRefundAccount(
       provider: provider,
       accountNumber: accountNumber,
       accountHolderName: accountHolderName,
       accountType: accountType,
       lastUpdated: DateTime.now(),
     );
+    refundAccountNotifier.value = newAccount;
+
+    try {
+      LocalStorage.setString(
+        'livetix_saved_refund_account',
+        jsonEncode({
+          'provider': provider,
+          'accountNumber': accountNumber,
+          'accountHolderName': accountHolderName,
+          'accountType': accountType,
+          'lastUpdated': newAccount.lastUpdated.toIso8601String(),
+        }),
+      );
+    } catch (_) {}
+
     return true;
   }
 

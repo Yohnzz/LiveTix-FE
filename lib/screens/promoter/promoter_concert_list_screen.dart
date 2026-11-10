@@ -1013,7 +1013,9 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
                           Text(
                             concert.isCompleted
                                 ? 'Terjual: ${concert.formattedTicketsSold}'
-                                : '${concert.formattedTotalCapacity} · ${concert.tiers.length} Tier',
+                                : (concert.ticketsSold > 0
+                                    ? '${concert.remainingTickets} / ${concert.totalCapacity} Tiket Tersedia · ${concert.tiers.length} Tier'
+                                    : '${concert.totalCapacity} Tiket · ${concert.tiers.length} Tier'),
                             style: TextStyle(
                               fontSize: 11,
                               color: subtextColor,
@@ -1022,7 +1024,8 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
                           ),
                         ],
                       ),
-                      if (concert.isCompleted || concert.ticketsSold > 0)
+                      if ((concert.isCompleted || concert.ticketsSold > 0) &&
+                          concert.resolvedGrossRevenue > 0)
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 7, vertical: 2),

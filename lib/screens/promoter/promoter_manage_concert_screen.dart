@@ -28,6 +28,201 @@ class _PromoterManageConcertScreenState
   final bool _hasPendingChangeRequest = false;
   final String _pendingChangeSummary = '';
 
+  void _showAddGateDialog(PromoterConcertItem concert, bool isDarkMode) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Tambah Pos Gate Baru',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: 'Contoh: Gate VIP, Gate Barat, dll',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isNotEmpty && !concert.gates.contains(text)) {
+                final updatedGates = [...concert.gates, text];
+                final list = List<PromoterConcertItem>.from(
+                    PromoterDataService().concertsNotifier.value);
+                final idx = list.indexWhere((c) => c.id == concert.id);
+                if (idx != -1) {
+                  list[idx] = concert.copyWith(gates: updatedGates);
+                  PromoterDataService().concertsNotifier.value = list;
+                }
+              }
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1B2A8C),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Tambah Gate'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showInviteCrewDialog(PromoterConcertItem concert, bool isDarkMode) {
+    final nameCtrl = TextEditingController();
+    final emailCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    String selectedGate =
+        concert.gates.isNotEmpty ? concert.gates.first : 'Gate A';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocalState) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text('Invite / Tambah Gate Crew',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Nama Lengkap Crew',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Contoh: Agus Pratama',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('Email Crew',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    hintText: 'crew@livetix.com',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('Nomor HP (WhatsApp)',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    hintText: '08123456789',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('Pos Gate Penugasan',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                DropdownButtonFormField<String>(
+                  initialValue: concert.gates.contains(selectedGate)
+                      ? selectedGate
+                      : (concert.gates.isNotEmpty
+                          ? concert.gates.first
+                          : 'Gate A'),
+                  items: concert.gates
+                      .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) setLocalState(() => selectedGate = val);
+                  },
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final email = emailCtrl.text.trim();
+                final name = nameCtrl.text.trim();
+                if (email.isEmpty) return;
+
+                final newMember =
+                    await GateCrewService().inviteAndAssignCrewByProducer(
+                  concertId: concert.id,
+                  concertTitle: concert.title,
+                  email: email,
+                  name: name.isNotEmpty ? name : 'Crew Gate',
+                  phone: phoneCtrl.text.trim(),
+                  gateName: selectedGate,
+                );
+
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                }
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                          'Gate Crew ${newMember.name} berhasil di-invite dan ditugaskan ke $selectedGate'),
+                      backgroundColor: const Color(0xFF16A34A),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B2A8C),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Simpan & Tugaskan'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _autoDistributeEvenly(PromoterConcertItem concert) async {
+    await GateCrewService().autoDistributeCrewAcrossGates(
+      concertId: concert.id,
+      concertTitle: concert.title,
+      gates: concert.gates,
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Gate Crew berhasil dibagi merata ke ${concert.gates.length} pos gate.'),
+          backgroundColor: const Color(0xFF16A34A),
+        ),
+      );
+    }
+  }
+
   void _showAssignGateCrewDialog(
       PromoterConcertItem concert, bool isDarkMode) {
     final allCrew = GateCrewService().teamCrewNotifier.value;
@@ -41,17 +236,13 @@ class _PromoterManageConcertScreenState
         .toList();
 
     if (availableCrew.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Semua gate crew yang disetujui sudah ditugaskan untuk konser ini atau belum ada kru aktif.'),
-        ),
-      );
+      _showInviteCrewDialog(concert, isDarkMode);
       return;
     }
 
     String selectedCrewId = availableCrew.first.id;
-    String selectedGate = 'Gate A';
+    String selectedGate =
+        concert.gates.isNotEmpty ? concert.gates.first : 'Gate A';
 
     final dialogBgColor =
         isDarkMode ? const Color(0xFF1E293B) : Colors.white;
@@ -196,7 +387,9 @@ class _PromoterManageConcertScreenState
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: selectedGate,
+                        value: concert.gates.contains(selectedGate)
+                            ? selectedGate
+                            : (concert.gates.isNotEmpty ? concert.gates.first : 'Gate A'),
                         isExpanded: true,
                         dropdownColor: dialogBgColor,
                         iconEnabledColor: dialogTextColor,
@@ -205,41 +398,19 @@ class _PromoterManageConcertScreenState
                           fontWeight: FontWeight.w600,
                           color: dialogTextColor,
                         ),
-                        items: [
-                          DropdownMenuItem(
-                            value: 'Gate A',
+                        items: concert.gates.map((g) {
+                          return DropdownMenuItem(
+                            value: g,
                             child: Text(
-                              'Gate A (VIP & Reguler)',
+                              g,
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: dialogTextColor,
                               ),
                             ),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Gate B',
-                            child: Text(
-                              'Gate B (Festival Standing)',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: dialogTextColor,
-                              ),
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Gate C',
-                            child: Text(
-                              'Gate C (Fast Track)',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: dialogTextColor,
-                              ),
-                            ),
-                          ),
-                        ],
+                          );
+                        }).toList(),
                         onChanged: (val) {
                           if (val != null) {
                             setDialogState(() => selectedGate = val);
@@ -1219,6 +1390,127 @@ class _PromoterManageConcertScreenState
                       ],
                     ),
                     const SizedBox(height: 10),
+
+                    // Pos Gate Management & Distribution Card
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.meeting_room_rounded,
+                                      size: 16, color: Color(0xFFC2185B)),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Pos Gate Tersedia (${concert.gates.length})',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              TextButton.icon(
+                                onPressed: () =>
+                                    _showAddGateDialog(concert, isDarkMode),
+                                icon: const Icon(Icons.add_rounded, size: 15),
+                                label: const Text('Tambah Gate'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xFFC2185B),
+                                  textStyle: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700),
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: concert.gates.map((g) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: isDarkMode
+                                      ? const Color(0xFF0F172A)
+                                      : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                      color: isDarkMode
+                                          ? Colors.white24
+                                          : const Color(0xFFE2E8F0)),
+                                ),
+                                child: Text(
+                                  g,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: textColor,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () =>
+                                      _showInviteCrewDialog(concert, isDarkMode),
+                                  icon: const Icon(Icons.person_add_alt_1_rounded,
+                                      size: 15),
+                                  label: const Text('Invite Crewgate'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFFC2185B),
+                                    side: const BorderSide(
+                                        color: Color(0xFFC2185B)),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8)),
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () => _autoDistributeEvenly(concert),
+                                  icon: const Icon(Icons.balance_rounded,
+                                      size: 15),
+                                  label: const Text('Bagi Merata'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF1B2A8C),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8)),
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
                     ValueListenableBuilder<List<GateCrewMemberModel>>(
                       valueListenable: GateCrewService().teamCrewNotifier,
                       builder: (context, teamList, _) {
@@ -1333,17 +1625,43 @@ class _PromoterManageConcertScreenState
                                   ),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
+                                        horizontal: 8, vertical: 2),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFDCFCE7),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: Text(
-                                      assignment?.gateName ?? 'Gate A',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        color: Color(0xFF16A34A),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: concert.gates.contains(assignment?.gateName)
+                                            ? assignment!.gateName
+                                            : (concert.gates.isNotEmpty
+                                                ? concert.gates.first
+                                                : 'Gate A'),
+                                        isDense: true,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF16A34A),
+                                        ),
+                                        icon: const Icon(Icons.arrow_drop_down,
+                                            size: 16,
+                                            color: Color(0xFF16A34A)),
+                                        items: concert.gates.map((g) {
+                                          return DropdownMenuItem(
+                                            value: g,
+                                            child: Text(g),
+                                          );
+                                        }).toList(),
+                                        onChanged: (newGate) async {
+                                          if (newGate != null) {
+                                            await GateCrewService()
+                                                .updateCrewGateAssignment(
+                                              crewId: crew.id,
+                                              concertId: concert.id,
+                                              newGateName: newGate,
+                                            );
+                                          }
+                                        },
                                       ),
                                     ),
                                   ),

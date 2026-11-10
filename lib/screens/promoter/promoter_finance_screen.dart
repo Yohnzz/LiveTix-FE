@@ -220,6 +220,60 @@ class _PromoterFinanceScreenState extends State<PromoterFinanceScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 14),
+                    const Divider(color: Colors.white24, height: 1),
+                    const SizedBox(height: 12),
+                    ValueListenableBuilder<int>(
+                      valueListenable: service.pendingBalanceNotifier,
+                      builder: (context, pendingBalance, _) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.lock_clock_rounded,
+                              size: 16,
+                              color: Color(0xFFFBBF24),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Text(
+                                        'Saldo Tertahan: ',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          color: Colors.white70,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Rp${PromoterTicketTier.formatNumber(pendingBalance)}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFFFDE68A),
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'Dapat ditarik setelah waktu mulai konser terlewati',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.white60,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),

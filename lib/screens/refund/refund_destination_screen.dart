@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/ticket_order_model.dart';
-import '../../services/dummy_data_service.dart';
+import '../../services/data_service.dart';
+import '../../services/payment_gateway_service.dart';
 import 'refund_status_screen.dart';
 
 class RefundDestinationScreen extends StatefulWidget {
@@ -31,11 +32,14 @@ class _RefundDestinationScreenState extends State<RefundDestinationScreen> {
   @override
   void initState() {
     super.initState();
-    final currentUser = DummyDataService().currentUserNotifier.value;
+    final currentUser = DataService().currentUserNotifier.value;
+    final savedAccount = DataService().refundAccountNotifier.value;
     _nameController = TextEditingController(
-      text: currentUser?.name ?? '',
+      text: savedAccount?.accountHolderName ?? currentUser?.name ?? '',
     );
-    _accountNumberController = TextEditingController(text: '8808 1234 5678 9012');
+    _accountNumberController = TextEditingController(
+      text: savedAccount?.accountNumber ?? '',
+    );
   }
 
   @override
@@ -205,12 +209,41 @@ class _RefundDestinationScreenState extends State<RefundDestinationScreen> {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () {
-                    final refund = DummyDataService().submitRefund(
+                    final currentUser = DataService().currentUser;
+                    final now = DateTime.now();
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+                    final nowStr = '${now.day} ${months[now.month - 1]} ${now.year}, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+                    final refundId =
+                        'RFD-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${widget.ticket.bookingCode.replaceAll('-', '')}';
+                    final maskAccount = accountNumber.length >= 4
+                        ? '••${accountNumber.substring(accountNumber.length - 4)}'
+                        : '••$accountNumber';
+
+                    final refund = RefundModel(
+                      refundId: refundId,
                       ticketId: widget.ticket.id,
+                      concertTitle: widget.ticket.concertTitle,
+                      totalAmount: widget.ticket.totalPrice,
                       methodType: methodType,
                       providerName: provider,
                       accountHolderName: accountName,
                       accountNumber: accountNumber,
+                      status: 'Sedang diproses',
+                      requestedAt: nowStr,
+                      verifiedAt: nowStr,
+                      maskAccount: maskAccount,
+                    );
+
+                    DataService().submitRefund(refund);
+
+                    PaymentGatewayService().requestTicketRefund(
+                      ticketId: widget.ticket.id,
+                      userId: currentUser?.id ?? 'u0000000-0000-0000-0000-000000000001',
+                      destinationType: methodType.toUpperCase().contains('BANK') ? 'BANK' : 'EWALLET',
+                      destinationProvider: provider,
+                      destinationAccountNo: accountNumber,
+                      destinationAccountName: accountName,
+                      reason: 'Konser Dibatalkan oleh Penyelenggara',
                     );
 
                     Navigator.pop(ctx); // Tutup bottom sheet

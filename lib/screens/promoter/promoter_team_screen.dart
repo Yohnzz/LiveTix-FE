@@ -30,17 +30,22 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
     GateCrewService().loadTeam();
   }
 
-  List<({String id, String title, String venue})> _getAssignableConcerts() {
+  List<({String id, String title, String venue, List<String> gates})> _getAssignableConcerts() {
     final promoterActive = PromoterDataService()
         .activeConcerts
         .where((c) => c.status == ConcertStatus.disetujui)
-        .map((c) => (id: c.id, title: c.title, venue: c.venueName))
+        .map((c) => (id: c.id, title: c.title, venue: c.venueName, gates: c.gates))
         .toList();
     if (promoterActive.isNotEmpty) return promoterActive;
 
     return DataService()
         .rawConcerts
-        .map((c) => (id: c.id, title: c.title, venue: c.venue))
+        .map((c) => (
+              id: c.id,
+              title: c.title,
+              venue: c.venue,
+              gates: const ['Gate A', 'Gate B', 'Gate C']
+            ))
         .toList();
   }
 
@@ -166,82 +171,152 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
                         }).toList(),
                         onChanged: (val) {
                           if (val != null) {
-                            setDialogState(() => selectedConcertId = val);
+                            setDialogState(() {
+                              selectedConcertId = val;
+                              final c = concerts.firstWhere(
+                                (item) => item.id == val,
+                                orElse: () => concerts.first,
+                              );
+                              if (c.gates.isNotEmpty && !c.gates.contains(selectedGate)) {
+                                selectedGate = c.gates.first;
+                              }
+                            });
                           }
                         },
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Pilih Pos Gate:',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFCBD5E1)),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: selectedGate,
-                        isExpanded: true,
-                        dropdownColor: Colors.white,
-                        iconEnabledColor: const Color(0xFF0F172A),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF0F172A),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Gate A',
-                            child: Text(
-                              'Gate A (VIP & Reguler)',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF0F172A),
+                  Builder(
+                    builder: (context) {
+                      final currentConcert = concerts.firstWhere(
+                        (item) => item.id == selectedConcertId,
+                        orElse: () => concerts.first,
+                      );
+                      final currentGates = currentConcert.gates.isNotEmpty
+                          ? currentConcert.gates
+                          : const ['Gate A', 'Gate B', 'Gate C'];
+                      if (!currentGates.contains(selectedGate)) {
+                        selectedGate = currentGates.first;
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Pilih Pos Gate:',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0F172A),
+                                ),
                               ),
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Gate B',
-                            child: Text(
-                              'Gate B (Festival Standing)',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF0F172A),
+                              TextButton.icon(
+                                onPressed: () {
+                                  final gateCtrl = TextEditingController();
+                                  showDialog(
+                                    context: context,
+                                    builder: (gCtx) => AlertDialog(
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16)),
+                                      title: const Text('Tambah Gate Baru',
+                                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                                      content: TextField(
+                                        controller: gateCtrl,
+                                        decoration: const InputDecoration(
+                                          hintText: 'Cth: Gate VIP / Gate Timur',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(gCtx),
+                                          child: const Text('Batal'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            final newGate = gateCtrl.text.trim();
+                                            if (newGate.isNotEmpty && !currentConcert.gates.contains(newGate)) {
+                                              final list = List<PromoterConcertItem>.from(
+                                                  PromoterDataService().concertsNotifier.value);
+                                              final cIdx = list.indexWhere((c) => c.id == currentConcert.id);
+                                              if (cIdx != -1) {
+                                                final orig = list[cIdx];
+                                                list[cIdx] = orig.copyWith(gates: [...orig.gates, newGate]);
+                                                PromoterDataService().concertsNotifier.value = list;
+                                              }
+                                              setDialogState(() {
+                                                selectedGate = newGate;
+                                              });
+                                            }
+                                            Navigator.pop(gCtx);
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: AppColors.primary,
+                                            foregroundColor: Colors.white,
+                                          ),
+                                          child: const Text('Tambah'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.add, size: 14),
+                                label: const Text('Tambah Gate', style: TextStyle(fontSize: 11.5)),
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: const Size(50, 30),
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
                               ),
-                            ),
+                            ],
                           ),
-                          DropdownMenuItem(
-                            value: 'Gate C',
-                            child: Text(
-                              'Gate C (Fast Track)',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF0F172A),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFCBD5E1)),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: selectedGate,
+                                isExpanded: true,
+                                dropdownColor: Colors.white,
+                                iconEnabledColor: const Color(0xFF0F172A),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF0F172A),
+                                ),
+                                items: currentGates.map((gate) {
+                                  return DropdownMenuItem<String>(
+                                    value: gate,
+                                    child: Text(
+                                      gate,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setDialogState(() => selectedGate = val);
+                                  }
+                                },
                               ),
                             ),
                           ),
                         ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setDialogState(() => selectedGate = val);
-                          }
-                        },
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -1282,9 +1357,11 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
                                 ),
                               ),
                             ] else ...[
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                              Wrap(
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                runSpacing: 8,
+                                spacing: 8,
                                 children: [
                                   const Text(
                                     'Belum ada tugas konser',

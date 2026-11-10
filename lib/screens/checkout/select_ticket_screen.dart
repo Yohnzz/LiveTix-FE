@@ -28,6 +28,7 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
   late TextEditingController _emailController;
 
   late TicketTierModel _selectedTier;
+  late List<TicketTierModel> _availableTiers;
   int _quantity = 2; // Default sesuai Figma (2 tiket)
   final int _maxQuantity = 4;
   final int _serviceFee = 15000;
@@ -60,18 +61,59 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
       _emailController = TextEditingController(text: currentUser.email);
     }
 
+    _availableTiers = widget.concert.ticketTiers.isNotEmpty
+        ? List.from(widget.concert.ticketTiers)
+        : [
+            const TicketTierModel(
+              id: 'c1-vip',
+              name: 'VIP Lounge',
+              description: 'Tempat duduk VIP eksklusif depan panggung',
+              price: 750000,
+            ),
+            const TicketTierModel(
+              id: 'c1-fest',
+              name: 'Festival',
+              description: 'Area berdiri di depan panggung utama',
+              price: 350000,
+            ),
+            const TicketTierModel(
+              id: 'c1-tribun-a',
+              name: 'Tribun A',
+              description: 'Sisi Barat',
+              price: 220000,
+            ),
+            const TicketTierModel(
+              id: 'c1-tribun-b',
+              name: 'Tribun B',
+              description: 'Sisi Timur',
+              price: 220000,
+            ),
+          ];
+
     if (widget.initialTier != null && !widget.initialTier!.isSoldOut) {
       _selectedTier = widget.initialTier!;
     } else {
-      _selectedTier = widget.concert.ticketTiers.firstWhere(
+      _selectedTier = _availableTiers.firstWhere(
         (t) => !t.isSoldOut,
-        orElse: () => const TicketTierModel(
-          id: 'c1-fest',
-          name: 'Festival',
-          description: 'Berdiri depan panggung',
-          price: 350000,
-        ),
+        orElse: () => _availableTiers.first,
       );
+    }
+
+    _loadLiveTiersIfNeeded();
+  }
+
+  Future<void> _loadLiveTiersIfNeeded() async {
+    final live = await DataService().getConcertById(widget.concert.id);
+    if (live != null && live.ticketTiers.isNotEmpty && mounted) {
+      setState(() {
+        _availableTiers = List.from(live.ticketTiers);
+        if (!_availableTiers.any((t) => t.id == _selectedTier.id)) {
+          _selectedTier = _availableTiers.firstWhere(
+            (t) => !t.isSoldOut,
+            orElse: () => _availableTiers.first,
+          );
+        }
+      });
     }
   }
 
@@ -171,50 +213,6 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
   }
 
   Widget _buildVenueMap() {
-    // Menyiapkan tier area panggung dari data konser
-    final vipTier = widget.concert.ticketTiers.firstWhere(
-      (t) => t.id.contains('vip') || t.name.toLowerCase().contains('vip'),
-      orElse: () => const TicketTierModel(
-        id: 'c1-vip',
-        name: 'VIP Lounge',
-        description: 'Tempat duduk VIP eksklusif depan panggung',
-        price: 750000,
-      ),
-    );
-
-    final festTier = widget.concert.ticketTiers.firstWhere(
-      (t) => t.id.contains('fest') || t.name.toLowerCase().contains('fest'),
-      orElse: () => const TicketTierModel(
-        id: 'c1-fest',
-        name: 'Festival',
-        description: 'Area berdiri di depan panggung',
-        price: 350000,
-      ),
-    );
-
-    final tribunATier = widget.concert.ticketTiers.firstWhere(
-      (t) => t.id.contains('tribun-a') || t.name.toLowerCase() == 'tribun a',
-      orElse: () => widget.concert.ticketTiers.firstWhere(
-        (t) => t.name.toLowerCase().contains('tribun'),
-        orElse: () => const TicketTierModel(
-          id: 'c1-tribun-a',
-          name: 'Tribun A',
-          description: 'Tempat duduk bernomor sisi barat',
-          price: 220000,
-        ),
-      ),
-    );
-
-    final tribunBTier = widget.concert.ticketTiers.firstWhere(
-      (t) => t.id.contains('tribun-b') || t.name.toLowerCase() == 'tribun b',
-      orElse: () => const TicketTierModel(
-        id: 'c1-tribun-b',
-        name: 'Tribun B',
-        description: 'Tempat duduk bernomor sisi timur',
-        price: 220000,
-      ),
-    );
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -258,43 +256,8 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
           ),
           const SizedBox(height: 14),
 
-          // 1. Area VIP Lounge (Eksklusif Dekat Panggung)
-          _buildStageAreaCard(
-            tier: vipTier,
-            title: 'VIP LOUNGE',
-            subtitle: 'Tempat duduk VIP eksklusif depan panggung',
-            icon: Icons.star_rounded,
-          ),
-          const SizedBox(height: 10),
-
-          // 2. Area Festival (Depan Panggung)
-          _buildStageAreaCard(
-            tier: festTier,
-            title: 'FESTIVAL',
-            subtitle: 'Area berdiri di depan panggung utama',
-          ),
-          const SizedBox(height: 10),
-
-          // 3 & 4. Area Tribun A (Barat) & Tribun B (Timur)
-          Row(
-            children: [
-              Expanded(
-                child: _buildStageAreaCard(
-                  tier: tribunATier,
-                  title: 'TRIBUN A',
-                  subtitle: 'Sisi Barat',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildStageAreaCard(
-                  tier: tribunBTier,
-                  title: 'TRIBUN B',
-                  subtitle: 'Sisi Timur',
-                ),
-              ),
-            ],
-          ),
+          // Render tier tiket dinamis sesuai konfigurasi produser konser
+          ..._buildDynamicTierCards(),
           const SizedBox(height: 16),
 
           // Legenda Status Pemilihan
@@ -313,6 +276,91 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
     );
   }
 
+  List<Widget> _buildDynamicTierCards() {
+    final widgets = <Widget>[];
+    final tiers = _availableTiers;
+
+    // 1. Prioritaskan tier VIP / VVIP di depan / paling dekat panggung jika ada
+    final vipTiers =
+        tiers.where((t) => t.name.toLowerCase().contains('vip')).toList();
+    final nonVipTiers =
+        tiers.where((t) => !t.name.toLowerCase().contains('vip')).toList();
+
+    for (final vip in vipTiers) {
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: _buildStageAreaCard(
+            tier: vip,
+            title: vip.name.toUpperCase(),
+            subtitle: vip.description.isNotEmpty
+                ? vip.description
+                : 'Tempat duduk VIP eksklusif depan panggung',
+            icon: Icons.star_rounded,
+          ),
+        ),
+      );
+    }
+
+    // 2. Tampilkan tier non-VIP (bila ada nama pendek berpasangan seperti Tribun A & Tribun B)
+    int i = 0;
+    while (i < nonVipTiers.length) {
+      final current = nonVipTiers[i];
+      final isShortName = current.name.length <= 14;
+      final hasNext = i + 1 < nonVipTiers.length;
+      final next = hasNext ? nonVipTiers[i + 1] : null;
+      final isNextShort = next != null && next.name.length <= 14;
+
+      if (hasNext && isShortName && isNextShort && nonVipTiers.length > 2) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildStageAreaCard(
+                    tier: current,
+                    title: current.name.toUpperCase(),
+                    subtitle: current.description.isNotEmpty
+                        ? current.description
+                        : 'Area ${current.name}',
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildStageAreaCard(
+                    tier: next,
+                    title: next.name.toUpperCase(),
+                    subtitle: next.description.isNotEmpty
+                        ? next.description
+                        : 'Area ${next.name}',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        i += 2;
+      } else {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _buildStageAreaCard(
+              tier: current,
+              title: current.name.toUpperCase(),
+              subtitle: current.description.isNotEmpty
+                  ? current.description
+                  : 'Area resmi ${current.name}',
+            ),
+          ),
+        );
+        i += 1;
+      }
+    }
+
+    return widgets;
+  }
+
   Widget _buildStageAreaCard({
     required TicketTierModel tier,
     required String title,
@@ -322,25 +370,36 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
     // Mengecek apakah area ini sedang aktif dipilih
     final isSelected = _selectedTier.id == tier.id ||
         _selectedTier.name.toLowerCase() == tier.name.toLowerCase();
+    final isSoldOut = tier.isSoldOut;
 
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedTier = tier;
-        });
-      },
+      onTap: isSoldOut
+          ? null
+          : () {
+              setState(() {
+                _selectedTier = tier;
+              });
+            },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFECFDF5) : Colors.white,
+          color: isSoldOut
+              ? const Color(0xFFF3F4F6)
+              : isSelected
+                  ? const Color(0xFFECFDF5)
+                  : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? const Color(0xFF10B981) : AppColors.border,
+            color: isSoldOut
+                ? const Color(0xFFE5E7EB)
+                : isSelected
+                    ? const Color(0xFF10B981)
+                    : AppColors.border,
             width: isSelected ? 2 : 1,
           ),
-          boxShadow: isSelected
+          boxShadow: isSelected && !isSoldOut
               ? const [
                   BoxShadow(
                     color: Color(0x1410B981),
@@ -355,43 +414,61 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (isSelected)
+                if (isSelected && !isSoldOut)
                   const Padding(
                     padding: EdgeInsets.only(right: 6),
                     child: Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF10B981)),
                   )
-                else if (icon != null)
+                else if (icon != null && !isSoldOut)
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
                     child: Icon(icon, size: 16, color: const Color(0xFFF59E0B)),
                   ),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: isSelected ? const Color(0xFF065F46) : AppColors.textDark,
-                    letterSpacing: 0.8,
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: isSoldOut
+                          ? const Color(0xFF9CA3AF)
+                          : isSelected
+                              ? const Color(0xFF065F46)
+                              : AppColors.textDark,
+                      letterSpacing: 0.8,
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 3),
             Text(
-              subtitle,
+              isSoldOut ? 'Tiket Penuh / Terjual Habis' : subtitle,
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 11,
-                color: isSelected ? const Color(0xFF047857) : AppColors.textGrey,
+                color: isSoldOut
+                    ? const Color(0xFF9CA3AF)
+                    : isSelected
+                        ? const Color(0xFF047857)
+                        : AppColors.textGrey,
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              tier.formattedPrice,
+              isSoldOut ? 'Habis' : tier.formattedPrice,
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: isSelected ? const Color(0xFF10B981) : AppColors.primary,
+                color: isSoldOut
+                    ? const Color(0xFF9CA3AF)
+                    : isSelected
+                        ? const Color(0xFF10B981)
+                        : AppColors.primary,
               ),
             ),
           ],
