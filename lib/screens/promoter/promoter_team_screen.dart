@@ -1357,35 +1357,101 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
                                 ),
                               ),
                             ] else ...[
-                              Wrap(
-                                alignment: WrapAlignment.spaceBetween,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                runSpacing: 8,
-                                spacing: 8,
-                                children: [
-                                  const Text(
-                                    'Belum ada tugas konser',
-                                    style: TextStyle(
-                                        fontSize: 12.5,
-                                        color: Color(0xFF475569)),
-                                  ),
-                                  ElevatedButton.icon(
-                                    onPressed: () => _showAssignDialog(member),
-                                    icon: const Icon(Icons.add, size: 16),
-                                    label: const Text('Tugaskan ke Konser',
-                                        style: TextStyle(fontSize: 12)),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primary,
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 8),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final isCompact = constraints.maxWidth < 360;
+                                  if (isCompact) {
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        const Text(
+                                          'Belum ada tugas konser',
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            color: Color(0xFF475569),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton.icon(
+                                            onPressed: () =>
+                                                _showAssignDialog(member),
+                                            icon: const Icon(
+                                              Icons.add_rounded,
+                                              size: 16,
+                                            ),
+                                            label: const Text(
+                                              '+ Tugaskan ke Konser',
+                                              style: TextStyle(
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  AppColors.primary,
+                                              foregroundColor: Colors.white,
+                                              elevation: 0,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 14,
+                                                vertical: 10,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }
+
+                                  return Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'Belum ada tugas konser',
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          color: Color(0xFF475569),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                ],
+                                      ElevatedButton.icon(
+                                        onPressed: () =>
+                                            _showAssignDialog(member),
+                                        icon: const Icon(
+                                          Icons.add_rounded,
+                                          size: 16,
+                                        ),
+                                        label: const Text(
+                                          '+ Tugaskan ke Konser',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.primary,
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 8,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                             ],
                           ],

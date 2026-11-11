@@ -179,6 +179,10 @@ class PromoterConcertItem {
   final String description;
   final String posterFileName;
   final String squareLogoFileName;
+  final String? posterDataUrl;
+  final String? squareLogoDataUrl;
+  final List<String> highlights;
+  final List<String> highlightNames;
   final ConcertStatus status;
   final String likesCount;
   final List<PromoterTicketTier> tiers;
@@ -213,6 +217,10 @@ class PromoterConcertItem {
     this.description = '',
     this.posterFileName = 'poster_harmoni_final.png',
     this.squareLogoFileName = 'logo_soundwave_square.png',
+    this.posterDataUrl,
+    this.squareLogoDataUrl,
+    this.highlights = const [],
+    this.highlightNames = const [],
     this.status = ConcertStatus.disetujui,
     this.likesCount = '0',
     this.tiers = const [],
@@ -234,6 +242,16 @@ class PromoterConcertItem {
     this.rejectionReason,
     this.rejectedAt,
   });
+
+  String get displayPosterSource =>
+      (posterDataUrl != null && posterDataUrl!.isNotEmpty)
+          ? posterDataUrl!
+          : posterFileName;
+
+  String get displayLogoSource =>
+      (squareLogoDataUrl != null && squareLogoDataUrl!.isNotEmpty)
+          ? squareLogoDataUrl!
+          : squareLogoFileName;
 
   int get numericLikes {
     final cleaned = likesCount.trim().toLowerCase();
@@ -302,6 +320,10 @@ class PromoterConcertItem {
     String? description,
     String? posterFileName,
     String? squareLogoFileName,
+    String? posterDataUrl,
+    String? squareLogoDataUrl,
+    List<String>? highlights,
+    List<String>? highlightNames,
     ConcertStatus? status,
     String? likesCount,
     List<PromoterTicketTier>? tiers,
@@ -334,6 +356,10 @@ class PromoterConcertItem {
       description: description ?? this.description,
       posterFileName: posterFileName ?? this.posterFileName,
       squareLogoFileName: squareLogoFileName ?? this.squareLogoFileName,
+      posterDataUrl: posterDataUrl ?? this.posterDataUrl,
+      squareLogoDataUrl: squareLogoDataUrl ?? this.squareLogoDataUrl,
+      highlights: highlights ?? this.highlights,
+      highlightNames: highlightNames ?? this.highlightNames,
       status: status ?? this.status,
       likesCount: likesCount ?? this.likesCount,
       tiers: tiers ?? this.tiers,
@@ -431,6 +457,22 @@ class PromoterConcertItem {
       squareLogoFileName: json['logo_image_url']?.toString() ??
           json['logo_url']?.toString() ??
           'logo_soundwave_square.png',
+      posterDataUrl: json['poster_data_url']?.toString() ??
+          (json['banner_image_url']?.toString().startsWith('data:image/') == true
+              ? json['banner_image_url']?.toString()
+              : null),
+      squareLogoDataUrl: json['square_logo_data_url']?.toString() ??
+          (json['logo_image_url']?.toString().startsWith('data:image/') == true
+              ? json['logo_image_url']?.toString()
+              : null),
+      highlights: (json['highlights'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      highlightNames: (json['highlight_names'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
       status: parseStatus(
         json['approval_status']?.toString() ?? json['status']?.toString(),
       ),
@@ -482,9 +524,19 @@ class PromoterConcertItem {
       'venue': venueName,
       'venue_address': venueAddress,
       'description': description,
-      'banner_image_url': posterFileName,
-      'logo_image_url': squareLogoFileName,
-      'square_logo_url': squareLogoFileName,
+      'banner_image_url': (posterDataUrl != null && posterDataUrl!.isNotEmpty)
+          ? posterDataUrl
+          : posterFileName,
+      'logo_image_url': (squareLogoDataUrl != null && squareLogoDataUrl!.isNotEmpty)
+          ? squareLogoDataUrl
+          : squareLogoFileName,
+      'square_logo_url': (squareLogoDataUrl != null && squareLogoDataUrl!.isNotEmpty)
+          ? squareLogoDataUrl
+          : squareLogoFileName,
+      'poster_data_url': posterDataUrl,
+      'square_logo_data_url': squareLogoDataUrl,
+      'highlights': highlights,
+      'highlight_names': highlightNames,
       'status': statusString,
       'total_capacity': totalCapacity,
       'price': tiers.isNotEmpty

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/promoter_models.dart';
 import '../../../services/gate_crew_service.dart';
 import '../../../services/promoter_data_service.dart';
-import '../../../utils/file_picker_helper.dart';
+import '../../../utils/image_picker_helper.dart';
 import '../../../utils/uuid_utils.dart';
 import '../concert_status_detail_screen.dart';
 import '../widgets/responsive_promoter_wrapper.dart';
@@ -34,7 +34,11 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
   late final TextEditingController _dateTimeController;
   late final TextEditingController _descriptionController;
   late String _posterFileName;
+  String? _posterDataUrl;
   late String _squareLogoFileName;
+  String? _squareLogoDataUrl;
+  List<String> _highlights = [];
+  List<String> _highlightNames = [];
 
   // Step 2 State
   late String _venueName;
@@ -64,7 +68,11 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       );
       _descriptionController = TextEditingController(text: editing.description);
       _posterFileName = editing.posterFileName;
+      _posterDataUrl = editing.posterDataUrl;
       _squareLogoFileName = editing.squareLogoFileName;
+      _squareLogoDataUrl = editing.squareLogoDataUrl;
+      _highlights = List<String>.from(editing.highlights);
+      _highlightNames = List<String>.from(editing.highlightNames);
       _venueName = editing.venueName;
       _venueAddress = editing.venueAddress;
       _venueSearchQuery = editing.venueName;
@@ -74,7 +82,11 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       _dateTimeController = TextEditingController();
       _descriptionController = TextEditingController();
       _posterFileName = '';
+      _posterDataUrl = null;
       _squareLogoFileName = '';
+      _squareLogoDataUrl = null;
+      _highlights = [];
+      _highlightNames = [];
       _venueName = '';
       _venueAddress = '';
       _venueSearchQuery = '';
@@ -98,40 +110,170 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
     }
   }
 
+  void _showWarning(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFFC2185B),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   void _onNext() {
+    // Validasi Step 1: Informasi Dasar, Logo & Poster
+    if (_currentStep == 1) {
+      if (_nameController.text.trim().isEmpty) {
+        _showWarning('Nama konser wajib diisi sebelum melanjutkan.');
+        return;
+      }
+      if (_dateTimeController.text.trim().isEmpty) {
+        _showWarning('Silakan pilih tanggal & waktu konser dari kalender.');
+        return;
+      }
+      if (_descriptionController.text.trim().isEmpty) {
+        _showWarning('Deskripsi acara wajib diisi.');
+        return;
+      }
+      if (_squareLogoFileName.isEmpty && _squareLogoDataUrl == null) {
+        _showWarning('Silakan pilih gambar logo persegi (1:1) konser.');
+        return;
+      }
+      if (_posterFileName.isEmpty && _posterDataUrl == null) {
+        _showWarning('Silakan pilih poster highlight konser (16:9).');
+        return;
+      }
+    }
+
+    // Validasi Step 2: Lokasi & Venue
+    if (_currentStep == 2) {
+      if (_venueName.trim().isEmpty) {
+        _showWarning('Silakan pilih lokasi konser di peta atau ketik nama tempat.');
+        return;
+      }
+    }
+
+    // Validasi Step 3: Kategori Tiket
+    if (_currentStep == 3) {
+      if (_ticketTiers.isEmpty) {
+        _showWarning('Silakan buat minimal 1 kategori tiket konser.');
+        return;
+      }
+    }
+
     if (_currentStep < 5) {
       setState(() => _currentStep++);
     }
   }
 
   Future<void> _pickPosterFile() async {
-    final picked = await pickNativeFile();
-    if (picked != null && picked.trim().isNotEmpty) {
-      setState(() => _posterFileName = picked.trim());
+    final picked = await ImagePickerHelper.pickImage();
+    if (picked != null) {
+      setState(() {
+        _posterFileName = picked.name;
+        _posterDataUrl = picked.dataUrl;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Poster terpilih: ${picked.name} (${picked.formattedSize})'),
+          backgroundColor: const Color(0xFFC2185B),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
-    if (!mounted || _posterFileName.isEmpty) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Poster terpilih: $_posterFileName'),
-        backgroundColor: const Color(0xFFC2185B),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+  }
+
+  void _removePosterFile() {
+    setState(() {
+      _posterFileName = '';
+      _posterDataUrl = null;
+    });
   }
 
   Future<void> _pickSquareLogoFile() async {
-    final picked = await pickNativeFile();
-    if (picked != null && picked.trim().isNotEmpty) {
-      setState(() => _squareLogoFileName = picked.trim());
+    final picked = await ImagePickerHelper.pickImage();
+    if (picked != null) {
+      setState(() {
+        _squareLogoFileName = picked.name;
+        _squareLogoDataUrl = picked.dataUrl;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Logo 1:1 terpilih: ${picked.name} (${picked.formattedSize})'),
+          backgroundColor: const Color(0xFF1B2A8C),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
-    if (!mounted || _squareLogoFileName.isEmpty) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Logo persegi (1:1) terpilih: $_squareLogoFileName'),
-        backgroundColor: const Color(0xFF1B2A8C),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+  }
+
+  void _removeSquareLogoFile() {
+    setState(() {
+      _squareLogoFileName = '';
+      _squareLogoDataUrl = null;
+    });
+  }
+
+  Future<void> _addHighlightFile() async {
+    final picked = await ImagePickerHelper.pickImage();
+    if (picked != null) {
+      setState(() {
+        _highlights.add(picked.dataUrl);
+        _highlightNames.add(picked.name);
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Highlight #${_highlights.length} ditambahkan: ${picked.name}'),
+          backgroundColor: const Color(0xFF1B2A8C),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _editHighlightFile(int index) async {
+    if (index < 0 || index >= _highlights.length) return;
+    final picked = await ImagePickerHelper.pickImage();
+    if (picked != null) {
+      setState(() {
+        _highlights[index] = picked.dataUrl;
+        if (index < _highlightNames.length) {
+          _highlightNames[index] = picked.name;
+        } else {
+          _highlightNames.add(picked.name);
+        }
+      });
+    }
+  }
+
+  void _removeHighlightFile(int index) {
+    if (index >= 0 && index < _highlights.length) {
+      setState(() {
+        _highlights.removeAt(index);
+        if (index < _highlightNames.length) {
+          _highlightNames.removeAt(index);
+        }
+      });
+    }
   }
 
   Future<bool> _showEditConfirmationDialog() async {
@@ -173,7 +315,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
             ],
           ),
           content: const Text(
-            'Semua yang telah diedit akan terganti setelah Admin menyetujui.',
+            'Semua yang telah diedit akan diajukan ke Admin untuk ditinjau dan disetujui.',
             style: TextStyle(
               fontSize: 13.5,
               color: Color(0xFF334155),
@@ -244,9 +386,14 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
         posterFileName: _posterFileName.isNotEmpty
             ? _posterFileName
             : original.posterFileName,
+        posterDataUrl: _posterDataUrl ?? original.posterDataUrl,
         squareLogoFileName: _squareLogoFileName.isNotEmpty
             ? _squareLogoFileName
             : original.squareLogoFileName,
+        squareLogoDataUrl: _squareLogoDataUrl ?? original.squareLogoDataUrl,
+        highlights: _highlights.isNotEmpty ? _highlights : original.highlights,
+        highlightNames:
+            _highlightNames.isNotEmpty ? _highlightNames : original.highlightNames,
         status: ConcertStatus.menunggu,
         tiers: _ticketTiers.isNotEmpty ? _ticketTiers : original.tiers,
       );
@@ -307,8 +454,12 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       description: _descriptionController.text.trim(),
       posterFileName:
           _posterFileName.isNotEmpty ? _posterFileName : 'poster_konser.png',
+      posterDataUrl: _posterDataUrl,
       squareLogoFileName:
           _squareLogoFileName.isNotEmpty ? _squareLogoFileName : 'logo_1x1.png',
+      squareLogoDataUrl: _squareLogoDataUrl,
+      highlights: _highlights,
+      highlightNames: _highlightNames,
       status: ConcertStatus.menunggu,
       likesCount: '0',
       tiers: _ticketTiers,
@@ -353,9 +504,18 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
           dateTimeController: _dateTimeController,
           descriptionController: _descriptionController,
           posterFileName: _posterFileName,
+          posterDataUrl: _posterDataUrl,
           squareLogoFileName: _squareLogoFileName,
+          squareLogoDataUrl: _squareLogoDataUrl,
+          highlights: _highlights,
+          highlightNames: _highlightNames,
           onPickPoster: _pickPosterFile,
+          onRemovePoster: _removePosterFile,
           onPickSquareLogo: _pickSquareLogoFile,
+          onRemoveSquareLogo: _removeSquareLogoFile,
+          onAddHighlight: _addHighlightFile,
+          onEditHighlight: _editHighlightFile,
+          onRemoveHighlight: _removeHighlightFile,
           onNext: _onNext,
           onBack: _onBack,
           isEditMode: _isEditMode,
@@ -402,7 +562,11 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
           concertDate: _dateTimeController.text.trim(),
           concertDescription: _descriptionController.text.trim(),
           posterFileName: _posterFileName,
+          posterDataUrl: _posterDataUrl,
           squareLogoFileName: _squareLogoFileName,
+          squareLogoDataUrl: _squareLogoDataUrl,
+          highlights: _highlights,
+          highlightNames: _highlightNames,
           venueName: _venueName,
           venueAddress: _venueAddress,
           tiers: _ticketTiers,

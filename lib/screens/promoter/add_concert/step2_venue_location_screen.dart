@@ -90,6 +90,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
     setState(() {
       _isLoadingResults = true;
       _isSearching = true;
+      _currentSearchQuery = query;
     });
 
     _debounceTimer = Timer(const Duration(milliseconds: 350), () async {
@@ -101,6 +102,40 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
         });
       }
     });
+  }
+
+  void _applyDirectAddress(String query) async {
+    final cleanQuery = query.trim();
+    if (cleanQuery.isEmpty) return;
+
+    setState(() {
+      _isLoadingResults = true;
+    });
+
+    final results = await VenueLocationSearchService().search(cleanQuery);
+
+    if (results.isNotEmpty) {
+      _selectVenue(results.first);
+    } else {
+      final customVenue = PromoterVenueLocation(
+        name: cleanQuery,
+        address: cleanQuery.toLowerCase().contains('jl')
+            ? cleanQuery
+            : 'Lokasi di , Indonesia',
+        city: 'Lokasi Pencarian',
+        latitude: _currentLatitude,
+        longitude: _currentLongitude,
+      );
+      _selectVenue(customVenue);
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoadingResults = false;
+        _isSearching = false;
+      });
+      _searchFocusNode.unfocus();
+    }
   }
 
   void _selectVenue(PromoterVenueLocation venue) {
@@ -386,7 +421,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Ketik nama tempat, stadion, gedung, atau jalan di manapun di Indonesia.',
+                            'Ketik alamat di kolom pencarian atau langsung klik titik jalan pada peta untuk menentukan lokasi venue.',
                             style: TextStyle(
                               fontSize: 11,
                               color: subtextColor,
@@ -438,6 +473,8 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                               controller: _searchController,
                               focusNode: _searchFocusNode,
                               onChanged: _onSearchQueryChanged,
+                              textInputAction: TextInputAction.search,
+                              onSubmitted: _applyDirectAddress,
                               onTap: () {
                                 setState(() => _isSearching = true);
                               },
@@ -448,7 +485,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                               ),
                               decoration: InputDecoration(
                                 hintText:
-                                    'Cari lokasi di Google Maps (misal: GBK, ICE BSD, Manahan...)',
+                                    'Ketik alamat / nama venue di Google Maps...',
                                 hintStyle: TextStyle(
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.normal,
@@ -467,7 +504,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                                 color: Color(0xFF4285F4),
                               ),
                             )
-                          else if (_searchController.text.isNotEmpty)
+                          else if (_searchController.text.isNotEmpty) ...[
                             IconButton(
                               icon: const Icon(Icons.close_rounded, size: 18),
                               onPressed: () {
@@ -476,6 +513,36 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                               },
                               color: subtextColor,
                             ),
+                            InkWell(
+                              onTap: () =>
+                                  _applyDirectAddress(_searchController.text),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1B2A8C),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.search_rounded,
+                                        size: 14, color: Colors.white),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Cari',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -713,11 +780,13 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                     _currentVenueAddress = address;
                     _currentLatitude = lat;
                     _currentLongitude = lng;
+                    _currentSearchQuery = name;
+                    _searchController.text = name;
                     _manualNameController.text = name;
                     _manualAddressController.text = address;
                   });
                   widget.onVenueChanged
-                      ?.call(name, address, _currentSearchQuery);
+                      ?.call(name, address, name);
                 },
               ),
 

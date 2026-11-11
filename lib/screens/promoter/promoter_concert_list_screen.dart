@@ -4,6 +4,7 @@ import '../../services/promoter_data_service.dart';
 import 'add_concert/add_concert_flow.dart';
 import 'concert_status_detail_screen.dart';
 import 'promoter_manage_concert_screen.dart';
+import 'widgets/concert_image_widget.dart';
 
 class PromoterConcertListScreen extends StatefulWidget {
   final VoidCallback? onAddConcertPressed;
@@ -608,15 +609,25 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
               child: ElevatedButton.icon(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ConcertStatusDetailScreen(
-                        concertTitle: concert.title,
-                        status: concert.status,
+                  if (concert.status == ConcertStatus.disetujui) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            PromoterManageConcertScreen(concert: concert),
                       ),
-                    ),
-                  );
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ConcertStatusDetailScreen(
+                          concertTitle: concert.title,
+                          status: concert.status,
+                        ),
+                      ),
+                    );
+                  }
                 },
                 icon: Icon(
                   concert.status == ConcertStatus.ditolak
@@ -631,7 +642,7 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
                       ? 'Lihat Alasan Penolakan & Ajukan Banding'
                       : (concert.status == ConcertStatus.menunggu
                           ? 'Pantau Status Peninjauan'
-                          : 'Lihat Status Kelayakan Konser'),
+                          : 'Kelola Informasi & Tim Konser'),
                   style: const TextStyle(
                       fontSize: 12.5, fontWeight: FontWeight.w700),
                 ),
@@ -768,7 +779,18 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
     }
 
     return InkWell(
-      onTap: () => _showConcertDetailModal(context, concert),
+      onTap: () {
+        if (concert.status == ConcertStatus.disetujui) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PromoterManageConcertScreen(concert: concert),
+            ),
+          );
+          return;
+        }
+        _showConcertDetailModal(context, concert);
+      },
       borderRadius: BorderRadius.circular(20),
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -858,36 +880,34 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Modern Gradient Artwork Box (1:1 aspect)
+                // Real Artwork Logo Box (1:1 aspect)
                 Container(
                   width: 62,
                   height: 62,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF1B2A8C), // Navy
-                        Color(0xFF7E22CE), // Purple
-                        Color(0xFFC2185B), // Magenta
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
                     borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFF1B2A8C).withValues(alpha: 0.15),
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF1B2A8C).withValues(alpha: 0.2),
+                        color: const Color(0xFF1B2A8C).withValues(alpha: 0.15),
                         blurRadius: 8,
                         offset: const Offset(0, 3),
                       ),
                     ],
                   ),
+                  clipBehavior: Clip.antiAlias,
                   child: Stack(
                     children: [
-                      const Center(
-                        child: Icon(
-                          Icons.album_rounded,
-                          color: Colors.white,
-                          size: 28,
+                      Positioned.fill(
+                        child: ConcertImageWidget(
+                          imageSource: concert.displayLogoSource,
+                          width: 62,
+                          height: 62,
+                          fit: BoxFit.cover,
+                          fallbackIcon: Icons.album_rounded,
+                          fallbackLabel: 'Logo',
                         ),
                       ),
                       Positioned(

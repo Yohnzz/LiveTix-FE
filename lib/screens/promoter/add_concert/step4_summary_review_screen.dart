@@ -3,6 +3,7 @@ import '../../../models/gate_crew_models.dart';
 import '../../../models/promoter_models.dart';
 import '../../../services/gate_crew_service.dart';
 import '../../../services/promoter_data_service.dart';
+import '../widgets/concert_image_widget.dart';
 import '../widgets/promoter_step_indicator.dart';
 
 class Step4SummaryReviewScreen extends StatefulWidget {
@@ -10,7 +11,11 @@ class Step4SummaryReviewScreen extends StatefulWidget {
   final String concertDate;
   final String concertDescription;
   final String posterFileName;
+  final String? posterDataUrl;
   final String? squareLogoFileName;
+  final String? squareLogoDataUrl;
+  final List<String> highlights;
+  final List<String> highlightNames;
   final String venueName;
   final String venueAddress;
   final List<PromoterTicketTier> tiers;
@@ -25,7 +30,11 @@ class Step4SummaryReviewScreen extends StatefulWidget {
     required this.concertDate,
     required this.concertDescription,
     required this.posterFileName,
+    this.posterDataUrl,
     this.squareLogoFileName,
+    this.squareLogoDataUrl,
+    this.highlights = const [],
+    this.highlightNames = const [],
     required this.venueName,
     required this.venueAddress,
     required this.tiers,
@@ -43,11 +52,34 @@ class Step4SummaryReviewScreen extends StatefulWidget {
 class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
   final Map<String, String> _selectedCrewGates = {};
 
+  static const List<String> _gateOptions = [
+    'Gate A (Utama / VIP)',
+    'Gate B (Festival Barat)',
+    'Gate C (Tribun Timur)',
+    'Gate D (Festival Selatan)',
+    'Semua Gate (Supervisor Scan)',
+  ];
+
+  static String _resolveGate(String? current) {
+    if (current == null || current.trim().isEmpty) return _gateOptions.first;
+    final trimmed = current.trim();
+    if (_gateOptions.contains(trimmed)) return trimmed;
+    for (final opt in _gateOptions) {
+      if (opt.toLowerCase().startsWith(trimmed.toLowerCase()) ||
+          trimmed.toLowerCase().startsWith(opt.toLowerCase())) {
+        return opt;
+      }
+    }
+    return _gateOptions.first;
+  }
+
   @override
   void initState() {
     super.initState();
     if (widget.initialInvitedCrew != null) {
-      _selectedCrewGates.addAll(widget.initialInvitedCrew!);
+      widget.initialInvitedCrew!.forEach((crewId, gate) {
+        _selectedCrewGates[crewId] = _resolveGate(gate);
+      });
     }
   }
 
@@ -237,7 +269,7 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                             child: Divider(height: 1, color: cardBorder),
                           ),
                           Text(
-                            'MEDIA ACARA (LOGO 1:1 & POSTER 16:9)',
+                            'MEDIA ACARA (POSTER 16:9, LOGO 1:1 & HIGHLIGHTS)',
                             style: TextStyle(
                               fontSize: 10.5,
                               fontWeight: FontWeight.w600,
@@ -245,47 +277,146 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                               letterSpacing: 0.3,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE0E7FF),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'Logo: ${widget.squareLogoFileName ?? "logo_square.png"}',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF1B2A8C),
+                          const SizedBox(height: 10),
+                          // 16:9 Poster Preview
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: AspectRatio(
+                              aspectRatio: 16 / 9,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ConcertImageWidget(
+                                    imageSource: widget.posterDataUrl ??
+                                        widget.posterFileName,
+                                    fit: BoxFit.cover,
+                                    fallbackIcon: Icons.image_outlined,
+                                    fallbackLabel: 'Poster 16:9',
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFCE7F3),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    'Poster: ${widget.posterFileName}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFFC2185B),
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 7, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black
+                                            .withValues(alpha: 0.65),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'Poster 16:9',
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
                                     ),
-                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          // Logo 1:1 Preview
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: isDarkMode
+                                  ? const Color(0xFF1E283E)
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: SizedBox(
+                                    width: 52,
+                                    height: 52,
+                                    child: ConcertImageWidget(
+                                      imageSource: widget.squareLogoDataUrl ??
+                                          (widget.squareLogoFileName ?? ''),
+                                      width: 52,
+                                      height: 52,
+                                      fit: BoxFit.cover,
+                                      fallbackIcon: Icons.crop_square_rounded,
+                                      fallbackLabel: 'Logo 1:1',
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Logo Konser (1:1)',
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: subtextColor,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        widget.squareLogoFileName?.isNotEmpty ==
+                                                true
+                                            ? widget.squareLogoFileName!
+                                            : 'logo_soundwave_square.png',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: textColor,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                          if (widget.highlights.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              'Galeri Highlights (${widget.highlights.length} foto):',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: subtextColor,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            SizedBox(
+                              height: 64,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: widget.highlights.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(width: 8),
+                                itemBuilder: (context, idx) {
+                                  return ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: SizedBox(
+                                      width: 90,
+                                      height: 64,
+                                      child: ConcertImageWidget(
+                                        imageSource: widget.highlights[idx],
+                                        fit: BoxFit.cover,
+                                        fallbackIcon:
+                                            Icons.photo_library_outlined,
+                                        fallbackLabel: '#${idx + 1}',
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -422,26 +553,12 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                 children: teamList.map((crew) {
                                   final isSelected =
                                       _selectedCrewGates.containsKey(crew.id);
-                                  const gateOptions = [
-                                    'Gate A (Utama / VIP)',
-                                    'Gate B (Festival Barat)',
-                                    'Gate C (Tribun Timur)',
-                                    'Gate D (Festival Selatan)',
-                                    'Semua Gate (Supervisor Scan)',
-                                  ];
-
-                                  String normalizeGate(String? raw) {
-                                    if (raw == null) return gateOptions.first;
-                                    if (gateOptions.contains(raw)) return raw;
-                                    if (raw.contains('Gate A')) return 'Gate A (Utama / VIP)';
-                                    if (raw.contains('Gate B')) return 'Gate B (Festival Barat)';
-                                    if (raw.contains('Gate C')) return 'Gate C (Tribun Timur)';
-                                    if (raw.contains('Gate D')) return 'Gate D (Festival Selatan)';
-                                    return gateOptions.first;
-                                  }
-
-                                  final rawGate = _selectedCrewGates[crew.id];
-                                  final gateName = normalizeGate(rawGate);
+                                  final gateName =
+                                      _resolveGate(_selectedCrewGates[crew.id]);
+                                  final availableItems =
+                                      _gateOptions.contains(gateName)
+                                          ? _gateOptions
+                                          : [gateName, ..._gateOptions];
 
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 8),
@@ -471,7 +588,7 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                             setState(() {
                                               if (val == true) {
                                                 _selectedCrewGates[crew.id] =
-                                                    gateOptions.first;
+                                                    _gateOptions.first;
                                               } else {
                                                 _selectedCrewGates
                                                     .remove(crew.id);
@@ -505,7 +622,7 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                         if (isSelected)
                                           Container(
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 8),
+                                                horizontal: 10, vertical: 2),
                                             decoration: BoxDecoration(
                                               color: isDarkMode
                                                   ? const Color(0xFF1B2232)
@@ -518,6 +635,7 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                             child: DropdownButtonHideUnderline(
                                               child: DropdownButton<String>(
                                                 value: gateName,
+                                                isDense: true,
                                                 style: TextStyle(
                                                   fontSize: 12,
                                                   fontWeight: FontWeight.w700,
@@ -526,12 +644,19 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                                 dropdownColor: isDarkMode
                                                     ? const Color(0xFF1B2232)
                                                     : Colors.white,
-                                                items: gateOptions
-                                                    .map((g) => DropdownMenuItem(
-                                                          value: g,
-                                                          child: Text(g),
-                                                        ))
-                                                    .toList(),
+                                                items: availableItems.map((gate) {
+                                                  return DropdownMenuItem<String>(
+                                                    value: gate,
+                                                    child: Text(
+                                                      gate,
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: textColor,
+                                                      ),
+                                                    ),
+                                                  );
+                                                }).toList(),
                                                 onChanged: (newGate) {
                                                   if (newGate != null) {
                                                     setState(() {

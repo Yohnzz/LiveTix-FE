@@ -97,9 +97,12 @@ class DataService {
       } catch (_) {}
     }
 
-    // Tema tampilan: default Dark
-    final savedTheme = LocalStorage.getString('livetix_dark_mode');
-    isDarkModeNotifier.value = savedTheme == null ? true : LocalStorage.getBool('livetix_dark_mode');
+    // Tema tampilan: default Dark pada data dummy sesuai permintaan pengguna
+    if (LocalStorage.containsKey(LocalStorage.darkModeKey)) {
+      isDarkModeNotifier.value = LocalStorage.getBool(LocalStorage.darkModeKey);
+    } else {
+      isDarkModeNotifier.value = true;
+    }
 
     // Data konser disukai (Favorit / Love) - murni dari penyimpanan pengguna
     final savedFavs = LocalStorage.getStringList('livetix_favorite_ids');

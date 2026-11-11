@@ -1,3 +1,4 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/promoter_models.dart';
@@ -337,11 +338,65 @@ class VenueLocationSearchService {
     return combined;
   }
 
-  /// Reverse geocode given coordinates to retrieve real address and venue name.
+  /// Reverse geocode given coordinates to retrieve real address, city, province, and venue name.
   Future<PromoterVenueLocation?> reverseGeocode(double lat, double lon) async {
+    // 1. Google Maps Geocoding API if key is provided in .env
+    final googleApiKey = dotenv.env['GOOGLE_MAPS_API_KEY']?.trim();
+    if (googleApiKey != null && googleApiKey.isNotEmpty) {
+      try {
+        final url = Uri.parse(
+          'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lon&key=$googleApiKey&language=id',
+        );
+        final response =
+            await http.get(url).timeout(const Duration(seconds: 4));
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final results = data['results'] as List<dynamic>?;
+          if (results != null && results.isNotEmpty) {
+            final first = results.first;
+            final formatted = first['formatted_address']?.toString() ?? '';
+            final components =
+                first['address_components'] as List<dynamic>? ?? [];
+
+            String street = '';
+            String city = '';
+            String province = '';
+
+            for (final comp in components) {
+              final types = (comp['types'] as List<dynamic>?) ?? [];
+              if (types.contains('route') ||
+                  types.contains('point_of_interest') ||
+                  types.contains('establishment')) {
+                street = comp['long_name']?.toString() ?? street;
+              } else if (types.contains('administrative_area_level_2')) {
+                city = comp['long_name']?.toString() ?? city;
+              } else if (types.contains('administrative_area_level_1')) {
+                province = comp['long_name']?.toString() ?? province;
+              }
+            }
+
+            final resolvedCity =
+                province.isNotEmpty ? '$city, $province' : city;
+            final resolvedName = street.isNotEmpty
+                ? street
+                : (formatted.split(',').first.trim());
+
+            return PromoterVenueLocation(
+              name: resolvedName,
+              address: formatted,
+              city: resolvedCity.isNotEmpty ? resolvedCity : 'Indonesia',
+              latitude: lat,
+              longitude: lon,
+            );
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. OpenStreetMap Nominatim reverse geocoding
     try {
       final url = Uri.parse(
-        'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lon&format=json&addressdetails=1',
+        'https://nominatim.openstreetmap.org/reverse?lat=$lat,$lon&format=json&addressdetails=1',
       );
       final response = await http
           .get(
@@ -351,34 +406,97 @@ class VenueLocationSearchService {
               'Accept': 'application/json',
             },
           )
-          .timeout(const Duration(seconds: 3));
+          .timeout(const Duration(seconds: 4));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final displayName = data['display_name']?.toString() ?? '';
         final addressObj = data['address'] as Map<String, dynamic>?;
-        final name = addressObj?['amenity'] ??
+
+        final road = addressObj?['road'] ??
+            addressObj?['pedestrian'] ??
+            addressObj?['suburb'];
+        final amenity = addressObj?['amenity'] ??
             addressObj?['building'] ??
             addressObj?['stadium'] ??
-            addressObj?['leisure'] ??
-            displayName.split(',').first.trim();
+            addressObj?['leisure'];
         final city = addressObj?['city'] ??
             addressObj?['town'] ??
             addressObj?['municipality'] ??
-            addressObj?['state'] ??
+            addressObj?['county'] ??
             'Indonesia';
+        final state = addressObj?['state'] ?? addressObj?['province'] ?? '';
+
+        final resolvedName =
+            (amenity ?? road ?? displayName.split(',').first).toString().trim();
+        final cityWithProvince =
+            state.isNotEmpty ? '$city, $state' : city.toString();
 
         return PromoterVenueLocation(
-          name: name.toString(),
+          name: resolvedName,
           address: displayName,
-          city: city.toString(),
+          city: cityWithProvince,
           latitude: lat,
           longitude: lon,
         );
       }
     } catch (_) {}
-    return null;
+
+    // 3. Fallback: Local geographical estimate based on Indonesian island bounding boxes
+    return _estimateIndonesianLocation(lat, lon);
   }
+
+  /// Estimates island and city name based on Indonesian geographical bounding boxes
+  static PromoterVenueLocation _estimateIndonesianLocation(
+      double lat, double lon) {
+    String city = 'Indonesia';
+    String name = 'Titik Koordinat Terpilih';
+
+    if (lat >= -8.5 && lat <= -5.5 && lon >= 105.0 && lon <= 115.0) {
+      if (lat >= -8.2 && lat <= -7.8 && lon >= 112.4 && lon <= 112.9) {
+        city = 'Kota Malang, Jawa Timur';
+        name = 'Kawasan Malang Raya';
+      } else if (lat >= -7.4 && lat <= -7.1 && lon >= 112.5 && lon <= 113.0) {
+        city = 'Surabaya, Jawa Timur';
+        name = 'Kawasan Surabaya';
+      } else if (lat >= -6.4 && lat <= -6.0 && lon >= 106.6 && lon <= 107.0) {
+        city = 'Jakarta Pusat, DKI Jakarta';
+        name = 'Kawasan Jakarta';
+      } else if (lat >= -7.1 && lat <= -6.8 && lon >= 107.4 && lon <= 107.8) {
+        city = 'Bandung, Jawa Barat';
+        name = 'Kawasan Bandung';
+      } else if (lat >= -7.6 && lat <= -7.4 && lon >= 110.7 && lon <= 110.9) {
+        city = 'Surakarta, Jawa Tengah';
+        name = 'Kawasan Solo';
+      } else if (lat >= -7.9 && lat <= -7.6 && lon >= 110.2 && lon <= 110.6) {
+        city = 'Yogyakarta, D.I. Yogyakarta';
+        name = 'Kawasan Yogyakarta';
+      } else {
+        city = 'Pulau Jawa, Indonesia';
+      }
+    } else if (lat >= -9.0 && lat <= -8.0 && lon >= 114.4 && lon <= 115.8) {
+      city = 'Denpasar / Badung, Bali';
+      name = 'Kawasan Pulau Bali';
+    } else if (lat >= -6.0 && lat <= 6.0 && lon >= 95.0 && lon <= 106.0) {
+      city = 'Sumatera, Indonesia';
+    } else if (lat >= -4.5 && lat <= 4.5 && lon >= 108.0 && lon <= 119.0) {
+      city = 'Kalimantan, Indonesia';
+    } else if (lat >= -6.0 && lat <= 2.5 && lon >= 118.0 && lon <= 125.5) {
+      city = 'Sulawesi, Indonesia';
+    } else if (lat >= -9.0 && lat <= 0.0 && lon >= 130.0 && lon <= 141.0) {
+      city = 'Papua, Indonesia';
+    }
+
+    return PromoterVenueLocation(
+      name: name,
+      address:
+          'Koordinat (${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}), $city',
+      city: city,
+      latitude: lat,
+      longitude: lon,
+    );
+  }
+
 
   /// Get direct Google Maps Embed URL for iframe or web view.
   /// [mapType]: 'm' (roadmap / peta), 'k' (satelit), 'p' (terrain)

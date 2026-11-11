@@ -7,6 +7,7 @@ import 'cancellation/promoter_cancel_concert_screen.dart';
 import 'cancellation/promoter_cancellation_approved_screen.dart';
 import 'cancellation/promoter_cancellation_status_screen.dart';
 import 'add_concert/add_concert_flow.dart';
+import 'widgets/concert_image_widget.dart';
 import 'widgets/interactive_map_view.dart';
 import 'widgets/responsive_promoter_wrapper.dart';
 
@@ -650,41 +651,12 @@ class _PromoterManageConcertScreenState
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  // Gradient Artwork Background
-                                  Container(
-                                    decoration: const BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Color(0xFF1B2A8C), // Navy
-                                          Color(0xFF6B1D7C),
-                                          Color(0xFFC2185B), // Magenta
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                    ),
-                                    child: Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(
-                                            Icons.music_note_rounded,
-                                            size: 40,
-                                            color: Colors.white70,
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            concert.posterFileName,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                  // Real Poster Image (16:9 Landscape)
+                                  ConcertImageWidget(
+                                    imageSource: concert.displayPosterSource,
+                                    fit: BoxFit.cover,
+                                    fallbackIcon: Icons.music_note_rounded,
+                                    fallbackLabel: concert.title,
                                   ),
                                   // Status Badge
                                   Positioned(
@@ -782,33 +754,14 @@ class _PromoterManageConcertScreenState
                                       ),
                                     ],
                                   ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(
-                                        Icons.album_rounded,
-                                        size: 28,
-                                        color: Color(0xFFC2185B),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      const Text(
-                                        'Logo 1:1',
-                                        style: TextStyle(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFFC2185B),
-                                        ),
-                                      ),
-                                      Text(
-                                        concert.squareLogoFileName,
-                                        style: TextStyle(
-                                          fontSize: 8,
-                                          color: subtextColor,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
+                                  clipBehavior: Clip.antiAlias,
+                                  child: ConcertImageWidget(
+                                    imageSource: concert.displayLogoSource,
+                                    width: 76,
+                                    height: 76,
+                                    fit: BoxFit.cover,
+                                    fallbackIcon: Icons.album_rounded,
+                                    fallbackLabel: 'Logo 1:1',
                                   ),
                                 ),
 
@@ -881,6 +834,71 @@ class _PromoterManageConcertScreenState
                         ],
                       ),
                     ),
+
+                    if (concert.highlights.isNotEmpty) ...[
+                      const SizedBox(height: 18),
+                      Text(
+                        'HIGHLIGHT KONSER (${concert.highlights.length} FOTO)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: subtextColor,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 120,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: concert.highlights.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 10),
+                          itemBuilder: (context, idx) {
+                            final caption = idx < concert.highlightNames.length
+                                ? concert.highlightNames[idx]
+                                : 'Highlight #${idx + 1}';
+                            return Container(
+                              width: 160,
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: cardBorder),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: ConcertImageWidget(
+                                      imageSource: concert.highlights[idx],
+                                      fit: BoxFit.cover,
+                                      fallbackIcon:
+                                          Icons.photo_library_outlined,
+                                      fallbackLabel: '#${idx + 1}',
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 5),
+                                    child: Text(
+                                      caption,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: textColor,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 18),
 
