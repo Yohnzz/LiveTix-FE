@@ -183,6 +183,13 @@ class DataService {
   bool get isGuest => currentUserNotifier.value == null;
   List<ConcertModel> get rawConcerts => List.unmodifiable(_concerts);
 
+  /// Mengambil konser dari cache memori lokal tanpa melakukan request jaringan.
+  ConcertModel? cachedConcertById(String id) {
+    final idx = _concerts.indexWhere((c) => c.id == id);
+    if (idx == -1) return null;
+    return _concerts[idx];
+  }
+
   // --- API Mode Tampilan Gelap (Dark Mode Global) ---
 
   /// Mengatur preferensi tema gelap aplikasi dan menyimpannya di penyimpanan lokal
@@ -213,6 +220,7 @@ class DataService {
   Future<void>? _ongoingRestoreSession;
   DateTime? _lastSessionRestoreAt;
   bool _pendingConcertForceRefresh = false;
+  final Map<String, Future<ConcertModel?>> _ongoingConcertByIdFetches = {};
 
   /// Mengambil daftar konser yang disukai user langsung dari tabel concert_likes Supabase
   Future<void> fetchUserLikesFromSupabase() async {
@@ -270,7 +278,6 @@ class DataService {
             table: 'ticket_tiers',
             callback: (payload) async {
               await fetchConcertsFromSupabase(forceRefresh: true);
-              stockVersionNotifier.value++;
               await PromoterDataService().fetchPromoterConcertsFromSupabase();
             },
           )
@@ -283,7 +290,6 @@ class DataService {
             table: 'concerts',
             callback: (payload) async {
               await fetchConcertsFromSupabase(forceRefresh: true);
-              stockVersionNotifier.value++;
             },
           )
           .subscribe();
@@ -519,35 +525,52 @@ class DataService {
     return _concerts;
   }
 
-  /// Mengambil detail satu konser secara lengkap berdasarkan ID (termasuk tiket tiers dari Supabase)
+  /// Mengambil detail satu konser secara lengkap berdasarkan ID (termasuk tiket tiers dari Supabase).
+  /// Tidak memicu stockVersionNotifier agar listener detail/checkout tidak memicu loop fetch berulang.
   Future<ConcertModel?> getConcertById(String id) async {
     if (SupabaseService.isInitialized) {
-      try {
-        final res = await SupabaseService.client
-            .from('concerts')
-            .select('*, ticket_tiers(*)')
-            .eq('id', id)
-            .maybeSingle();
+      final ongoing = _ongoingConcertByIdFetches[id];
+      if (ongoing != null) return ongoing;
 
-        if (res != null) {
-          final liveConcert = ConcertModel.fromJson(res);
-          final idx = _concerts.indexWhere((c) => c.id == id);
-          if (idx != -1) {
-            _concerts[idx] = liveConcert;
-          } else {
-            _concerts.add(liveConcert);
-          }
-          stockVersionNotifier.value++;
-          return liveConcert;
+      final future = _doGetConcertById(id);
+      _ongoingConcertByIdFetches[id] = future;
+      try {
+        return await future;
+      } finally {
+        if (identical(_ongoingConcertByIdFetches[id], future)) {
+          _ongoingConcertByIdFetches.remove(id);
         }
-      } catch (e) {
-        debugPrint('Gagal fetch konser by id dari Supabase: $e');
       }
     }
 
-    final index = _concerts.indexWhere((c) => c.id == id);
-    if (index != -1) return _concerts[index];
-    return null;
+    return cachedConcertById(id);
+  }
+
+  Future<ConcertModel?> _doGetConcertById(String id) async {
+    try {
+      final res = await _withTransientRetry(
+        () => SupabaseService.client
+            .from('concerts')
+            .select('*, ticket_tiers(*)')
+            .eq('id', id)
+            .maybeSingle(),
+      );
+
+      if (res != null) {
+        final liveConcert = ConcertModel.fromJson(res);
+        final idx = _concerts.indexWhere((c) => c.id == id);
+        if (idx != -1) {
+          _concerts[idx] = liveConcert;
+        } else {
+          _concerts.add(liveConcert);
+        }
+        return liveConcert;
+      }
+    } catch (e) {
+      debugPrint('Gagal fetch konser by id dari Supabase: $e');
+    }
+
+    return cachedConcertById(id);
   }
 
   /// Mengambil daftar event dengan dukungan filter kota, genre, tanggal spesifik, rentang harga, keyword pencarian, dan favorit (maksimal limit bila ditentukan).
@@ -1465,7 +1488,11 @@ class DataService {
     LocalStorage.remove('livetix_favorite_ids');
     if (SupabaseService.isInitialized) {
       try {
-        SupabaseService.client.auth.signOut();
+        unawaited(
+          SupabaseService.client.auth
+              .signOut(scope: SignOutScope.local)
+              .catchError((_) {}),
+        );
       } catch (_) {}
     }
   }

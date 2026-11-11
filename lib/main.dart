@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/app_colors.dart';
+import 'screens/admin/admin_shell.dart';
+import 'screens/gate_crew/gate_crew_main_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/data_service.dart';
 import 'services/supabase_service.dart';
@@ -25,7 +27,11 @@ void main() async {
   await SupabaseService.init();
 
   // Pulihkan sesi aktif jika pengguna sebelumnya sudah login
-  await DataService().restoreSupabaseSession();
+  try {
+    await DataService().restoreSupabaseSession();
+  } catch (e) {
+    debugPrint('Gagal memulihkan sesi Supabase: $e');
+  }
 
   // Sembunyikan status bar atas jika didukung platform agar tampilan lebih bersih
   SystemChrome.setEnabledSystemUIMode(
@@ -38,6 +44,28 @@ void main() async {
 
 class LiveTixApp extends StatelessWidget {
   const LiveTixApp({super.key});
+
+  static Route<dynamic> _buildAppRoute(RouteSettings settings) {
+    final name = (settings.name ?? '/').trim();
+    final role = DataService().currentUser?.role.trim().toLowerCase() ?? '';
+    if (name == AdminShell.routeName && role == 'admin') {
+      return MaterialPageRoute<void>(
+        settings: const RouteSettings(name: AdminShell.routeName),
+        builder: (_) => const AdminShell(),
+      );
+    }
+    if (name == GateCrewMainScreen.routeName &&
+        (role == 'gatecrew' || role == 'crew')) {
+      return MaterialPageRoute<void>(
+        settings: const RouteSettings(name: GateCrewMainScreen.routeName),
+        builder: (_) => const GateCrewMainScreen(),
+      );
+    }
+    return MaterialPageRoute<void>(
+      settings: const RouteSettings(name: '/'),
+      builder: (_) => const SplashScreen(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +139,10 @@ class LiveTixApp extends StatelessWidget {
                 ),
               ),
             ),
-            home: const SplashScreen(),
+            onGenerateInitialRoutes: (initialRoute) => [
+              _buildAppRoute(RouteSettings(name: initialRoute)),
+            ],
+            onGenerateRoute: _buildAppRoute,
           ),
         );
       },

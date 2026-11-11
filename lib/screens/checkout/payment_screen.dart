@@ -64,8 +64,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
 
     if (_remainingSeconds > 0) {
-      // Simpan pesanan berstatus pending ke tab Tiket Saya
-      DataService().addPendingOrderTicket(widget.order);
+      // Simpan pesanan berstatus pending ke tab Tiket Saya setelah frame build selesai
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          DataService().addPendingOrderTicket(widget.order);
+        }
+      });
 
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (_remainingSeconds > 1) {

@@ -29,9 +29,9 @@ class ImagePickerHelper {
 
   /// Memilih satu gambar dari galeri / file sistem perangkat
   static Future<PickedConcertImage?> pickImage({
-    double maxWidth = 1920,
-    double maxHeight = 1920,
-    int imageQuality = 85,
+    double maxWidth = 1200,
+    double maxHeight = 1200,
+    int imageQuality = 78,
   }) async {
     try {
       final XFile? file = await _picker.pickImage(
@@ -68,9 +68,9 @@ class ImagePickerHelper {
 
   /// Memilih banyak gambar highlight dari galeri / file sistem perangkat
   static Future<List<PickedConcertImage>> pickMultiImages({
-    double maxWidth = 1920,
-    double maxHeight = 1920,
-    int imageQuality = 85,
+    double maxWidth = 1200,
+    double maxHeight = 1200,
+    int imageQuality = 78,
   }) async {
     try {
       final List<XFile> files = await _picker.pickMultiImage(

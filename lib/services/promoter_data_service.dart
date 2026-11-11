@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide LocalStorage;
 import '../models/approval_models.dart';
@@ -1091,10 +1093,13 @@ class PromoterDataService {
         if (row != null) {
           final curr = (row['likes_count'] as num?)?.toInt() ?? 0;
           final next = (curr + delta) < 0 ? 0 : (curr + delta);
-          SupabaseService.client
+          return SupabaseService.client
               .from('concerts')
-              .update({'likes_count': next}).eq('id', concertId);
+              .update({'likes_count': next})
+              .eq('id', concertId)
+              .catchError((_) {});
         }
+        return Future<void>.value();
       }).catchError((_) {});
     }
   }
@@ -1120,6 +1125,199 @@ class PromoterDataService {
     }
   }
 
+  Future<String?> _uploadConcertMediaIfDataUrl({
+    required String concertId,
+    required String kind,
+    required String? source,
+  }) async {
+    final raw = source?.trim() ?? '';
+    if (raw.isEmpty || !raw.startsWith('data:image/')) {
+      return raw.isEmpty ? null : raw;
+    }
+    if (!SupabaseService.isInitialized) return raw;
+
+    final commaIdx = raw.indexOf(',');
+    if (commaIdx == -1) return raw;
+    final header = raw.substring(0, commaIdx).toLowerCase();
+    final base64Part = raw.substring(commaIdx + 1);
+
+    String ext = 'jpg';
+    String contentType = 'image/jpeg';
+    if (header.contains('image/png')) {
+      ext = 'png';
+      contentType = 'image/png';
+    } else if (header.contains('image/webp')) {
+      ext = 'webp';
+      contentType = 'image/webp';
+    } else if (header.contains('image/gif')) {
+      ext = 'gif';
+      contentType = 'image/gif';
+    }
+
+    try {
+      final bytes = base64Decode(base64Part);
+      final safeConcertId =
+          concertId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final filePath =
+          'concerts/$safeConcertId/${kind}_${DateTime.now().microsecondsSinceEpoch}.$ext';
+      await SupabaseService.client.storage
+          .from('concert-media')
+          .uploadBinary(
+            filePath,
+            bytes,
+            fileOptions: FileOptions(
+              contentType: contentType,
+              upsert: false,
+            ),
+          )
+          .timeout(const Duration(seconds: 12));
+      final publicUrl = SupabaseService.client.storage
+          .from('concert-media')
+          .getPublicUrl(filePath);
+      return publicUrl.isNotEmpty ? publicUrl : raw;
+    } catch (e) {
+      debugPrint('Error upload media konser ke concert-media ($kind): $e');
+      return raw;
+    }
+  }
+
+  Future<void> _persistConcertAndTiersToSupabase(
+    PromoterConcertItem concert, {
+    required String status,
+    required String approvalStatus,
+    Map<String, dynamic>? pendingEditPayload,
+    bool clearPendingEditPayload = false,
+  }) async {
+    if (!SupabaseService.isInitialized) return;
+
+    var resolvedConcert = concert;
+    final currentUserId = DataService().currentUser?.id;
+
+    // 1. Unggah gambar data:image/* ke bucket Storage `concert-media` agar baris DB ringkas
+    final uploadedPoster = await _uploadConcertMediaIfDataUrl(
+      concertId: concert.id,
+      kind: 'poster',
+      source: concert.posterDataUrl,
+    );
+    final uploadedLogo = await _uploadConcertMediaIfDataUrl(
+      concertId: concert.id,
+      kind: 'logo',
+      source: concert.squareLogoDataUrl,
+    );
+    final uploadedHighlights = <String>[];
+    for (int i = 0; i < concert.highlights.length; i++) {
+      final h = concert.highlights[i];
+      final res = await _uploadConcertMediaIfDataUrl(
+        concertId: concert.id,
+        kind: 'highlight_$i',
+        source: h,
+      );
+      if (res != null && res.isNotEmpty) {
+        uploadedHighlights.add(res);
+      }
+    }
+
+    final hasUploadedPoster =
+        uploadedPoster != null && uploadedPoster.startsWith('http');
+    final hasUploadedLogo =
+        uploadedLogo != null && uploadedLogo.startsWith('http');
+
+    if (hasUploadedPoster ||
+        hasUploadedLogo ||
+        uploadedHighlights.isNotEmpty) {
+      resolvedConcert = concert.copyWith(
+        posterFileName:
+            hasUploadedPoster ? uploadedPoster : concert.posterFileName,
+        posterDataUrl: hasUploadedPoster ? '' : concert.posterDataUrl,
+        squareLogoFileName:
+            hasUploadedLogo ? uploadedLogo : concert.squareLogoFileName,
+        squareLogoDataUrl: hasUploadedLogo ? '' : concert.squareLogoDataUrl,
+        highlights: uploadedHighlights.isNotEmpty
+            ? uploadedHighlights
+            : concert.highlights,
+      );
+
+      final list = List<PromoterConcertItem>.from(concertsNotifier.value);
+      final idx = list.indexWhere((c) => c.id == concert.id);
+      if (idx != -1) {
+        list[idx] = resolvedConcert;
+        concertsNotifier.value = list;
+      }
+
+      if (pendingEditPayload != null) {
+        if (hasUploadedPoster) {
+          pendingEditPayload['banner_image_url'] = uploadedPoster;
+        }
+        if (hasUploadedLogo) {
+          pendingEditPayload['logo_image_url'] = uploadedLogo;
+        }
+      }
+
+      final adminService = AdminService();
+      final adminList = List<ConcertSubmissionModel>.from(
+          adminService.concertsNotifier.value);
+      final adminIdx = adminList.indexWhere((c) => c.id == concert.id);
+      if (adminIdx != -1) {
+        adminList[adminIdx] = adminList[adminIdx].copyWith(
+          bannerUrl: resolvedConcert.posterFileName,
+          pendingEditPayload: pendingEditPayload,
+        );
+        adminService.concertsNotifier.value = adminList;
+      }
+    }
+
+    final concertJson = resolvedConcert.toJson(promoterId: currentUserId);
+    concertJson.remove('ticket_tiers');
+    concertJson['producer_name'] = promoterName;
+    concertJson['status'] = status;
+    concertJson['approval_status'] = approvalStatus;
+    if (pendingEditPayload != null) {
+      concertJson['pending_edit_payload'] = pendingEditPayload;
+    } else if (clearPendingEditPayload) {
+      concertJson['pending_edit_payload'] = null;
+    }
+
+    try {
+      await SupabaseService.client.from('concerts').upsert(concertJson);
+    } catch (err) {
+      debugPrint('Error upsert concert to Supabase: $err');
+      final errStr = err.toString();
+      if (errStr.contains('PGRST204') || errStr.contains('column')) {
+        final fallbackJson = Map<String, dynamic>.from(concertJson)
+          ..remove('highlights')
+          ..remove('highlight_names')
+          ..remove('poster_data_url')
+          ..remove('square_logo_data_url')
+          ..remove('square_logo_url');
+        try {
+          await SupabaseService.client.from('concerts').upsert(fallbackJson);
+        } catch (fallbackErr) {
+          debugPrint('Error upsert fallback concert to Supabase: $fallbackErr');
+          return;
+        }
+      } else {
+        return;
+      }
+    }
+
+    for (final tier in resolvedConcert.tiers) {
+      try {
+        await SupabaseService.client.from('ticket_tiers').upsert({
+          'id': tier.id,
+          'concert_id': resolvedConcert.id,
+          'name': tier.name,
+          'price': tier.price,
+          'quota': tier.quota,
+          'total_quota': tier.quota,
+          'quota_type': tier.quotaType,
+          'accent_color': tier.accentColor.toARGB32(),
+        });
+      } catch (err) {
+        debugPrint('Error upsert ticket_tier: $err');
+      }
+    }
+  }
+
   bool addConcert(PromoterConcertItem newConcert) {
     if (quotaRemainingNotifier.value <= 0) {
       return false;
@@ -1138,42 +1336,15 @@ class PromoterDataService {
           newConcert.highlightNames);
     }
 
-    // 1. Simpan ke Supabase Cloud jika Supabase aktif
+    // 1. Simpan ke Supabase Cloud (unggah media ke Storage lalu upsert konser & tiers)
     if (SupabaseService.isInitialized) {
-      final currentUserId = DataService().currentUser?.id;
-      final concertJson = newConcert.toJson(promoterId: currentUserId);
-      concertJson.remove('ticket_tiers');
-      concertJson['producer_name'] = promoterName;
-      concertJson['status'] = 'pending'; // Memerlukan approval Admin
-      concertJson['approval_status'] = 'pending_create';
-
-      SupabaseService.client.from('concerts').upsert(concertJson).then((_) {
-        for (final tier in newConcert.tiers) {
-          SupabaseService.client.from('ticket_tiers').upsert({
-            'id': tier.id,
-            'concert_id': newConcert.id,
-            'name': tier.name,
-            'price': tier.price,
-            'quota': tier.quota,
-            'total_quota': tier.quota,
-            'quota_type': tier.quotaType,
-            'accent_color': tier.accentColor.toARGB32(),
-          }).catchError((err) {
-            debugPrint('Error upsert ticket_tier: $err');
-          });
-        }
-      }).catchError((err) {
-        debugPrint('Error upsert concert to Supabase: $err');
-        final errStr = err.toString();
-        if (errStr.contains('PGRST204') || errStr.contains('column')) {
-          final fallbackJson = Map<String, dynamic>.from(concertJson);
-          fallbackJson.remove('highlights');
-          fallbackJson.remove('highlight_names');
-          fallbackJson.remove('poster_data_url');
-          fallbackJson.remove('square_logo_data_url');
-          SupabaseService.client.from('concerts').upsert(fallbackJson).catchError((_) {});
-        }
-      });
+      unawaited(
+        _persistConcertAndTiersToSupabase(
+          newConcert,
+          status: 'pending',
+          approvalStatus: 'pending_create',
+        ).catchError((_) {}),
+      );
     }
 
     // 2. Hubungkan ke antrean persetujuan Super Admin
@@ -1217,8 +1388,14 @@ class PromoterDataService {
       'venue': finalConcert.venueName,
       'venue_address': finalConcert.venueAddress,
       'description': finalConcert.description,
-      'banner_image_url': finalConcert.posterFileName,
-      'logo_image_url': finalConcert.squareLogoFileName,
+      'banner_image_url':
+          (finalConcert.posterDataUrl?.isNotEmpty == true)
+              ? finalConcert.posterDataUrl
+              : finalConcert.posterFileName,
+      'logo_image_url':
+          (finalConcert.squareLogoDataUrl?.isNotEmpty == true)
+              ? finalConcert.squareLogoDataUrl
+              : finalConcert.squareLogoFileName,
       'total_capacity': finalConcert.totalCapacity,
       'price': finalConcert.tiers.isNotEmpty
           ? finalConcert.tiers
@@ -1232,47 +1409,16 @@ class PromoterDataService {
     };
 
     if (SupabaseService.isInitialized) {
-      final json = finalConcert.toJson(
-        promoterId: DataService().currentUser?.id,
+      unawaited(
+        _persistConcertAndTiersToSupabase(
+          finalConcert,
+          status: requiresAdminApproval ? 'pending' : 'published',
+          approvalStatus:
+              requiresAdminApproval ? 'pending_edit' : 'approved',
+          pendingEditPayload: requiresAdminApproval ? editPayload : null,
+          clearPendingEditPayload: !requiresAdminApproval,
+        ).catchError((_) {}),
       );
-      json.remove('ticket_tiers');
-      json['producer_name'] = promoterName;
-      if (requiresAdminApproval) {
-        json['status'] = 'pending';
-        json['approval_status'] = 'pending_edit';
-        json['pending_edit_payload'] = editPayload;
-      } else {
-        json['status'] = 'published';
-        json['approval_status'] = 'approved';
-        json['pending_edit_payload'] = null;
-      }
-      SupabaseService.client.from('concerts').upsert(json).catchError((err) {
-        debugPrint('Error update concert in Supabase: $err');
-        final errStr = err.toString();
-        if (errStr.contains('PGRST204') || errStr.contains('column')) {
-          final fallbackJson = Map<String, dynamic>.from(json);
-          fallbackJson.remove('highlights');
-          fallbackJson.remove('highlight_names');
-          fallbackJson.remove('poster_data_url');
-          fallbackJson.remove('square_logo_data_url');
-          SupabaseService.client.from('concerts').upsert(fallbackJson).catchError((_) {});
-        }
-      });
-
-      for (final tier in finalConcert.tiers) {
-        SupabaseService.client.from('ticket_tiers').upsert({
-          'id': tier.id,
-          'concert_id': finalConcert.id,
-          'name': tier.name,
-          'price': tier.price,
-          'quota': tier.quota,
-          'total_quota': tier.quota,
-          'quota_type': tier.quotaType,
-          'accent_color': tier.accentColor.toARGB32(),
-        }).catchError((err) {
-          debugPrint('Error update tier in Supabase: $err');
-        });
-      }
     }
 
     if (requiresAdminApproval) {

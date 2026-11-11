@@ -66,7 +66,7 @@ class _SplashScreenState extends State<SplashScreen>
     final delayFuture = Future.delayed(const Duration(milliseconds: 2200));
 
     await Future.wait([sessionFuture, delayFuture]);
-    if (!mounted) return;
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
 
     final user = DataService().currentUserNotifier.value;
     Widget targetScreen;
