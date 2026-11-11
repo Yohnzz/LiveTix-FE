@@ -21,13 +21,13 @@ class AppColors {
   static const avatarBg = Color(0xFFFCE7F3);
   static const avatarText = Color(0xFF9333EA);
 
-  // Dark Mode Tokens (Slate Deep Palette)
+  // Dark Mode Tokens (Slate Deep Palette - WCAG AA high contrast)
   static const darkBg = Color(0xFF0B1120); // slate-950 latar belakang dasar
   static const darkSurface = Color(0xFF1E293B); // slate-800 kartu & container
   static const darkSurfaceVariant = Color(0xFF283548); // slate-750 input & chip aktif
   static const darkBorder = Color(0xFF334155); // slate-700 garis tepi kontras
-  static const darkText = Color(0xFFF8FAFC); // slate-50 teks utama
-  static const darkTextSecondary = Color(0xFF94A3B8); // slate-400 teks pendukung
+  static const darkText = Color(0xFFF8FAFC); // slate-50 teks utama (13.98:1 on darkSurface)
+  static const darkTextSecondary = Color(0xFFCBD5E1); // slate-300 teks pendukung (9.85:1 on darkSurface)
   static const darkIconBox = Color(0xFF2D3B4F);
   static const darkModalBox = Color(0xFF162032);
 

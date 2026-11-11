@@ -605,6 +605,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       UserAvatar(
                         initials: initials,
                         imageBytes: activeUser?.profileImageBytes,
+                        avatarUrl: activeUser?.avatarUrl,
                         colorIndex: activeUser?.avatarColorIndex ?? -1,
                         size: 48,
                         fontSize: 15,

@@ -1,3 +1,4 @@
+import 'package:supabase_flutter/supabase_flutter.dart' hide LocalStorage;
 import 'supabase_service.dart';
 import 'promoter_data_service.dart';
 import 'dart:async';
@@ -51,9 +52,72 @@ class DataService {
   final Set<String> _paidOrderIds = <String>{};
   bool _agreementAccepted = DbDummy.defaultGuestAgreementAccepted;
 
+  static const String _cachedConcertsStorageKey = 'livetix_cached_concerts_v1';
+
+  List<ConcertModel> _readCachedConcertsFromLocalStorage() {
+    try {
+      final raw = LocalStorage.getString(_cachedConcertsStorageKey);
+      if (raw != null && raw.trim().isNotEmpty) {
+        final decoded = jsonDecode(raw) as List<dynamic>;
+        return decoded
+            .whereType<Map<String, dynamic>>()
+            .map(ConcertModel.fromJson)
+            .where((c) => c.id.isNotEmpty)
+            .toList();
+      }
+    } catch (_) {}
+    return <ConcertModel>[];
+  }
+
+  void _saveCachedConcertsToLocalStorage(List<ConcertModel> concerts) {
+    try {
+      final encoded = jsonEncode(
+        concerts
+            .map((c) => {
+                  ...c.toJson(),
+                  'ticket_tiers': c.ticketTiers.map((t) => t.toJson()).toList(),
+                })
+            .toList(),
+      );
+      LocalStorage.setString(_cachedConcertsStorageKey, encoded);
+    } catch (_) {}
+  }
+
+  bool _isTransientNetworkError(Object error) {
+    final msg = error.toString().toLowerCase();
+    return msg.contains('failed to fetch') ||
+        msg.contains('clientexception') ||
+        msg.contains('socketexception') ||
+        msg.contains('timeoutexception') ||
+        msg.contains('xmlhttprequest error') ||
+        msg.contains('connection reset') ||
+        msg.contains('connection closed');
+  }
+
+  Future<T> _withTransientRetry<T>(
+    Future<T> Function() action, {
+    int maxAttempts = 2,
+  }) async {
+    Object? lastError;
+    StackTrace? lastStack;
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await action();
+      } catch (e, st) {
+        lastError = e;
+        lastStack = st;
+        if (attempt >= maxAttempts || !_isTransientNetworkError(e)) {
+          rethrow;
+        }
+        await Future.delayed(Duration(milliseconds: 450 * attempt));
+      }
+    }
+    Error.throwWithStackTrace(lastError!, lastStack!);
+  }
+
   void _initService() {
     _concerts = SupabaseService.isInitialized
-        ? <ConcertModel>[]
+        ? _readCachedConcertsFromLocalStorage()
         : List.from(DbDummy.concerts);
     _cities = List.from(DbDummy.cities);
     _users = List.from(DbDummy.users);
@@ -109,8 +173,9 @@ class DataService {
     favoriteConcertIdsNotifier.value = savedFavs.isNotEmpty ? savedFavs.toSet() : <String>{};
 
     if (SupabaseService.isInitialized) {
-      fetchConcertsFromSupabase(forceRefresh: true);
+      fetchConcertsFromSupabase();
       fetchUserTicketsFromSupabase();
+      startRealtimeSubscriptions();
     }
   }
 
@@ -137,6 +202,96 @@ class DataService {
   bool isFavorite(String concertId) =>
       favoriteConcertIdsNotifier.value.contains(concertId);
 
+  final Map<String, Timer> _likeDebounceTimers = {};
+  final Set<String> _serverLikedConcertIds = {};
+  final ValueNotifier<int> stockVersionNotifier = ValueNotifier<int>(0);
+  RealtimeChannel? _tiersRealtimeChannel;
+  RealtimeChannel? _concertsRealtimeChannel;
+  DateTime? _lastExpiredCleanup;
+  Future<void>? _ongoingLikesFetch;
+  Future<void>? _ongoingTicketFetch;
+  Future<void>? _ongoingRestoreSession;
+  DateTime? _lastSessionRestoreAt;
+  bool _pendingConcertForceRefresh = false;
+
+  /// Mengambil daftar konser yang disukai user langsung dari tabel concert_likes Supabase
+  Future<void> fetchUserLikesFromSupabase() async {
+    if (!SupabaseService.isInitialized) return;
+    if (_ongoingLikesFetch != null) return _ongoingLikesFetch!;
+
+    final future = _doFetchUserLikesFromSupabase();
+    _ongoingLikesFetch = future;
+    try {
+      await future;
+    } finally {
+      if (_ongoingLikesFetch == future) {
+        _ongoingLikesFetch = null;
+      }
+    }
+  }
+
+  Future<void> _doFetchUserLikesFromSupabase() async {
+    final userId = currentUserNotifier.value?.id;
+    if (userId == null || userId.isEmpty) return;
+    final uuidRegex = RegExp(
+        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+    if (!uuidRegex.hasMatch(userId)) return;
+
+    try {
+      final rows = await _withTransientRetry(
+        () => SupabaseService.client
+            .from('concert_likes')
+            .select('concert_id')
+            .eq('user_id', userId),
+      );
+      final serverIds = rows
+          .map((e) => (e['concert_id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      _serverLikedConcertIds
+        ..clear()
+        ..addAll(serverIds);
+      favoriteConcertIdsNotifier.value = Set<String>.from(serverIds);
+      LocalStorage.setStringList('livetix_favorite_ids', serverIds.toList());
+    } catch (e) {
+      debugPrint('Error fetchUserLikesFromSupabase: $e');
+    }
+  }
+
+  /// Mendengarkan perubahan realtime pada ticket_tiers & concerts via Supabase Realtime
+  void startRealtimeSubscriptions() {
+    if (!SupabaseService.isInitialized) return;
+    try {
+      _tiersRealtimeChannel ??= SupabaseService.client
+          .channel('public:ticket_tiers')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'ticket_tiers',
+            callback: (payload) async {
+              await fetchConcertsFromSupabase(forceRefresh: true);
+              stockVersionNotifier.value++;
+              await PromoterDataService().fetchPromoterConcertsFromSupabase();
+            },
+          )
+          .subscribe();
+      _concertsRealtimeChannel ??= SupabaseService.client
+          .channel('public:concerts')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'concerts',
+            callback: (payload) async {
+              await fetchConcertsFromSupabase(forceRefresh: true);
+              stockVersionNotifier.value++;
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Error starting realtime subscriptions: $e');
+    }
+  }
+
   /// Mengambil jumlah suka (love) terkini dari suatu konser
   int getConcertLikesCount(String concertId) {
     final idx = _concerts.indexWhere((c) => c.id == concertId);
@@ -144,7 +299,8 @@ class DataService {
     return 0;
   }
 
-  void _syncConcertLikeDelta(String concertId, int delta) {
+  void _syncConcertLikeWithDebounce(
+      String concertId, int delta, bool targetIsLiked) {
     if (delta == 0) return;
     final idx = _concerts.indexWhere((c) => c.id == concertId);
     if (idx != -1) {
@@ -152,29 +308,66 @@ class DataService {
       final nextLikes = (currentLikes + delta) < 0 ? 0 : (currentLikes + delta);
       _concerts[idx] = _concerts[idx].copyWith(likesCount: nextLikes);
     }
-    // Sinkronkan jumlah love ke dashboard & daftar konser Produser
+    // Sinkronkan jumlah love ke dashboard & daftar konser Produser secara optimistic
     PromoterDataService().adjustConcertLikes(concertId, delta);
 
-    if (SupabaseService.isInitialized) {
-      final userId = currentUserNotifier.value?.id;
-      if (userId != null && userId.isNotEmpty) {
-        if (delta > 0) {
-          SupabaseService.client.from('concert_likes').upsert({
-            'concert_id': concertId,
-            'user_id': userId,
-          }).catchError((_) {});
+    if (!SupabaseService.isInitialized) return;
+    final userId = currentUserNotifier.value?.id;
+    if (userId == null || userId.isEmpty) return;
+
+    // Batalkan timer debounce yang tertunda jika user mengubah pilihan dalam 5 detik
+    _likeDebounceTimers[concertId]?.cancel();
+    _likeDebounceTimers.remove(concertId);
+
+    // Jika kembali ke status yang sama dengan yang tersimpan di server, tidak perlu request
+    final bool wasServerLiked = _serverLikedConcertIds.contains(concertId);
+    if (targetIsLiked == wasServerLiked) {
+      return;
+    }
+
+    // Tunggu 5 detik sebelum mengirim request Like/Unlike ke Supabase
+    _likeDebounceTimers[concertId] =
+        Timer(const Duration(seconds: 5), () async {
+      _likeDebounceTimers.remove(concertId);
+      if (!SupabaseService.isInitialized) return;
+      final activeUid = currentUserNotifier.value?.id;
+      if (activeUid == null || activeUid.isEmpty) return;
+
+      final uuidRegex = RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+      if (!uuidRegex.hasMatch(activeUid)) return;
+
+      try {
+        if (targetIsLiked) {
+          await SupabaseService.client.from('concert_likes').upsert(
+            {'concert_id': concertId, 'user_id': activeUid},
+            onConflict: 'user_id,concert_id',
+          );
+          _serverLikedConcertIds.add(concertId);
         } else {
-          SupabaseService.client
+          await SupabaseService.client
               .from('concert_likes')
               .delete()
-              .match({'concert_id': concertId, 'user_id': userId}).catchError(
-                  (_) {});
+              .match({'concert_id': concertId, 'user_id': activeUid});
+          _serverLikedConcertIds.remove(concertId);
         }
+
+        // Hitung ulang total like secara akurat dari database & simpan ke concerts
+        final countRes = await SupabaseService.client
+            .from('concert_likes')
+            .select('id')
+            .eq('concert_id', concertId);
+        final exactCount = countRes.length;
+        await SupabaseService.client
+            .from('concerts')
+            .update({'likes_count': exactCount}).eq('id', concertId);
+      } catch (e) {
+        debugPrint('Error sync concert_likes ke Supabase: $e');
       }
-    }
+    });
   }
 
-  /// Toggle status favorit konser dan menyimpan perubahan ke memori, penyimpanan lokal, serta Produser
+  /// Toggle status favorit konser dan menyimpan perubahan ke memori, penyimpanan lokal, serta Produser (debounce 5 detik)
   void toggleFavorite(String concertId) {
     final updated = Set<String>.from(favoriteConcertIdsNotifier.value);
     final bool wasFav = updated.contains(concertId);
@@ -185,10 +378,10 @@ class DataService {
     }
     favoriteConcertIdsNotifier.value = updated;
     LocalStorage.setStringList('livetix_favorite_ids', updated.toList());
-    _syncConcertLikeDelta(concertId, wasFav ? -1 : 1);
+    _syncConcertLikeWithDebounce(concertId, wasFav ? -1 : 1, !wasFav);
   }
 
-  /// Menetapkan status favorit suatu konser secara eksplisit
+  /// Menetapkan status favorit suatu konser secara eksplisit (debounce 5 detik)
   void setFavorite(String concertId, bool isFav) {
     final updated = Set<String>.from(favoriteConcertIdsNotifier.value);
     final bool wasFav = updated.contains(concertId);
@@ -200,7 +393,7 @@ class DataService {
     }
     favoriteConcertIdsNotifier.value = updated;
     LocalStorage.setStringList('livetix_favorite_ids', updated.toList());
-    _syncConcertLikeDelta(concertId, isFav ? 1 : -1);
+    _syncConcertLikeWithDebounce(concertId, isFav ? 1 : -1, isFav);
   }
 
   /// Mengecek apakah pengguna sudah pernah menyetujui modal persetujuan (tersimpan di lokal atau akun)
@@ -244,7 +437,10 @@ class DataService {
   Future<List<ConcertModel>> fetchConcertsFromSupabase({bool forceRefresh = false}) async {
     if (!SupabaseService.isInitialized) return _concerts;
     if (_hasFetchedConcertsFromSupabase && !forceRefresh) return _concerts;
-    if (_ongoingConcertFetch != null && !forceRefresh) {
+    if (_ongoingConcertFetch != null) {
+      if (forceRefresh) {
+        _pendingConcertForceRefresh = true;
+      }
       return _ongoingConcertFetch!;
     }
 
@@ -256,15 +452,39 @@ class DataService {
       if (_ongoingConcertFetch == future) {
         _ongoingConcertFetch = null;
       }
+      if (_pendingConcertForceRefresh) {
+        _pendingConcertForceRefresh = false;
+        unawaited(fetchConcertsFromSupabase(forceRefresh: true));
+      }
     }
+  }
+
+  void _triggerExpiredOrdersCleanupNonBlocking() {
+    final now = DateTime.now();
+    if (_lastExpiredCleanup != null &&
+        now.difference(_lastExpiredCleanup!).inSeconds < 60) {
+      return;
+    }
+    _lastExpiredCleanup = now;
+    unawaited(() async {
+      try {
+        await SupabaseService.client
+            .rpc('release_expired_orders')
+            .timeout(const Duration(seconds: 4));
+      } catch (_) {}
+    }());
   }
 
   Future<List<ConcertModel>> _doFetchConcertsFromSupabase() async {
     try {
-      final response = await SupabaseService.client
-          .from('concerts')
-          .select('*, ticket_tiers(*)')
-          .order('created_at', ascending: false);
+      _triggerExpiredOrdersCleanupNonBlocking();
+
+      final response = await _withTransientRetry(
+        () => SupabaseService.client
+            .from('concerts')
+            .select('*, ticket_tiers(*)')
+            .order('created_at', ascending: false),
+      );
 
       final List<ConcertModel> liveItems = [];
       for (final item in response) {
@@ -290,6 +510,8 @@ class DataService {
         ..clear()
         ..addAll(liveItems);
       _hasFetchedConcertsFromSupabase = true;
+      _saveCachedConcertsToLocalStorage(_concerts);
+      stockVersionNotifier.value++;
       return _concerts;
     } catch (e) {
       debugPrint('Gagal fetch konser dari Supabase: $e');
@@ -315,6 +537,7 @@ class DataService {
           } else {
             _concerts.add(liveConcert);
           }
+          stockVersionNotifier.value++;
           return liveConcert;
         }
       } catch (e) {
@@ -559,7 +782,28 @@ class DataService {
   }
 
   /// Pulihkan sesi Supabase saat aplikasi dibuka
-  Future<void> restoreSupabaseSession() async {
+  Future<void> restoreSupabaseSession({bool force = false}) async {
+    if (!force && _ongoingRestoreSession != null) {
+      return _ongoingRestoreSession!;
+    }
+    if (!force &&
+        _lastSessionRestoreAt != null &&
+        DateTime.now().difference(_lastSessionRestoreAt!) <
+            const Duration(seconds: 3)) {
+      return;
+    }
+    final future = _doRestoreSupabaseSession();
+    _ongoingRestoreSession = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_ongoingRestoreSession, future)) {
+        _ongoingRestoreSession = null;
+      }
+    }
+  }
+
+  Future<void> _doRestoreSupabaseSession() async {
     // 1. Cek penyimpanan lokal disk terlebih dahulu agar instan saat cold/hot start
     final cached = LocalStorage.getString(LocalStorage.savedUserKey);
     if (cached != null && cached.isNotEmpty) {
@@ -570,7 +814,8 @@ class DataService {
     }
 
     if (!SupabaseService.isInitialized) return;
-    await fetchConcertsFromSupabase(forceRefresh: true);
+    _lastSessionRestoreAt = DateTime.now();
+    await fetchConcertsFromSupabase();
     await fetchUserTicketsFromSupabase();
     try {
       final authUser = SupabaseService.client.auth.currentUser;
@@ -587,13 +832,17 @@ class DataService {
           (meta['full_name'] as String?) ??
           (authUser.email ?? 'User').split('@').first;
       String resolvedPhone = (meta['phone'] as String?) ?? '';
+      String? resolvedAvatarUrl =
+          (meta['url_foto'] as String?) ?? (meta['avatar_url'] as String?);
 
       try {
-        final profileRes = await SupabaseService.client
-            .from('profiles')
-            .select()
-            .eq('id', authUser.id)
-            .maybeSingle();
+        final profileRes = await _withTransientRetry(
+          () => SupabaseService.client
+              .from('profiles')
+              .select()
+              .eq('id', authUser.id)
+              .maybeSingle(),
+        );
 
         if (profileRes != null) {
           resolvedRole = normalizeRole(profileRes['role'] as String?);
@@ -601,6 +850,27 @@ class DataService {
               (profileRes['full_name'] as String?) ??
               resolvedName;
           resolvedPhone = (profileRes['phone'] as String?) ?? resolvedPhone;
+
+          final dbFoto = (profileRes['url_foto'] as String?) ??
+              (profileRes['avatar_url'] as String?);
+          if (dbFoto != null) {
+            resolvedAvatarUrl = dbFoto;
+          }
+
+          final rBank = profileRes['refund_bank_name'] as String?;
+          final rNum = profileRes['refund_account_number'] as String?;
+          final rHolder = profileRes['refund_account_name'] as String?;
+          final rType = (profileRes['refund_account_type'] as String?) ?? 'bank';
+          final rUpdated = profileRes['refund_last_updated'] as String?;
+          if (rBank != null && rNum != null && rBank.isNotEmpty && rNum.isNotEmpty) {
+            refundAccountNotifier.value = UserRefundAccount(
+              provider: rBank,
+              accountNumber: rNum,
+              accountHolderName: rHolder ?? resolvedName,
+              accountType: rType,
+              lastUpdated: DateTime.tryParse(rUpdated ?? '') ?? DateTime.now(),
+            );
+          }
         }
       } catch (_) {}
 
@@ -609,8 +879,9 @@ class DataService {
         name: resolvedName,
         email: authUser.email ?? '',
         phone: resolvedPhone,
-        password: '',
+        password: currentUserNotifier.value?.password ?? '',
         role: resolvedRole,
+        avatarUrl: resolvedAvatarUrl,
       );
 
       currentUserNotifier.value = user;
@@ -618,6 +889,8 @@ class DataService {
         LocalStorage.savedUserKey,
         jsonEncode(user.toJson()),
       );
+      await fetchUserLikesFromSupabase();
+      startRealtimeSubscriptions();
       if (user.role == 'Produser') {
         await PromoterDataService().loadProducerProfileFromSupabase();
       }
@@ -626,6 +899,7 @@ class DataService {
 
   /// Login akun pengguna via Supabase Auth
   Future<UserModel?> login(String email, String password) async {
+    _lastSessionRestoreAt = null;
     if (SupabaseService.isInitialized) {
       final response = await SupabaseService.client.auth.signInWithPassword(
         email: email.trim(),
@@ -640,13 +914,17 @@ class DataService {
           (meta['full_name'] as String?) ??
           email.trim().split('@').first;
       String resolvedPhone = (meta['phone'] as String?) ?? '';
+      String? resolvedAvatarUrl =
+          (meta['url_foto'] as String?) ?? (meta['avatar_url'] as String?);
 
       try {
-        final profileRes = await SupabaseService.client
-            .from('profiles')
-            .select()
-            .eq('id', authUser.id)
-            .maybeSingle();
+        final profileRes = await _withTransientRetry(
+          () => SupabaseService.client
+              .from('profiles')
+              .select()
+              .eq('id', authUser.id)
+              .maybeSingle(),
+        );
 
         if (profileRes != null) {
           resolvedRole = normalizeRole(profileRes['role'] as String?);
@@ -654,6 +932,27 @@ class DataService {
               (profileRes['full_name'] as String?) ??
               resolvedName;
           resolvedPhone = (profileRes['phone'] as String?) ?? resolvedPhone;
+
+          final dbFoto = (profileRes['url_foto'] as String?) ??
+              (profileRes['avatar_url'] as String?);
+          if (dbFoto != null) {
+            resolvedAvatarUrl = dbFoto;
+          }
+
+          final rBank = profileRes['refund_bank_name'] as String?;
+          final rNum = profileRes['refund_account_number'] as String?;
+          final rHolder = profileRes['refund_account_name'] as String?;
+          final rType = (profileRes['refund_account_type'] as String?) ?? 'bank';
+          final rUpdated = profileRes['refund_last_updated'] as String?;
+          if (rBank != null && rNum != null && rBank.isNotEmpty && rNum.isNotEmpty) {
+            refundAccountNotifier.value = UserRefundAccount(
+              provider: rBank,
+              accountNumber: rNum,
+              accountHolderName: rHolder ?? resolvedName,
+              accountType: rType,
+              lastUpdated: DateTime.tryParse(rUpdated ?? '') ?? DateTime.now(),
+            );
+          }
         }
       } catch (_) {}
 
@@ -662,8 +961,9 @@ class DataService {
         name: resolvedName,
         email: authUser.email ?? email.trim(),
         phone: resolvedPhone,
-        password: '',
+        password: password.trim(),
         role: resolvedRole,
+        avatarUrl: resolvedAvatarUrl,
       );
 
       currentUserNotifier.value = user;
@@ -677,6 +977,8 @@ class DataService {
       }
       if (SupabaseService.isInitialized) {
         await fetchUserTicketsFromSupabase();
+        await fetchUserLikesFromSupabase();
+        startRealtimeSubscriptions();
       }
       return user;
     }
@@ -720,6 +1022,18 @@ class DataService {
     } else {
       _users.add(crewUser);
     }
+  }
+
+  /// Menghapus akun Gate Crew dari memori autentikasi lokal setelah dihapus Admin
+  void removeGateCrewAccountInMemory({String? id, String? email}) {
+    final normalizedEmail = email?.trim().toLowerCase() ?? '';
+    _users.removeWhere((u) {
+      if (u.role.toLowerCase() != 'gatecrew') return false;
+      final matchId = id != null && id.isNotEmpty && u.id == id;
+      final matchEmail = normalizedEmail.isNotEmpty &&
+          u.email.trim().toLowerCase() == normalizedEmail;
+      return matchId || matchEmail;
+    });
   }
 
   /// Registrasi sinkron untuk pembaruan state langsung
@@ -821,7 +1135,7 @@ class DataService {
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
-        password: '',
+        password: password.trim(),
         role: normalizedRole,
       );
 
@@ -849,21 +1163,32 @@ class DataService {
   }
 
   /// Memperbarui data profil pengguna yang sedang login (nama, foto profil, tema warna avatar)
-  UserModel? updateProfile({
+  Future<UserModel?> updateProfile({
     String? name,
     String? avatarUrl,
     Uint8List? profileImageBytes,
     bool clearProfileImage = false,
     int? avatarColorIndex,
-  }) {
+  }) async {
     final active = currentUserNotifier.value;
     if (active == null) return null;
 
     final resolvedName =
         name != null && name.trim().isNotEmpty ? name.trim() : active.name;
-    final updated = active.copyWith(
+
+    String? resolvedAvatarUrl = avatarUrl;
+    if (clearProfileImage) {
+      resolvedAvatarUrl = '';
+    } else if (resolvedAvatarUrl == null &&
+        profileImageBytes != null &&
+        profileImageBytes.isNotEmpty) {
+      resolvedAvatarUrl = 'data:image/jpeg;base64,${base64Encode(profileImageBytes)}';
+    }
+
+    // 1. Optimistic update agar UI langsung responsif
+    var updated = active.copyWith(
       name: resolvedName,
-      avatarUrl: avatarUrl,
+      avatarUrl: resolvedAvatarUrl ?? active.avatarUrl,
       profileImageBytes: profileImageBytes,
       clearProfileImage: clearProfileImage,
       avatarColorIndex: avatarColorIndex,
@@ -879,30 +1204,143 @@ class DataService {
     }
     currentUserNotifier.value = updated;
 
+    try {
+      LocalStorage.setString(
+        LocalStorage.savedUserKey,
+        jsonEncode(updated.toJson()),
+      );
+    } catch (_) {}
+
+    // 2. Upload foto ke Supabase Storage & simpan url_foto ke tabel profiles
     if (SupabaseService.isInitialized) {
-      SupabaseService.client
-          .from('profiles')
-          .update({
+      if (!clearProfileImage &&
+          profileImageBytes != null &&
+          profileImageBytes.isNotEmpty) {
+        try {
+          final filePath =
+              'user_${active.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          await SupabaseService.client.storage.from('avatars').uploadBinary(
+                filePath,
+                profileImageBytes,
+                fileOptions: const FileOptions(
+                  contentType: 'image/jpeg',
+                  upsert: true,
+                ),
+              );
+          final publicUrl = SupabaseService.client.storage
+              .from('avatars')
+              .getPublicUrl(filePath);
+          if (publicUrl.isNotEmpty) {
+            resolvedAvatarUrl = publicUrl;
+            updated = updated.copyWith(avatarUrl: publicUrl);
+            currentUserNotifier.value = updated;
+            try {
+              LocalStorage.setString(
+                LocalStorage.savedUserKey,
+                jsonEncode(updated.toJson()),
+              );
+            } catch (_) {}
+          }
+        } catch (e) {
+          debugPrint('Error upload foto ke Supabase Storage: $e');
+        }
+      }
+
+      final updateData = <String, dynamic>{
+        'name': resolvedName,
+        'full_name': resolvedName,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      if (resolvedAvatarUrl != null) {
+        updateData['url_foto'] = resolvedAvatarUrl;
+        updateData['avatar_url'] = resolvedAvatarUrl;
+      }
+
+      try {
+        await SupabaseService.client
+            .from('profiles')
+            .update(updateData)
+            .eq('id', active.id);
+      } catch (err) {
+        debugPrint('DataService.updateProfile Supabase error: $err');
+        // Fallback jika kolom url_foto belum termigrasi di DB lama
+        if (updateData.containsKey('url_foto')) {
+          try {
+            final fallbackData = Map<String, dynamic>.from(updateData)
+              ..remove('url_foto');
+            await SupabaseService.client
+                .from('profiles')
+                .update(fallbackData)
+                .eq('id', active.id);
+          } catch (_) {}
+        }
+      }
+
+      try {
+        await SupabaseService.client.auth.updateUser(
+          UserAttributes(data: {
             'name': resolvedName,
             'full_name': resolvedName,
-          })
-          .eq('id', active.id)
-          .catchError((_) {});
+            if (resolvedAvatarUrl != null) 'url_foto': resolvedAvatarUrl,
+            if (resolvedAvatarUrl != null) 'avatar_url': resolvedAvatarUrl,
+          }),
+        );
+      } catch (err) {
+        debugPrint('DataService.updateProfile auth metadata error: $err');
+      }
     }
 
     return updated;
   }
 
-  /// Mengganti kata sandi menggunakan verifikasi kata sandi lama
-  bool changePassword({
+  /// Mengganti kata sandi menggunakan verifikasi kata sandi lama secara asynchronous via Supabase Auth
+  Future<({bool success, String? message})> changePassword({
     required String oldPassword,
     required String newPassword,
-  }) {
+  }) async {
     final active = currentUserNotifier.value;
-    if (active == null) return false;
-    // Jika login dari Supabase Auth, active.password di lokal bisa kosong ('')
-    if (active.password.isNotEmpty && active.password != oldPassword) {
-      return false;
+    if (active == null) {
+      return (success: false, message: 'Tidak ada sesi pengguna aktif');
+    }
+
+    if (SupabaseService.isInitialized && active.email.isNotEmpty) {
+      try {
+        // Cek keabsahan kata sandi lama dengan verifikasi signIn ke Supabase Auth
+        final authRes = await SupabaseService.client.auth.signInWithPassword(
+          email: active.email.trim(),
+          password: oldPassword,
+        );
+        if (authRes.user == null) {
+          return (success: false, message: 'Password lama tidak sesuai');
+        }
+      } on AuthException catch (e) {
+        final msg = e.message.toLowerCase();
+        if (msg.contains('invalid login credentials') ||
+            msg.contains('invalid') ||
+            msg.contains('credentials')) {
+          return (success: false, message: 'Password lama tidak sesuai');
+        }
+        return (success: false, message: e.message);
+      } catch (_) {
+        if (active.password.isNotEmpty && active.password != oldPassword) {
+          return (success: false, message: 'Password lama tidak sesuai');
+        }
+      }
+
+      // Password lama valid -> perbarui kata sandi akun di Supabase Auth
+      try {
+        await SupabaseService.client.auth.updateUser(
+          UserAttributes(password: newPassword),
+        );
+      } on AuthException catch (e) {
+        return (success: false, message: e.message);
+      } catch (e) {
+        return (success: false, message: 'Gagal memperbarui kata sandi: $e');
+      }
+    } else {
+      if (active.password.isNotEmpty && active.password != oldPassword) {
+        return (success: false, message: 'Password lama tidak sesuai');
+      }
     }
 
     final updated = active.copyWith(password: newPassword);
@@ -915,7 +1353,14 @@ class DataService {
       _users.add(updated);
     }
     currentUserNotifier.value = updated;
-    return true;
+    try {
+      LocalStorage.setString(
+        LocalStorage.savedUserKey,
+        jsonEncode(updated.toJson()),
+      );
+    } catch (_) {}
+
+    return (success: true, message: null);
   }
 
   /// Mereset kata sandi berdasarkan email yang telah diverifikasi lewat OTP
@@ -1003,6 +1448,13 @@ class DataService {
 
   /// Logout akun pengguna dan reset state ke mode Guest
   void logout() {
+    _lastSessionRestoreAt = null;
+    for (final t in _likeDebounceTimers.values) {
+      t.cancel();
+    }
+    _likeDebounceTimers.clear();
+    _serverLikedConcertIds.clear();
+    favoriteConcertIdsNotifier.value = <String>{};
     currentUserNotifier.value = null;
     userTicketsNotifier.value = <UserTicketModel>[];
     refundAccountNotifier.value = null;
@@ -1010,6 +1462,7 @@ class DataService {
     LocalStorage.remove(LocalStorage.savedUserKey);
     LocalStorage.remove('livetix_saved_user_tickets');
     LocalStorage.remove('livetix_saved_refund_account');
+    LocalStorage.remove('livetix_favorite_ids');
     if (SupabaseService.isInitialized) {
       try {
         SupabaseService.client.auth.signOut();
@@ -1032,6 +1485,56 @@ class DataService {
 
   /// Mengecek apakah order dengan ID tertentu sudah berhasil dibayar
   bool isOrderPaid(String orderId) => _paidOrderIds.contains(orderId);
+
+  /// Menyesuaikan stok tier di cache lokal agar perubahan stok langsung terlihat sebelum/bersama Realtime
+  void adjustLocalTierStock(
+    String concertId,
+    String tierId, {
+    int reservedDelta = 0,
+    int soldDelta = 0,
+  }) {
+    final cIdx = _concerts.indexWhere((c) => c.id == concertId);
+    if (cIdx == -1) return;
+    final concert = _concerts[cIdx];
+    final updatedTiers = concert.ticketTiers.map((t) {
+      if (t.id == tierId) {
+        final newReserved = (t.reservedCount + reservedDelta).clamp(0, t.totalQuota);
+        final newSold = (t.soldCount + soldDelta).clamp(0, t.totalQuota);
+        return t.copyWith(
+          reservedCount: newReserved,
+          soldCount: newSold,
+          isSoldOut: (newSold + newReserved) >= t.totalQuota,
+        );
+      }
+      return t;
+    }).toList();
+    _concerts[cIdx] = concert.copyWith(ticketTiers: updatedTiers);
+    stockVersionNotifier.value++;
+  }
+
+  /// Membatalkan atau menandai kadaluarsa pesanan PENDING dan melepaskan reservasi stok lokal
+  void cancelOrderTicket(String orderId, {String reason = 'CANCELLED'}) {
+    final list = List<UserTicketModel>.from(userTicketsNotifier.value);
+    final idx = list.indexWhere((t) => t.id == orderId);
+    if (idx != -1) {
+      final existing = list[idx];
+      if (existing.isPendingPayment && existing.pendingOrder != null) {
+        adjustLocalTierStock(
+          existing.pendingOrder!.concert.id,
+          existing.pendingOrder!.tier.id,
+          reservedDelta: -existing.pendingOrder!.quantity,
+        );
+      }
+      list[idx] = existing.copyWith(
+        status: 'Expired/Cancelled',
+        isCompleted: true,
+        isCancelled: false,
+        pendingOrder: null,
+      );
+      userTicketsNotifier.value = list;
+      _saveUserTicketsToLocalStorage();
+    }
+  }
 
   /// Menyimpan pesanan tiket dalam status PENDING (Menunggu Pembayaran)
   /// agar user dapat melihatnya di tab Tiket Saya dan dapat melanjutkan pembayaran.
@@ -1113,6 +1616,12 @@ class DataService {
       userTicketsNotifier.value = list;
       _saveUserTicketsToLocalStorage();
 
+      adjustLocalTierStock(
+        order.concert.id,
+        order.tier.id,
+        reservedDelta: existing.isPendingPayment ? -order.quantity : 0,
+        soldDelta: order.quantity,
+      );
       PromoterDataService().recordTicketSale(order.concert.id, order.quantity, order.totalAmount);
       _syncTicketToSupabase(order, bookingCode, validUserId: currentUser?.id);
       return updatedTicket;
@@ -1152,6 +1661,11 @@ class DataService {
     );
 
     addPurchasedTicket(newTicket);
+    adjustLocalTierStock(
+      order.concert.id,
+      order.tier.id,
+      soldDelta: order.quantity,
+    );
     PromoterDataService().recordTicketSale(order.concert.id, order.quantity, order.totalAmount);
     _syncTicketToSupabase(order, bookingCode, validUserId: currentUser?.id);
     return newTicket;
@@ -1242,6 +1756,19 @@ class DataService {
   /// Sinkronisasi tiket resmi pengguna langsung dari tabel tickets Supabase Cloud
   Future<void> fetchUserTicketsFromSupabase() async {
     if (!SupabaseService.isInitialized) return;
+    if (_ongoingTicketFetch != null) return _ongoingTicketFetch!;
+    final future = _doFetchUserTicketsFromSupabase();
+    _ongoingTicketFetch = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_ongoingTicketFetch, future)) {
+        _ongoingTicketFetch = null;
+      }
+    }
+  }
+
+  Future<void> _doFetchUserTicketsFromSupabase() async {
     try {
       final user = currentUser;
       final rawUserId = user?.id;
@@ -1251,12 +1778,13 @@ class DataService {
           ? rawUserId
           : (SupabaseService.client.auth.currentUser?.id);
 
-      var query = SupabaseService.client.from('tickets').select();
-      if (validUserId != null) {
-        query = query.or('user_id.eq.$validUserId,user_id.is.null');
-      }
-      final List<dynamic> rows =
-          await query.order('issued_at', ascending: false);
+      final List<dynamic> rows = await _withTransientRetry(() async {
+        var query = SupabaseService.client.from('tickets').select();
+        if (validUserId != null) {
+          query = query.or('user_id.eq.$validUserId,user_id.is.null');
+        }
+        return await query.order('issued_at', ascending: false);
+      });
       if (rows.isNotEmpty) {
         // Ambil data detail pesanan terkait dari tabel orders
         final Map<String, Map<String, dynamic>> ordersMap = {};
@@ -1473,6 +2001,19 @@ class DataService {
       );
     } catch (_) {}
 
+    if (SupabaseService.isInitialized) {
+      final active = currentUserNotifier.value;
+      if (active != null) {
+        SupabaseService.client.from('profiles').update({
+          'refund_bank_name': provider,
+          'refund_account_number': accountNumber,
+          'refund_account_name': accountHolderName,
+          'refund_account_type': accountType,
+          'refund_last_updated': newAccount.lastUpdated.toIso8601String(),
+        }).eq('id', active.id).catchError((_) {});
+      }
+    }
+
     return true;
   }
 
@@ -1508,23 +2049,35 @@ class UserRefundAccount {
     required this.lastUpdated,
   });
 
-  /// Status apakah masa perlindungan cooldown 1 minggu (7 hari) sedang aktif
-  bool get isCooldownActive {
-    return DateTime.now().difference(lastUpdated).inDays < 7;
-  }
-
-  /// Sisa hari masa cooldown
-  int get remainingDays {
-    final daysPassed = DateTime.now().difference(lastUpdated).inDays;
-    final diff = 7 - daysPassed;
-    return diff < 0 ? 0 : diff;
-  }
-
   /// Durasi lengkap sisa cooldown
   Duration get remainingCooldown {
     final cooldownEnd = lastUpdated.add(const Duration(days: 7));
     final diff = cooldownEnd.difference(DateTime.now());
     return diff.isNegative ? Duration.zero : diff;
+  }
+
+  /// Status apakah masa perlindungan cooldown 1 minggu (7 hari) sedang aktif
+  bool get isCooldownActive {
+    return remainingCooldown > Duration.zero;
+  }
+
+  /// Sisa hari masa cooldown
+  int get remainingDays => remainingCooldown.inDays;
+
+  /// String representasi sisa cooldown: misal "6 hari 23:59:12" atau "00:00:00"
+  String get cooldownTimerFormatted {
+    final rem = remainingCooldown;
+    if (rem == Duration.zero) return '00:00:00';
+    final days = rem.inDays;
+    final hours = rem.inHours % 24;
+    final minutes = rem.inMinutes % 60;
+    final seconds = rem.inSeconds % 60;
+    final timeStr =
+        '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    if (days > 0) {
+      return '$days hari $timeStr';
+    }
+    return timeStr;
   }
 
   /// Masking nomor rekening atau nomor e-wallet demi keamanan tampilan

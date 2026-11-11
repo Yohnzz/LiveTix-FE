@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/data_service.dart';
+import '../../services/supabase_service.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_header.dart';
 import '../../widgets/primary_button.dart';
@@ -23,6 +24,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _email;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -39,6 +41,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final emailText = _email.text.trim();
+
+    setState(() => _isLoading = true);
+
+    if (SupabaseService.isInitialized) {
+      try {
+        await SupabaseService.client.auth.resetPasswordForEmail(emailText);
+      } catch (e) {
+        debugPrint('resetPasswordForEmail note: $e');
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
 
     if (widget.returnToCaller) {
       final result = await Navigator.push<bool>(
@@ -146,7 +161,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 const SizedBox(height: 28),
                 PrimaryButton(
-                  text: widget.returnToCaller ? 'Kirim Kode Verifikasi' : 'Masuk',
+                  text: widget.returnToCaller ? 'Kirim Kode Verifikasi' : 'Kirim Kode Verifikasi',
+                  isLoading: _isLoading,
                   onPressed: _submit,
                 ),
               ],

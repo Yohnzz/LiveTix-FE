@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 class UserModel {
@@ -106,25 +107,41 @@ class UserModel {
       'email': email,
       'phone': phone,
       'role': role,
+      'url_foto': avatarUrl,
+      'avatar_url': avatarUrl,
+      'avatarUrl': avatarUrl,
+      'avatarColorIndex': avatarColorIndex,
       'ticketsBought': ticketsBought,
       'concertsAttended': concertsAttended,
       'reviewsCount': reviewsCount,
-      'avatarColorIndex': avatarColorIndex,
       'hasAcceptedAgreement': hasAcceptedAgreement,
     };
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    final avatar = (json['url_foto'] ?? json['avatarUrl'] ?? json['avatar_url']) as String?;
+    Uint8List? bytes;
+    if (avatar != null && avatar.startsWith('data:image')) {
+      try {
+        final commaIdx = avatar.indexOf(',');
+        if (commaIdx != -1) {
+          bytes = base64Decode(avatar.substring(commaIdx + 1));
+        }
+      } catch (_) {}
+    }
+
     return UserModel(
       id: (json['id'] as String?) ?? '123456',
-      name: (json['name'] as String?) ?? '',
+      name: (json['name'] as String?) ?? (json['full_name'] as String?) ?? '',
       email: (json['email'] as String?) ?? '',
       phone: (json['phone'] as String?) ?? '',
       password: '',
       role: (json['role'] as String?) ?? 'User',
-      ticketsBought: (json['ticketsBought'] as num?)?.toInt() ?? 12,
-      concertsAttended: (json['concertsAttended'] as num?)?.toInt() ?? 9,
-      reviewsCount: (json['reviewsCount'] as num?)?.toInt() ?? 4,
+      avatarUrl: avatar,
+      profileImageBytes: bytes,
+      ticketsBought: (json['ticketsBought'] as num?)?.toInt() ?? 0,
+      concertsAttended: (json['concertsAttended'] as num?)?.toInt() ?? 0,
+      reviewsCount: (json['reviewsCount'] as num?)?.toInt() ?? 0,
       avatarColorIndex: (json['avatarColorIndex'] as num?)?.toInt() ?? -1,
       hasAcceptedAgreement: (json['hasAcceptedAgreement'] as bool?) ?? true,
     );

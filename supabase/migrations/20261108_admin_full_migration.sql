@@ -202,6 +202,7 @@ RETURNS BOOLEAN
 LANGUAGE sql
 SECURITY DEFINER
 STABLE
+SET search_path = ''
 AS $$
   SELECT EXISTS (
     SELECT 1
@@ -209,7 +210,7 @@ AS $$
     WHERE id = auth.uid()
       AND lower(trim(role)) = 'admin'
   )
-  OR lower(coalesce(auth.jwt() ->> 'email', '')) IN ('admin@livetix.com', 'admin@soundwave.com');
+  OR lower(coalesce(auth.jwt() ->> 'email', '')) IN ('admin1@gmail.com', 'admin@livetix.com', 'admin@soundwave.com');
 $$;
 
 -- 6. Fungsi RPC public.upsert_gate_crew_account untuk Tambah & Approval Gate Crew (oleh Produser / Admin)

@@ -755,8 +755,28 @@ class AdminService {
         AdminDummy.producers.map(ProducerApplicationModel.fromJson).toList();
     concertsNotifier.value =
         AdminDummy.concerts.map(ConcertSubmissionModel.fromJson).toList();
-    usersNotifier.value =
+    final seededUsers =
         AdminDummy.users.map(ManagedUserModel.fromJson).toList();
+    final existingEmails =
+        seededUsers.map((u) => u.email.trim().toLowerCase()).toSet();
+    for (final crew in GateCrewService().teamCrewNotifier.value) {
+      if (crew.isApproved &&
+          !existingEmails.contains(crew.email.trim().toLowerCase())) {
+        seededUsers.add(
+          ManagedUserModel(
+            id: crew.id,
+            name: crew.name,
+            email: crew.email,
+            role: 'Gatecrew',
+            phone: crew.phone,
+            joinedAt: 'Terdaftar',
+            isActive: true,
+            password: crew.defaultPassword,
+          ),
+        );
+      }
+    }
+    usersNotifier.value = seededUsers;
     notificationsNotifier.value =
         AdminDummy.notifications.map(AdminNotificationModel.fromJson).toList();
     refundOverviewNotifier.value =
@@ -852,7 +872,53 @@ class AdminService {
     for (final u in usersNotifier.value) {
       if (u.id == id) return u;
     }
+    for (final c in GateCrewService().teamCrewNotifier.value) {
+      if (c.id == id) {
+        return ManagedUserModel(
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          role: 'Gatecrew',
+          phone: c.phone,
+          joinedAt: 'Terdaftar',
+          isActive: c.approvalStatus.toLowerCase() != 'rejected',
+          password: c.defaultPassword,
+        );
+      }
+    }
     return null;
+  }
+
+  /// Admin menghapus akun Gate Crew secara permanen beserta penugasan konsernya.
+  Future<bool> deleteGateCrewByAdmin({
+    required String userId,
+    String? email,
+  }) async {
+    final existing = userById(userId);
+    final resolvedEmail = (email?.trim().isNotEmpty == true)
+        ? email!.trim().toLowerCase()
+        : (existing?.email.trim().toLowerCase() ?? '');
+
+    usersNotifier.value = [
+      for (final u in usersNotifier.value)
+        if (u.id != userId &&
+            (resolvedEmail.isEmpty ||
+                u.email.trim().toLowerCase() != resolvedEmail))
+          u,
+    ];
+
+    notificationsNotifier.value = [
+      for (final n in notificationsNotifier.value)
+        if (n.targetId != userId && n.id != 'notif-crew-$userId') n,
+    ];
+
+    _recomputeStats();
+
+    await GateCrewService().deleteGateCrewByAdmin(
+      crewId: userId,
+      email: resolvedEmail,
+    );
+    return true;
   }
 
   void toggleUserActive(String userId) {
@@ -894,6 +960,12 @@ class AdminService {
     final updated = list[index].copyWith(name: trimmed);
     list[index] = updated;
     usersNotifier.value = list;
+
+    GateCrewService().updateCrewNameInMemory(
+      crewId: userId,
+      email: updated.email,
+      newName: trimmed,
+    );
 
     // Jika user ini juga seorang Produser, sinkronkan namanya di daftar Produser & Konser
     final prod = producerById(userId);

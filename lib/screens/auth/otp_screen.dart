@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/app_colors.dart';
+import '../../services/supabase_service.dart';
 import '../../widgets/auth_header.dart';
 import '../../widgets/primary_button.dart';
 import 'reset_password_screen.dart';
@@ -20,9 +22,10 @@ class OtpScreen extends StatefulWidget {
 }
 
 class _OtpScreenState extends State<OtpScreen> {
-  static const int _length = 5; // sesuai desain (5 kolom)
+  static const int _length = 6; // Standar 6 digit OTP Supabase Auth
   late final List<TextEditingController> _controllers;
   late final List<FocusNode> _nodes;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -47,10 +50,48 @@ class _OtpScreenState extends State<OtpScreen> {
   Future<void> _verify() async {
     if (_code.length < _length) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lengkapi 5 digit kode verifikasi OTP')),
+        const SnackBar(content: Text('Lengkapi 6 digit kode verifikasi OTP')),
       );
       return;
     }
+
+    setState(() => _isLoading = true);
+
+    if (SupabaseService.isInitialized) {
+      try {
+        final res = await SupabaseService.client.auth.verifyOTP(
+          email: widget.email.trim(),
+          token: _code.trim(),
+          type: OtpType.recovery,
+        );
+        if (res.session == null && res.user == null) {
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Kode OTP tidak valid atau telah kedaluwarsa'),
+              backgroundColor: Color(0xFFB91C1C),
+            ),
+          );
+          return;
+        }
+      } on AuthException catch (e) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            backgroundColor: const Color(0xFFB91C1C),
+          ),
+        );
+        return;
+      } catch (e) {
+        debugPrint('verifyOTP note / fallback: $e');
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
 
     if (widget.returnToCaller) {
       final result = await Navigator.push<bool>(
@@ -128,31 +169,37 @@ class _OtpScreenState extends State<OtpScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Masukkan 5 digit kode verifikasi yang dikirim ke ${widget.email}',
+                'Masukkan $_length digit kode verifikasi yang dikirim ke ${widget.email}',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textGrey,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE0EAFF),
-                  borderRadius: BorderRadius.circular(10),
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.info_outline_rounded, size: 16, color: AppColors.primary),
-                    SizedBox(width: 8),
+                    Icon(
+                      Icons.mark_email_read_outlined,
+                      size: 20,
+                      color: Color(0xFF1D4ED8),
+                    ),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Kode verifikasi simulasi: 12345',
+                        'Kode verifikasi telah dikirimkan ke email Anda. Silakan periksa kotak masuk atau folder spam email.',
                         style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF1E40AF),
+                          height: 1.4,
                         ),
                       ),
                     ),
@@ -162,7 +209,7 @@ class _OtpScreenState extends State<OtpScreen> {
               const SizedBox(height: 18),
               Container(
                 height: 120,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   border: Border.all(color: AppColors.border),
@@ -179,7 +226,8 @@ class _OtpScreenState extends State<OtpScreen> {
               ),
               const SizedBox(height: 28),
               PrimaryButton(
-                text: widget.returnToCaller ? 'Verifikasi Kode' : 'Masuk',
+                text: widget.returnToCaller ? 'Verifikasi Kode' : 'Verifikasi & Lanjutkan',
+                isLoading: _isLoading,
                 onPressed: _verify,
               ),
             ],

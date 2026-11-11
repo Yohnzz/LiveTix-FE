@@ -385,6 +385,80 @@ class PromoterDashboardScreen extends StatelessWidget {
                     totalPendapatanCard,
                   ],
 
+                  const SizedBox(height: 12),
+
+                  // Realtime Ticket Stock Monitor Card
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: cardBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.bolt_rounded,
+                              size: 16,
+                              color: Color(0xFF027A48),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'MONITORING STOK TIKET (REALTIME)',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: subtextColor,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildRealtimeMetricPill(
+                                label: 'Tersedia',
+                                value: PromoterTicketTier.formatNumber(
+                                    service.totalAvailableTickets),
+                                color: const Color(0xFF027A48),
+                                bg: const Color(0xFFECFDF3),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildRealtimeMetricPill(
+                                label: 'Pending / Reserve',
+                                value: PromoterTicketTier.formatNumber(
+                                    service.totalReservedTickets),
+                                color: const Color(0xFFD97706),
+                                bg: const Color(0xFFFEF3C7),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildRealtimeMetricPill(
+                                label: 'Terjual (Paid)',
+                                value: PromoterTicketTier.formatNumber(
+                                    service.totalPaidTickets),
+                                color: const Color(0xFF1B2A8C),
+                                bg: const Color(0xFFE0EAFF),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
                   const SizedBox(height: 24),
 
                   // Section: Tren Penjualan 7 Hari Terakhir (Sesuai Referensi Gambar User)
@@ -475,7 +549,81 @@ class PromoterDashboardScreen extends StatelessWidget {
                     const SizedBox(height: 14),
                     // Mobile Bar Chart exactly matching user reference image
                     SalesTrendBarChart(isDarkMode: isDarkMode),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
+
+                  // Realtime Ticket Stock Monitor Card
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: cardBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.bolt_rounded,
+                              size: 16,
+                              color: Color(0xFF027A48),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'MONITORING STOK TIKET (REALTIME)',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: subtextColor,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildRealtimeMetricPill(
+                                label: 'Tersedia',
+                                value: PromoterTicketTier.formatNumber(
+                                    service.totalAvailableTickets),
+                                color: const Color(0xFF027A48),
+                                bg: const Color(0xFFECFDF3),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildRealtimeMetricPill(
+                                label: 'Pending / Reserve',
+                                value: PromoterTicketTier.formatNumber(
+                                    service.totalReservedTickets),
+                                color: const Color(0xFFD97706),
+                                bg: const Color(0xFFFEF3C7),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildRealtimeMetricPill(
+                                label: 'Terjual (Paid)',
+                                value: PromoterTicketTier.formatNumber(
+                                    service.totalPaidTickets),
+                                color: const Color(0xFF1B2A8C),
+                                bg: const Color(0xFFE0EAFF),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -520,6 +668,80 @@ class PromoterDashboardScreen extends StatelessWidget {
                       isDarkMode: isDarkMode,
                     ),
                   ],
+
+                  const SizedBox(height: 12),
+
+                  // Realtime Ticket Stock Monitor Card
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: cardBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.bolt_rounded,
+                              size: 16,
+                              color: Color(0xFF027A48),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'MONITORING STOK TIKET (REALTIME)',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: subtextColor,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildRealtimeMetricPill(
+                                label: 'Tersedia',
+                                value: PromoterTicketTier.formatNumber(
+                                    service.totalAvailableTickets),
+                                color: const Color(0xFF027A48),
+                                bg: const Color(0xFFECFDF3),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildRealtimeMetricPill(
+                                label: 'Pending / Reserve',
+                                value: PromoterTicketTier.formatNumber(
+                                    service.totalReservedTickets),
+                                color: const Color(0xFFD97706),
+                                bg: const Color(0xFFFEF3C7),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildRealtimeMetricPill(
+                                label: 'Terjual (Paid)',
+                                value: PromoterTicketTier.formatNumber(
+                                    service.totalPaidTickets),
+                                color: const Color(0xFF1B2A8C),
+                                bg: const Color(0xFFE0EAFF),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
 
                   const SizedBox(height: 24),
                 ],
@@ -701,6 +923,37 @@ class PromoterDashboardScreen extends StatelessWidget {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          Text(
+                            'Tersedia: ${PromoterTicketTier.formatNumber(concert.remainingTickets)}',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF027A48),
+                            ),
+                          ),
+                          Text(
+                            '· Pending: ${PromoterTicketTier.formatNumber(concert.totalReservedTickets)}',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFD97706),
+                            ),
+                          ),
+                          Text(
+                            '· Terjual: ${PromoterTicketTier.formatNumber(concert.totalSoldTickets)}',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1B2A8C),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -715,6 +968,47 @@ class PromoterDashboardScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildRealtimeMetricPill({
+    required String label,
+    required String value,
+    required Color color,
+    required Color bg,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

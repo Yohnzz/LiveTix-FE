@@ -51,19 +51,16 @@ class _PromoterManageConcertScreenState
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final text = controller.text.trim();
               if (text.isNotEmpty && !concert.gates.contains(text)) {
                 final updatedGates = [...concert.gates, text];
-                final list = List<PromoterConcertItem>.from(
-                    PromoterDataService().concertsNotifier.value);
-                final idx = list.indexWhere((c) => c.id == concert.id);
-                if (idx != -1) {
-                  list[idx] = concert.copyWith(gates: updatedGates);
-                  PromoterDataService().concertsNotifier.value = list;
-                }
+                await PromoterDataService().updateConcertGates(
+                  concert.id,
+                  updatedGates,
+                );
               }
-              Navigator.pop(ctx);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF1B2A8C),
@@ -77,11 +74,21 @@ class _PromoterManageConcertScreenState
   }
 
   void _showInviteCrewDialog(PromoterConcertItem concert, bool isDarkMode) {
+    if (concert.gates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Tambahkan minimal 1 pos gate terlebih dahulu sebelum meng-invite Gate Crew.'),
+          backgroundColor: Color(0xFFD97706),
+        ),
+      );
+      return;
+    }
+
     final nameCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
-    String selectedGate =
-        concert.gates.isNotEmpty ? concert.gates.first : 'Gate A';
+    String selectedGate = concert.gates.first;
 
     showDialog(
       context: context,
@@ -208,6 +215,16 @@ class _PromoterManageConcertScreenState
   }
 
   Future<void> _autoDistributeEvenly(PromoterConcertItem concert) async {
+    if (concert.gates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Jangan lupa untuk mengisi gate terlebih dahulu sebelum membagi Gate Crew.'),
+          backgroundColor: Color(0xFFD97706),
+        ),
+      );
+      return;
+    }
     await GateCrewService().autoDistributeCrewAcrossGates(
       concertId: concert.id,
       concertTitle: concert.title,
@@ -226,6 +243,17 @@ class _PromoterManageConcertScreenState
 
   void _showAssignGateCrewDialog(
       PromoterConcertItem concert, bool isDarkMode) {
+    if (concert.gates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Tambahkan minimal 1 pos gate terlebih dahulu sebelum menugaskan Gate Crew.'),
+          backgroundColor: Color(0xFFD97706),
+        ),
+      );
+      return;
+    }
+
     final allCrew = GateCrewService().teamCrewNotifier.value;
     final availableCrew = allCrew
         .where((c) =>
@@ -242,8 +270,7 @@ class _PromoterManageConcertScreenState
     }
 
     String selectedCrewId = availableCrew.first.id;
-    String selectedGate =
-        concert.gates.isNotEmpty ? concert.gates.first : 'Gate A';
+    String selectedGate = concert.gates.first;
 
     final dialogBgColor =
         isDarkMode ? const Color(0xFF1E293B) : Colors.white;
@@ -926,12 +953,16 @@ class _PromoterManageConcertScreenState
                                 color: Color(0xFF1B2A8C),
                               ),
                               SizedBox(width: 8),
-                              Text(
-                                'Prosedur Edit Konser Aktif',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF1B2A8C),
+                              Expanded(
+                                child: Text(
+                                  'Prosedur Edit Konser Aktif',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF1B2A8C),
+                                  ),
                                 ),
                               ),
                             ],
@@ -1274,17 +1305,22 @@ class _PromoterManageConcertScreenState
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'KATEGORI TIKET & HARGA',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: subtextColor,
-                            letterSpacing: 0.5,
+                        Expanded(
+                          child: Text(
+                            'KATEGORI TIKET & HARGA',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: subtextColor,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Text(
-                          concert.formattedTotalCapacity,
+                          'Total: ${concert.formattedTotalCapacity}',
                           style: const TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w700,
@@ -1292,6 +1328,92 @@ class _PromoterManageConcertScreenState
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Tersedia',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    color: subtextColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  PromoterTicketTier.formatNumber(
+                                      concert.remainingTickets),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF027A48),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Di-reserve (Pending)',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    color: subtextColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  PromoterTicketTier.formatNumber(
+                                      concert.totalReservedTickets),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFFD97706),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Terjual (Paid)',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    color: subtextColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  PromoterTicketTier.formatNumber(
+                                      concert.totalSoldTickets),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF1B2A8C),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 10),
                     ListView.separated(
@@ -1312,7 +1434,7 @@ class _PromoterManageConcertScreenState
                             children: [
                               Container(
                                 width: 4,
-                                height: 42,
+                                height: 52,
                                 decoration: BoxDecoration(
                                   color: tier.accentColor,
                                   borderRadius: BorderRadius.circular(2),
@@ -1334,11 +1456,69 @@ class _PromoterManageConcertScreenState
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'Kuota: ${tier.formattedQuota} ${tier.quotaType}',
+                                      tier.formattedQuota,
                                       style: TextStyle(
                                         fontSize: 11.5,
                                         color: subtextColor,
                                       ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 4,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFECFDF3),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            'Tersedia: ${tier.availableStock}',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF027A48),
+                                            ),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFEF3C7),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            'Pending: ${tier.reservedCount}',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFFB45309),
+                                            ),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFE0EAFF),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            'Terjual: ${tier.soldCount}',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF1B2A8C),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -1376,13 +1556,17 @@ class _PromoterManageConcertScreenState
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'TIM GATE CREW BERTUGAS',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: subtextColor,
-                            letterSpacing: 0.5,
+                        Expanded(
+                          child: Text(
+                            'TIM GATE CREW BERTUGAS',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: subtextColor,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
                         TextButton.icon(
@@ -1409,195 +1593,312 @@ class _PromoterManageConcertScreenState
                     ),
                     const SizedBox(height: 10),
 
-                    // Pos Gate Management & Distribution Card
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: cardBg,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: cardBorder),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.meeting_room_rounded,
-                                      size: 16, color: Color(0xFFC2185B)),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Pos Gate Tersedia (${concert.gates.length})',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                      color: textColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              TextButton.icon(
-                                onPressed: () =>
-                                    _showAddGateDialog(concert, isDarkMode),
-                                icon: const Icon(Icons.add_rounded, size: 15),
-                                label: const Text('Tambah Gate'),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: const Color(0xFFC2185B),
-                                  textStyle: const TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w700),
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: Size.zero,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: concert.gates.map((g) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: isDarkMode
-                                      ? const Color(0xFF0F172A)
-                                      : const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                      color: isDarkMode
-                                          ? Colors.white24
-                                          : const Color(0xFFE2E8F0)),
-                                ),
-                                child: Text(
-                                  g,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: textColor,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _showInviteCrewDialog(concert, isDarkMode),
-                                  icon: const Icon(Icons.person_add_alt_1_rounded,
-                                      size: 15),
-                                  label: const Text('Invite Crewgate'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFFC2185B),
-                                    side: const BorderSide(
-                                        color: Color(0xFFC2185B)),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8)),
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 8),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _autoDistributeEvenly(concert),
-                                  icon: const Icon(Icons.balance_rounded,
-                                      size: 15),
-                                  label: const Text('Bagi Merata'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF1B2A8C),
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8)),
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 8),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
+                    // Pos Gate Management & Crew Status Card
                     ValueListenableBuilder<List<GateCrewMemberModel>>(
                       valueListenable: GateCrewService().teamCrewNotifier,
                       builder: (context, teamList, _) {
-                        final assignedCrews = teamList.where((m) =>
-                            m.activeAssignment?.concertId == concert.id ||
-                            (m.activeAssignment != null &&
-                                (m.activeAssignment!.concertTitle
-                                        .toLowerCase() ==
-                                    concert.title.toLowerCase()))).toList();
+                        final assignedCrews = teamList
+                            .where((m) =>
+                                m.activeAssignment?.concertId == concert.id ||
+                                (m.activeAssignment != null &&
+                                    (m.activeAssignment!.concertTitle
+                                            .toLowerCase() ==
+                                        concert.title.toLowerCase())))
+                            .toList();
 
-                        if (assignedCrews.isEmpty) {
-                          return Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: cardBg,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: cardBorder),
-                            ),
-                            child: Column(
-                              children: [
-                                Icon(Icons.qr_code_scanner_rounded,
-                                    size: 36,
-                                    color: subtextColor.withValues(alpha: 0.5)),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Belum ada Gate Crew ditugaskan',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: textColor,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Tugaskan gate crew agar dapat melakukan validasi/scan QR tiket penonton di pintu masuk konser ini.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    color: subtextColor,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                ElevatedButton.icon(
-                                  onPressed: () => _showAssignGateCrewDialog(
-                                      concert, isDarkMode),
-                                  icon: const Icon(
-                                      Icons.person_add_alt_1_rounded,
-                                      size: 16),
-                                  label: const Text(
-                                      'Tugaskan Gate Crew Sekarang'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFC2185B),
-                                    foregroundColor: Colors.white,
-                                    textStyle: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(10)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
+                        final gatesWithoutCrew = concert.gates
+                            .where((g) => !assignedCrews.any((c) =>
+                                (c.activeAssignment?.gateName ?? '')
+                                    .trim()
+                                    .toLowerCase() ==
+                                g.trim().toLowerCase()))
+                            .toList();
+                        final showGateWarning =
+                            concert.gates.isEmpty || gatesWithoutCrew.isNotEmpty;
 
                         return Column(
-                          children: assignedCrews.map((crew) {
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (showGateWarning)
+                              Container(
+                                width: double.infinity,
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFFBEB),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: const Color(0xFFFCD34D)),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.warning_amber_rounded,
+                                      color: Color(0xFFD97706),
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Jangan lupa untuk mengisi gate dan invite minimal crew pada setiap gatenya.',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF92400E),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            concert.gates.isEmpty
+                                                ? 'Belum ada pos gate dibuat untuk konser ini. Tekan "+ Tambah Gate" untuk memulai.'
+                                                : 'Pos gate yang belum memiliki crew: ${gatesWithoutCrew.join(', ')}',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Color(0xFFB45309),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: cardBorder),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                                Icons.meeting_room_rounded,
+                                                size: 16,
+                                                color: Color(0xFFC2185B)),
+                                            const SizedBox(width: 6),
+                                            Flexible(
+                                              child: Text(
+                                                'Pos Gate Tersedia (${concert.gates.length})',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: textColor,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      TextButton.icon(
+                                        onPressed: () => _showAddGateDialog(
+                                            concert, isDarkMode),
+                                        icon: const Icon(Icons.add_rounded,
+                                            size: 15),
+                                        label: const Text('Tambah Gate'),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor:
+                                              const Color(0xFFC2185B),
+                                          textStyle: const TextStyle(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w700),
+                                          padding: EdgeInsets.zero,
+                                          minimumSize: Size.zero,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  if (concert.gates.isEmpty)
+                                    Text(
+                                      'Belum ada pos gate. Silakan tambahkan pos gate secara manual.',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: subtextColor,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    )
+                                  else
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      children: concert.gates.map((g) {
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: isDarkMode
+                                                ? const Color(0xFF0F172A)
+                                                : const Color(0xFFF1F5F9),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                            border: Border.all(
+                                                color: isDarkMode
+                                                    ? Colors.white24
+                                                    : const Color(0xFFE2E8F0)),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                g,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: textColor,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              InkWell(
+                                                onTap: () {
+                                                  final updated = concert.gates
+                                                      .where((x) => x != g)
+                                                      .toList();
+                                                  PromoterDataService()
+                                                      .updateConcertGates(
+                                                          concert.id, updated);
+                                                },
+                                                child: Icon(
+                                                  Icons.close_rounded,
+                                                  size: 13,
+                                                  color: subtextColor,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: () =>
+                                              _showInviteCrewDialog(
+                                                  concert, isDarkMode),
+                                          icon: const Icon(
+                                              Icons.person_add_alt_1_rounded,
+                                              size: 15),
+                                          label: const Text('Invite Crewgate'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor:
+                                                const Color(0xFFC2185B),
+                                            side: const BorderSide(
+                                                color: Color(0xFFC2185B)),
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8)),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 8),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: ElevatedButton.icon(
+                                          onPressed: () =>
+                                              _autoDistributeEvenly(concert),
+                                          icon: const Icon(
+                                              Icons.balance_rounded,
+                                              size: 15),
+                                          label: const Text('Bagi Merata'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                const Color(0xFF1B2A8C),
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8)),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 8),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (assignedCrews.isEmpty)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: cardBg,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: cardBorder),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Icon(Icons.qr_code_scanner_rounded,
+                                        size: 36,
+                                        color: subtextColor.withValues(
+                                            alpha: 0.5)),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Belum ada Gate Crew ditugaskan',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: textColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Tugaskan gate crew agar dapat melakukan validasi/scan QR tiket penonton di pintu masuk konser ini.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: subtextColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    ElevatedButton.icon(
+                                      onPressed: () =>
+                                          _showAssignGateCrewDialog(
+                                              concert, isDarkMode),
+                                      icon: const Icon(
+                                          Icons.person_add_alt_1_rounded,
+                                          size: 16),
+                                      label: const Text(
+                                          'Tugaskan Gate Crew Sekarang'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            const Color(0xFFC2185B),
+                                        foregroundColor: Colors.white,
+                                        textStyle: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Column(
+                                children: assignedCrews.map((crew) {
                             final assignment = crew.activeAssignment;
                             return Container(
                               margin: const EdgeInsets.only(bottom: 10),
@@ -1641,47 +1942,63 @@ class _PromoterManageConcertScreenState
                                       ],
                                     ),
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFDCFCE7),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<String>(
-                                        value: concert.gates.contains(assignment?.gateName)
-                                            ? assignment!.gateName
-                                            : (concert.gates.isNotEmpty
-                                                ? concert.gates.first
-                                                : 'Gate A'),
-                                        isDense: true,
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w800,
-                                          color: Color(0xFF16A34A),
+                                  Builder(
+                                    builder: (_) {
+                                      final assignedGate =
+                                          assignment?.gateName ?? '';
+                                      final gateOptions = <String>{
+                                        ...concert.gates,
+                                        if (assignedGate.trim().isNotEmpty)
+                                          assignedGate.trim(),
+                                      }.toList();
+                                      if (gateOptions.isEmpty) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      final selectedValue = gateOptions.contains(
+                                              assignedGate)
+                                          ? assignedGate
+                                          : gateOptions.first;
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFDCFCE7),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
-                                        icon: const Icon(Icons.arrow_drop_down,
-                                            size: 16,
-                                            color: Color(0xFF16A34A)),
-                                        items: concert.gates.map((g) {
-                                          return DropdownMenuItem(
-                                            value: g,
-                                            child: Text(g),
-                                          );
-                                        }).toList(),
-                                        onChanged: (newGate) async {
-                                          if (newGate != null) {
-                                            await GateCrewService()
-                                                .updateCrewGateAssignment(
-                                              crewId: crew.id,
-                                              concertId: concert.id,
-                                              newGateName: newGate,
-                                            );
-                                          }
-                                        },
-                                      ),
-                                    ),
+                                        child: DropdownButtonHideUnderline(
+                                          child: DropdownButton<String>(
+                                            value: selectedValue,
+                                            isDense: true,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFF16A34A),
+                                            ),
+                                            icon: const Icon(
+                                                Icons.arrow_drop_down,
+                                                size: 16,
+                                                color: Color(0xFF16A34A)),
+                                            items: gateOptions.map((g) {
+                                              return DropdownMenuItem(
+                                                value: g,
+                                                child: Text(g),
+                                              );
+                                            }).toList(),
+                                            onChanged: (newGate) async {
+                                              if (newGate != null) {
+                                                await GateCrewService()
+                                                    .updateCrewGateAssignment(
+                                                  crewId: crew.id,
+                                                  concertId: concert.id,
+                                                  newGateName: newGate,
+                                                );
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
                                   const SizedBox(width: 6),
                                   IconButton(
@@ -1708,8 +2025,10 @@ class _PromoterManageConcertScreenState
                                   ),
                                 ],
                               ),
-                            );
-                          }).toList(),
+                              );
+                            }).toList(),
+                          ),
+                          ],
                         );
                       },
                     ),

@@ -47,6 +47,7 @@ class UserAvatar extends StatelessWidget {
 
   final String initials;
   final Uint8List? imageBytes;
+  final String? avatarUrl;
   final int colorIndex;
   final double size;
   final double fontSize;
@@ -55,6 +56,7 @@ class UserAvatar extends StatelessWidget {
     super.key,
     required this.initials,
     this.imageBytes,
+    this.avatarUrl,
     this.colorIndex = -1,
     this.size = 54,
     this.fontSize = 16,
@@ -65,7 +67,9 @@ class UserAvatar extends StatelessWidget {
     final hasCustomTheme = colorIndex >= 0 && colorIndex < themes.length;
     final theme = themes[hasCustomTheme ? colorIndex : 0];
 
-    if (imageBytes != null && imageBytes!.isNotEmpty) {
+    final effectiveBytes = imageBytes;
+
+    if (effectiveBytes != null && effectiveBytes.isNotEmpty) {
       return Container(
         width: size,
         height: size,
@@ -79,7 +83,32 @@ class UserAvatar extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: Image.memory(
-          imageBytes!,
+          effectiveBytes,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => hasCustomTheme
+              ? _buildInitialsCenter(theme)
+              : GuestAvatarIcon(size: size),
+        ),
+      );
+    }
+
+    if (avatarUrl != null && avatarUrl!.startsWith('http')) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: theme.bgColor,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: const Color(0xFFE4E7EC),
+            width: 1.5,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Image.network(
+          avatarUrl!,
           width: size,
           height: size,
           fit: BoxFit.cover,

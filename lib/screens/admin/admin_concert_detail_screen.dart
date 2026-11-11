@@ -155,15 +155,15 @@ class _Body extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF3E8FF),
+                        color: AdminColors.purpleBgOf(context),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
                         item.genre,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF7C3AED),
+                          color: AdminColors.purpleOf(context),
                         ),
                       ),
                     ),
@@ -172,15 +172,15 @@ class _Body extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFDBEAFE),
+                          color: AdminColors.infoBgOf(context),
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Pengajuan Edit',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF1E40AF),
+                            color: AdminColors.infoOf(context),
                           ),
                         ),
                       ),
@@ -202,27 +202,27 @@ class _Body extends StatelessWidget {
           if (editPayload != null) ...[
             const SizedBox(height: 16),
             AdminCard(
-              color: const Color(0xFFEFF6FF),
-              borderColor: const Color(0xFFBFDBFE),
+              color: AdminColors.infoBgOf(context),
+              borderColor: AdminColors.infoBorderOf(context),
               padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
                       Icon(
                         Icons.edit_note_rounded,
-                        color: Color(0xFF1D4ED8),
+                        color: AdminColors.infoOf(context),
                         size: 20,
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Detail Perubahan Edit Konser oleh Produser',
                           style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF1E3A8A),
+                            color: AdminColors.infoOf(context),
                           ),
                         ),
                       ),
@@ -281,7 +281,7 @@ class _Body extends StatelessWidget {
               (item.rejectionReason ?? '').isNotEmpty) ...[
             const SizedBox(height: 16),
             AdminCard(
-              borderColor: const Color(0xFFFECACA),
+              borderColor: AdminColors.dangerBorderOf(context),
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -291,13 +291,13 @@ class _Body extends StatelessWidget {
                       Container(
                         width: 36,
                         height: 36,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFEE2E2),
+                        decoration: BoxDecoration(
+                          color: AdminColors.dangerBgOf(context),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.error_outline_rounded,
-                          color: Color(0xFFDC2626),
+                          color: AdminColors.dangerOf(context),
                           size: 22,
                         ),
                       ),
@@ -305,12 +305,12 @@ class _Body extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Alasan Penolakan',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFFDC2626),
+                              color: AdminColors.dangerOf(context),
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -370,7 +370,7 @@ class _Body extends StatelessWidget {
                                 fontWeight: FontWeight.w700,
                                 color: i == 0
                                     ? AdminColors.accentOf(context)
-                                    : const Color(0xFFC2185B),
+                                    : AdminColors.pinkAccentOf(context),
                               ),
                             ),
                             const SizedBox(height: 4),

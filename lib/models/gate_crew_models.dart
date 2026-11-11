@@ -169,3 +169,40 @@ class GateCrewMemberModel {
       };
 }
 
+class TicketScanValidationResult {
+  final bool isValid;
+  final String status; // 'Berhasil', 'Ditolak (Salah Gate)', 'Ditolak (Habis Kuota)', 'Ditolak (Salah Konser)', 'Ditolak (Invalid)', 'Ditolak (Direfund)'
+  final String? invalidReason;
+  final String ticketId;
+  final String bookingCode;
+  final String ticketCode;
+  final String attendeeName;
+  final String category;
+  final String gateName;
+  final String concertId;
+  final String concertTitle;
+  final int quota;
+  final int used;
+  final bool isWrongGate;
+
+  const TicketScanValidationResult({
+    required this.isValid,
+    required this.status,
+    this.invalidReason,
+    this.ticketId = '',
+    this.bookingCode = '',
+    this.ticketCode = '',
+    this.attendeeName = 'Pengunjung',
+    this.category = 'Reguler',
+    this.gateName = 'Gate A',
+    this.concertId = '',
+    this.concertTitle = '',
+    this.quota = 1,
+    this.used = 0,
+    this.isWrongGate = false,
+  });
+
+  int get remaining => (quota - used).clamp(0, quota);
+}
+
+

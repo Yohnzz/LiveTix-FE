@@ -69,6 +69,8 @@ class PromoterTicketTier {
   final String name;
   final int price;
   final int quota;
+  final int soldCount;
+  final int reservedCount;
   final String quotaType; // 'Kursi' | 'Orang' | 'Tiket'
   final Color accentColor;
 
@@ -77,9 +79,14 @@ class PromoterTicketTier {
     required this.name,
     required this.price,
     required this.quota,
+    this.soldCount = 0,
+    this.reservedCount = 0,
     this.quotaType = 'Kursi',
     this.accentColor = const Color(0xFFC2185B),
   });
+
+  int get availableStock =>
+      (quota - (soldCount + reservedCount)).clamp(0, quota);
 
   String get formattedPrice {
     final buffer = StringBuffer('Rp ');
@@ -112,6 +119,8 @@ class PromoterTicketTier {
     String? name,
     int? price,
     int? quota,
+    int? soldCount,
+    int? reservedCount,
     String? quotaType,
     Color? accentColor,
   }) {
@@ -120,6 +129,8 @@ class PromoterTicketTier {
       name: name ?? this.name,
       price: price ?? this.price,
       quota: quota ?? this.quota,
+      soldCount: soldCount ?? this.soldCount,
+      reservedCount: reservedCount ?? this.reservedCount,
       quotaType: quotaType ?? this.quotaType,
       accentColor: accentColor ?? this.accentColor,
     );
@@ -134,12 +145,16 @@ class PromoterTicketTier {
         : (json['quota'] is int
             ? json['quota'] as int
             : int.tryParse(json['quota']?.toString() ?? '0') ?? 0);
+    final parsedSold = (json['sold_count'] as num?)?.toInt() ?? 0;
+    final parsedReserved = (json['reserved_count'] as num?)?.toInt() ?? 0;
 
     return PromoterTicketTier(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       price: parsedPrice,
       quota: parsedQuota,
+      soldCount: parsedSold,
+      reservedCount: parsedReserved,
       quotaType: json['quota_type']?.toString() ?? 'Kursi',
       accentColor: json['accent_color'] != null
           ? Color(int.tryParse(json['accent_color'].toString()) ?? 0xFFC2185B)
@@ -154,7 +169,9 @@ class PromoterTicketTier {
       'name': name,
       'price': price,
       'total_quota': quota,
-      'remaining_quota': quota,
+      'remaining_quota': availableStock,
+      'sold_count': soldCount,
+      'reserved_count': reservedCount,
       'quota_type': quotaType,
       'accent_color': accentColor.toARGB32(),
     };
@@ -224,7 +241,7 @@ class PromoterConcertItem {
     this.status = ConcertStatus.disetujui,
     this.likesCount = '0',
     this.tiers = const [],
-    this.gates = const ['Gate A (Utama)', 'Gate B (Festival)', 'Gate C (Tribun)'],
+    this.gates = const [],
     this.cancellationStatus = ConcertCancellationStatus.none,
     this.cancellationCategory = 'Perizinan',
     this.cancellationReason = '',
@@ -276,8 +293,20 @@ class PromoterConcertItem {
     return 0;
   }
 
-  int get remainingTickets =>
-      (totalCapacity - ticketsSold).clamp(0, totalCapacity);
+  int get totalReservedTickets =>
+      tiers.fold(0, (sum, item) => sum + item.reservedCount);
+
+  int get totalSoldTickets {
+    final tierSold = tiers.fold(0, (sum, item) => sum + item.soldCount);
+    return tierSold > ticketsSold ? tierSold : ticketsSold;
+  }
+
+  int get remainingTickets {
+    if (tiers.isNotEmpty) {
+      return tiers.fold(0, (sum, item) => sum + item.availableStock);
+    }
+    return (totalCapacity - ticketsSold).clamp(0, totalCapacity);
+  }
 
   String get formattedRemainingTickets {
     return '${PromoterTicketTier.formatNumber(remainingTickets)} Tiket';
@@ -480,8 +509,9 @@ class PromoterConcertItem {
       tiers: tiersList,
       gates: (json['gates'] as List<dynamic>?)
               ?.map((e) => e.toString())
+              .where((e) => e.trim().isNotEmpty)
               .toList() ??
-          const ['Gate A (Utama)', 'Gate B (Festival)', 'Gate C (Tribun)'],
+          const [],
       ticketsSold: (json['tickets_sold'] as num?)?.toInt() ?? 0,
       isCompleted: (json['is_completed'] as bool?) ?? false,
       grossRevenue: (json['gross_revenue'] as num?)?.toInt() ?? 0,
