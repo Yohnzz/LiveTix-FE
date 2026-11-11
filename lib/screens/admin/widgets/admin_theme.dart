@@ -22,12 +22,14 @@ class AdminColors {
   static const dangerSoft = Color(0xFFFEF2F2);
   static const success = Color(0xFF15803D);
 
-  // Dark palette
+  // Dark palette (WCAG AA >= 4.5:1 on #1E293B and #0B1120)
   static const darkBackground = Color(0xFF0B1120);
   static const darkSurface = Color(0xFF1E293B);
+  static const darkSurfaceAlt = Color(0xFF283548);
   static const darkBorder = Color(0xFF334155);
   static const darkTextPrimary = Color(0xFFF8FAFC);
-  static const darkTextSecondary = Color(0xFF94A3B8);
+  static const darkTextSecondary = Color(0xFFCBD5E1);
+  static const darkTextMuted = Color(0xFF94A3B8);
 
   /// Gradien header Beranda Admin yang disatukan ke seluruh halaman Admin.
   static const gradient = LinearGradient(
@@ -51,8 +53,14 @@ class AdminColors {
   static Color surfaceOf(BuildContext context) =>
       isDark(context) ? darkSurface : surface;
 
+  static Color surfaceAltOf(BuildContext context) =>
+      isDark(context) ? darkSurfaceAlt : const Color(0xFFF8FAFC);
+
   static Color borderOf(BuildContext context) =>
       isDark(context) ? darkBorder : border;
+
+  static Color dividerOf(BuildContext context) =>
+      isDark(context) ? darkBorder : const Color(0xFFF1F5F9);
 
   static Color textPrimaryOf(BuildContext context) =>
       isDark(context) ? darkTextPrimary : textDark;
@@ -60,11 +68,99 @@ class AdminColors {
   static Color textSecondaryOf(BuildContext context) =>
       isDark(context) ? darkTextSecondary : textGrey;
 
+  static Color textMutedOf(BuildContext context) =>
+      isDark(context) ? darkTextMuted : textGrey;
+
   static Color accentOf(BuildContext context) =>
-      isDark(context) ? const Color(0xFF818CF8) : navy;
+      isDark(context) ? const Color(0xFFA5B4FC) : navy;
+
+  static Color primaryButtonBgOf(BuildContext context) =>
+      isDark(context) ? indigo : navy;
+
+  static Color magentaOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFFF472B6) : magenta;
+
+  static Color pinkAccentOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFFF472B6) : const Color(0xFFC2185B);
 
   static Color avatarBgOf(BuildContext context) =>
       isDark(context) ? const Color(0xFF312E81) : avatarBg;
+
+  static Color successOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFF4ADE80) : success;
+
+  static Color successBgOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFF064E3B) : const Color(0xFFECFDF5);
+
+  static Color successBorderOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFF059669) : const Color(0xFFA7F3D0);
+
+  static Color dangerOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFFFCA5A5) : danger;
+
+  static Color dangerBgOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFF450A0A) : const Color(0xFFFEE2E2);
+
+  static Color dangerSoftBgOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFF3F1219) : dangerSoft;
+
+  static Color dangerBorderOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFF991B1B) : const Color(0xFFFECACA);
+
+  static Color warningOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFFFCD34D) : const Color(0xFF92400E);
+
+  static Color warningBgOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFF422006) : const Color(0xFFFEF3C7);
+
+  static Color warningBorderOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFFB45309) : const Color(0xFFFCD34D);
+
+  static Color infoOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFF93C5FD) : const Color(0xFF1E3A8A);
+
+  static Color infoBgOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFF172554) : const Color(0xFFEFF6FF);
+
+  static Color infoBorderOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFF1D4ED8) : const Color(0xFFBFDBFE);
+
+  static Color purpleOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFFE9D5FF) : const Color(0xFF7C3AED);
+
+  static Color purpleBgOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFF3B0764) : const Color(0xFFF3E8FF);
+
+  static Color disabledBgOf(BuildContext context) =>
+      isDark(context) ? darkBorder : const Color(0xFFE2E8F0);
+
+  static Color disabledFgOf(BuildContext context) =>
+      isDark(context) ? darkTextSecondary : textGrey;
+
+  /// Pasangan (background, foreground) ber-kontras tinggi untuk badge role User/Produser/Admin/Gatecrew.
+  static (Color bg, Color fg) roleBadgeColors(
+      BuildContext context, String role) {
+    final dark = isDark(context);
+    switch (role.toLowerCase()) {
+      case 'produser':
+        return (purpleBgOf(context), purpleOf(context));
+      case 'gatecrew':
+        return (
+          successBgOf(context),
+          dark ? const Color(0xFF4ADE80) : const Color(0xFF059669),
+        );
+      case 'admin':
+        return (
+          infoBgOf(context),
+          dark ? const Color(0xFF93C5FD) : const Color(0xFF1E3A8A),
+        );
+      default:
+        return (
+          infoBgOf(context),
+          dark ? const Color(0xFF93C5FD) : const Color(0xFF2563EB),
+        );
+    }
+  }
 }
 
 class AdminTheme {
@@ -78,6 +174,10 @@ class AdminTheme {
     final bg = isDark ? AdminColors.darkBackground : AdminColors.background;
     final surf = isDark ? AdminColors.darkSurface : AdminColors.surface;
     final txt = isDark ? AdminColors.darkTextPrimary : AdminColors.textDark;
+    final txtSec =
+        isDark ? AdminColors.darkTextSecondary : AdminColors.textGrey;
+    final bdr = isDark ? AdminColors.darkBorder : AdminColors.border;
+    final accent = isDark ? const Color(0xFFA5B4FC) : AdminColors.navy;
 
     return base.copyWith(
       scaffoldBackgroundColor: bg,
@@ -85,21 +185,46 @@ class AdminTheme {
       colorScheme: ColorScheme.fromSeed(
         seedColor: AdminColors.navy,
         brightness: isDark ? Brightness.dark : Brightness.light,
+        primary: accent,
+        onPrimary: isDark ? AdminColors.darkBackground : Colors.white,
         surface: surf,
+        onSurface: txt,
       ),
       textTheme: GoogleFonts.poppinsTextTheme(base.textTheme).apply(
         bodyColor: txt,
         displayColor: txt,
       ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: accent),
+      ),
       dialogTheme: DialogThemeData(
         backgroundColor: surf,
         surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: txt,
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+        ),
+        contentTextStyle: TextStyle(
+          color: txtSec,
+          fontSize: 14,
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        hintStyle: TextStyle(color: isDark ? AdminColors.darkTextMuted : AdminColors.textGrey),
+        labelStyle: TextStyle(color: txtSec),
+        floatingLabelStyle: TextStyle(color: accent),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: bdr),
+        ),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: surf,
         surfaceTintColor: Colors.transparent,
+        textStyle: TextStyle(color: txt, fontSize: 13),
       ),
-      dividerColor: isDark ? AdminColors.darkBorder : AdminColors.border,
+      dividerColor: bdr,
     );
   }
 }

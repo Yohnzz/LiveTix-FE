@@ -1032,7 +1032,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+          style: const TextStyle(fontSize: 12.5, color: Color(0xFFCBD5E1)),
         ),
         const SizedBox(width: 8),
         Flexible(
@@ -1473,7 +1473,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                   Text(
                     '${_scanHistory.length} Log',
                     style: const TextStyle(
-                      color: Color(0xFF64748B),
+                      color: Color(0xFFCBD5E1),
                       fontSize: 12,
                     ),
                   ),
@@ -1552,7 +1552,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                             Text(
                               log['time'] as String,
                               style: const TextStyle(
-                                color: Color(0xFF64748B),
+                                color: Color(0xFFCBD5E1),
                                 fontSize: 11,
                               ),
                             ),
@@ -1654,7 +1654,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
           Text(
             subvalue,
             style: const TextStyle(
-              color: Color(0xFF64748B),
+              color: Color(0xFFCBD5E1),
               fontSize: 11,
             ),
           ),

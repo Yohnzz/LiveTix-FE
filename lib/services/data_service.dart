@@ -719,6 +719,18 @@ class DataService {
     }
   }
 
+  /// Menghapus akun Gate Crew dari memori autentikasi lokal setelah dihapus Admin
+  void removeGateCrewAccountInMemory({String? id, String? email}) {
+    final normalizedEmail = email?.trim().toLowerCase() ?? '';
+    _users.removeWhere((u) {
+      if (u.role.toLowerCase() != 'gatecrew') return false;
+      final matchId = id != null && id.isNotEmpty && u.id == id;
+      final matchEmail = normalizedEmail.isNotEmpty &&
+          u.email.trim().toLowerCase() == normalizedEmail;
+      return matchId || matchEmail;
+    });
+  }
+
   /// Registrasi sinkron untuk pembaruan state langsung
   UserModel registerSync({
     required String name,

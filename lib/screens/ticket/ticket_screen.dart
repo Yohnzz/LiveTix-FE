@@ -430,10 +430,11 @@ class _TicketScreenState extends State<TicketScreen> {
   }
 
   Widget _buildGuestEmptyTicketView() {
+    final isDark = AppColors.isDark(context);
     return Center(
       child: CustomPaint(
         painter: _DashedRectPainter(
-          color: const Color(0xFFD0D5DD),
+          color: isDark ? AppColors.darkBorder : const Color(0xFFD0D5DD),
           strokeWidth: 1.5,
           gap: 6.0,
           dash: 8.0,
@@ -448,23 +449,24 @@ class _TicketScreenState extends State<TicketScreen> {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text(
+              Text(
                 'Tidak Ada Tiket',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF344054),
+                  color: AppColors.text(context),
                 ),
               ),
               const SizedBox(height: 8),
               // Link Href interaktif menuju halaman Login
               GestureDetector(
                 onTap: _goToLogin,
-                child: const Text(
+                child: Text(
                   'Silahkan Login Terlebih Dahulu',
                   style: TextStyle(
                     fontSize: 13,
-                    color: AppColors.accent,
+                    color:
+                        isDark ? const Color(0xFFF472B6) : AppColors.accent,
                     fontWeight: FontWeight.w600,
                     decoration: TextDecoration.underline,
                   ),
@@ -896,9 +898,10 @@ class _TicketScreenState extends State<TicketScreen> {
   }
 
   Widget _buildEmptyStateDashedBox() {
+    final isDark = AppColors.isDark(context);
     return CustomPaint(
       painter: _DashedRectPainter(
-        color: const Color(0xFFD0D5DD),
+        color: isDark ? AppColors.darkBorder : const Color(0xFFD0D5DD),
         strokeWidth: 1.2,
         gap: 5.0,
         dash: 6.0,
@@ -908,22 +911,22 @@ class _TicketScreenState extends State<TicketScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
         alignment: Alignment.center,
-        child: const Column(
+        child: Column(
           children: [
             Text(
               'Belum ada tiket lain',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF344054),
+                color: AppColors.text(context),
               ),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               'Cari konser berikutnya di beranda',
               style: TextStyle(
                 fontSize: 12,
-                color: Color(0xFF667085),
+                color: AppColors.subtext(context),
               ),
             ),
           ],

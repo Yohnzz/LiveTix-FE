@@ -178,10 +178,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                               children: [
                                 Text(
                                   '$totalApproved',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.w800,
-                                    color: Color(0xFF15803D),
+                                    color: AdminColors.successOf(context),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -222,8 +222,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                           // Menu 1: Notifikasi
                           _ProfileMenuRow(
                             icon: Icons.notifications_outlined,
-                            iconBgColor: const Color(0xFFFEF3C7),
-                            iconColor: const Color(0xFFD97706),
+                            iconBgColor: AdminColors.warningBgOf(context),
+                            iconColor: isDark
+                                ? const Color(0xFFFBBF24)
+                                : const Color(0xFFD97706),
                             title: 'Notifikasi',
                             subtitle: unreadNotif > 0
                                 ? '$unreadNotif notifikasi belum dibaca'
@@ -274,8 +276,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                             icon: isDark
                                 ? Icons.dark_mode_rounded
                                 : Icons.light_mode_rounded,
-                            iconBgColor: const Color(0xFFF3E8FF),
-                            iconColor: const Color(0xFF7C3AED),
+                            iconBgColor: AdminColors.purpleBgOf(context),
+                            iconColor: AdminColors.purpleOf(context),
                             title: 'Mode Tampilan',
                             subtitle: isDark ? 'Tema Gelap Aktif' : 'Tema Terang Aktif',
                             trailing: Switch(
@@ -309,8 +311,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                           // Menu 3: Customer Service (Pengelompokan Chat Produser & User)
                           _ProfileMenuRow(
                             icon: Icons.support_agent_rounded,
-                            iconBgColor: const Color(0xFFDBEAFE),
-                            iconColor: const Color(0xFF1D4ED8),
+                            iconBgColor: AdminColors.infoBgOf(context),
+                            iconColor: AdminColors.infoOf(context),
                             title: 'Customer Service',
                             subtitle:
                                 'Kelola pesan masuk dari Produser dan User',
@@ -360,8 +362,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                           // Menu 4: Penarikan Fee Admin (3%)
                           _ProfileMenuRow(
                             icon: Icons.payments_outlined,
-                            iconBgColor: const Color(0xFFF3E8FF),
-                            iconColor: const Color(0xFF7C3AED),
+                            iconBgColor: AdminColors.purpleBgOf(context),
+                            iconColor: AdminColors.purpleOf(context),
                             title: 'Penarikan Fee Admin',
                             subtitle:
                                 'Kelola mutasi 3% & penarikan saldo fee platform',
@@ -388,7 +390,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                     // 4. Tombol Keluar dari Akun
                     AdminCard(
                       onTap: () => _logout(context),
-                      borderColor: const Color(0xFFFECACA),
+                      borderColor: AdminColors.dangerBorderOf(context),
                       padding: const EdgeInsets.symmetric(
                         vertical: 14,
                         horizontal: 16,
@@ -396,9 +398,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.logout_rounded,
-                            color: AdminColors.danger,
+                            color: AdminColors.dangerOf(context),
                             size: 20,
                           ),
                           const SizedBox(width: 10),
@@ -407,9 +409,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                             style: TextStyle(
                               fontSize: 14.5,
                               fontWeight: FontWeight.w700,
-                              color: isDark
-                                  ? const Color(0xFFF87171)
-                                  : AdminColors.danger,
+                              color: AdminColors.dangerOf(context),
                             ),
                           ),
                         ],

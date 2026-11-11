@@ -106,133 +106,146 @@ class _AdminRejectScreenState extends State<AdminRejectScreen> {
     }
 
     return AdminScope(
-      child: Scaffold(
-        body: Column(
-          children: [
-            AdminHeader(
-              title: _isProducer ? 'Tolak Produser' : 'Tolak Konser',
-              subtitle: 'Tulis alasan penolakan',
-              onBack: () => Navigator.of(context).pop(),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                children: [
-                  AdminCard(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      children: [
-                        leading,
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                name,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
+      child: Builder(
+        builder: (context) {
+          final textPri = AdminColors.textPrimaryOf(context);
+          final textSec = AdminColors.textSecondaryOf(context);
+          final surface = AdminColors.surfaceOf(context);
+          final border = AdminColors.borderOf(context);
+          final accent = AdminColors.accentOf(context);
+          return Scaffold(
+            backgroundColor: AdminColors.bgOf(context),
+            body: Column(
+              children: [
+                AdminHeader(
+                  title: _isProducer ? 'Tolak Produser' : 'Tolak Konser',
+                  subtitle: 'Tulis alasan penolakan',
+                  onBack: () => Navigator.of(context).pop(),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                    children: [
+                      AdminCard(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          children: [
+                            leading,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    name,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: textPri,
+                                    ),
+                                  ),
+                                  if (caption.isNotEmpty)
+                                    Text(
+                                      caption,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: textSec,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const AdminSectionTitle('Alasan penolakan'),
+                      ListenableBuilder(
+                        listenable: _reason,
+                        builder: (context, _) {
+                          final length = _reason.text.trim().length;
+                          final tooShort = length > 0 && length < _minLength;
+                          return TextField(
+                            controller: _reason,
+                            minLines: 5,
+                            maxLines: 8,
+                            maxLength: _maxLength,
+                            keyboardType: TextInputType.multiline,
+                            textCapitalization: TextCapitalization.sentences,
+                            style: TextStyle(fontSize: 14, color: textPri),
+                            decoration: InputDecoration(
+                              hintText: _isProducer
+                                  ? 'Contoh: data rekening tidak sesuai dengan nama perusahaan.'
+                                  : 'Contoh: izin keramaian belum dilampirkan.',
+                              hintStyle: TextStyle(
+                                fontSize: 13,
+                                color: AdminColors.textMutedOf(context),
+                              ),
+                              helperText: 'Minimal $_minLength karakter',
+                              helperStyle: TextStyle(color: textSec),
+                              errorText:
+                                  tooShort ? 'Alasan terlalu singkat' : null,
+                              filled: true,
+                              fillColor: surface,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(color: border),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(color: border),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(
+                                  color: accent,
+                                  width: 1.6,
                                 ),
                               ),
-                              if (caption.isNotEmpty)
-                                Text(
-                                  caption,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AdminColors.textGrey,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const AdminSectionTitle('Alasan penolakan'),
-                  ListenableBuilder(
-                    listenable: _reason,
-                    builder: (context, _) {
-                      final length = _reason.text.trim().length;
-                      final tooShort = length > 0 && length < _minLength;
-                      return TextField(
-                        controller: _reason,
-                        minLines: 5,
-                        maxLines: 8,
-                        maxLength: _maxLength,
-                        keyboardType: TextInputType.multiline,
-                        textCapitalization: TextCapitalization.sentences,
-                        style: const TextStyle(fontSize: 14),
-                        decoration: InputDecoration(
-                          hintText: _isProducer
-                              ? 'Contoh: data rekening tidak sesuai dengan nama perusahaan.'
-                              : 'Contoh: izin keramaian belum dilampirkan.',
-                          hintStyle: const TextStyle(
-                            fontSize: 13,
-                            color: AdminColors.textGrey,
-                          ),
-                          helperText: 'Minimal $_minLength karakter',
-                          errorText: tooShort ? 'Alasan terlalu singkat' : null,
-                          filled: true,
-                          fillColor: AdminColors.surface,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide:
-                                const BorderSide(color: AdminColors.border),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide:
-                                const BorderSide(color: AdminColors.border),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                              color: AdminColors.navy,
-                              width: 1.6,
                             ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              decoration: const BoxDecoration(
-                color: AdminColors.surface,
-                border: Border(top: BorderSide(color: AdminColors.border)),
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-              child: SafeArea(
-                top: false,
-                child: ListenableBuilder(
-                  listenable: _reason,
-                  builder: (context, _) => FilledButton(
-                    onPressed: _isValid ? _submit : null,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      backgroundColor: AdminColors.danger,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFFE4E7EC),
-                      disabledForegroundColor: AdminColors.textGrey,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                          );
+                        },
                       ),
-                      textStyle: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    child: const Text('Konfirmasi Penolakan'),
+                    ],
                   ),
                 ),
-              ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: surface,
+                    border: Border(top: BorderSide(color: border)),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                  child: SafeArea(
+                    top: false,
+                    child: ListenableBuilder(
+                      listenable: _reason,
+                      builder: (context, _) => FilledButton(
+                        onPressed: _isValid ? _submit : null,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          backgroundColor: AdminColors.danger,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor:
+                              AdminColors.disabledBgOf(context),
+                          disabledForegroundColor:
+                              AdminColors.disabledFgOf(context),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        child: const Text('Konfirmasi Penolakan'),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

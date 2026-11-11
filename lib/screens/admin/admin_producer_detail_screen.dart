@@ -95,59 +95,67 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
     final controller = TextEditingController(text: item.companyName);
     final newName = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Ubah Nama Profil Produser',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            color: AdminColors.textDark,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Perubahan nama akan langsung disimpan ke database dan disinkronkan ke seluruh konser produser.',
-              style: TextStyle(fontSize: 12.5, color: AdminColors.textGrey),
+      builder: (ctx) {
+        final textPri = AdminColors.textPrimaryOf(ctx);
+        final textSec = AdminColors.textSecondaryOf(ctx);
+        return AlertDialog(
+          backgroundColor: AdminColors.surfaceOf(ctx),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            'Ubah Nama Profil Produser',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: textPri,
             ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('admin_edit_producer_name_input'),
-              controller: controller,
-              autofocus: true,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AdminColors.textDark,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Perubahan nama akan langsung disimpan ke database dan disinkronkan ke seluruh konser produser.',
+                style: TextStyle(fontSize: 12.5, color: textSec),
               ),
-              decoration: InputDecoration(
-                labelText: 'Nama Produser / Perusahaan',
-                filled: true,
-                fillColor: const Color(0xFFF8FAFC),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('admin_edit_producer_name_input'),
+                controller: controller,
+                autofocus: true,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textPri,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Nama Produser / Perusahaan',
+                  filled: true,
+                  fillColor: AdminColors.surfaceAltOf(ctx),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              key: const Key('admin_save_producer_name_button'),
+              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+              style: FilledButton.styleFrom(
+                backgroundColor: AdminColors.primaryButtonBgOf(ctx),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Simpan ke Database'),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            key: const Key('admin_save_producer_name_button'),
-            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-            style: FilledButton.styleFrom(backgroundColor: AdminColors.navy),
-            child: const Text('Simpan ke Database'),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     if (newName == null || newName.isEmpty || !mounted) return;
@@ -165,69 +173,73 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return AdminScope(
-      child: ListenableBuilder(
-        listenable: _service.producersNotifier,
-        builder: (context, _) {
-          final item = _service.producerById(widget.producerId);
-          final canDecide = item?.approvalStatus == ApprovalStatus.pending;
-          return Scaffold(
-            backgroundColor: const Color(0xFFF8FAFC),
-            body: Column(
-              children: [
-                AdminHeader(
-                  title: item != null &&
-                          item.approvalStatus == ApprovalStatus.deactivated &&
-                          !_isProducerProfile(item)
-                      ? 'Detail User'
-                      : 'Detail Produser',
-                  subtitle: item?.approvalStatus == ApprovalStatus.rejected
-                      ? 'Profil produser yang pengajuannya ditolak'
-                      : (item?.approvalStatus == ApprovalStatus.approved ||
-                              item?.approvalStatus == ApprovalStatus.deactivated
-                          ? 'Profil produser yang telah disetujui'
-                          : 'Periksa kelengkapan dokumen dan data produser'),
-                  onBack: () => Navigator.of(context).pop(),
-                ),
-                Expanded(
-                  child: item == null
-                      ? const AdminMessageState(
-                          icon: Icons.search_off_rounded,
-                          title: 'Pengajuan tidak ditemukan',
-                          message: 'Data produser ini sudah tidak tersedia.',
-                        )
-                      : _buildBody(item),
-                ),
-              ],
-            ),
-            bottomNavigationBar: item != null
-                ? (canDecide
-                    ? _buildBottomBar(item)
-                    : (item.approvalStatus == ApprovalStatus.approved
-                        ? _buildApprovedBottomBar(item)
-                        : (item.approvalStatus == ApprovalStatus.rejected
-                            ? _buildRejectedBottomBar()
-                            : null)))
-                : null,
-          );
-        },
+      child: Builder(
+        builder: (context) => ListenableBuilder(
+          listenable: _service.producersNotifier,
+          builder: (context, _) {
+            final item = _service.producerById(widget.producerId);
+            final canDecide = item?.approvalStatus == ApprovalStatus.pending;
+            return Scaffold(
+              backgroundColor: AdminColors.bgOf(context),
+              body: Column(
+                children: [
+                  AdminHeader(
+                    title: item != null &&
+                            item.approvalStatus == ApprovalStatus.deactivated &&
+                            !_isProducerProfile(item)
+                        ? 'Detail User'
+                        : 'Detail Produser',
+                    subtitle: item?.approvalStatus == ApprovalStatus.rejected
+                        ? 'Profil produser yang pengajuannya ditolak'
+                        : (item?.approvalStatus == ApprovalStatus.approved ||
+                                item?.approvalStatus ==
+                                    ApprovalStatus.deactivated
+                            ? 'Profil produser yang telah disetujui'
+                            : 'Periksa kelengkapan dokumen dan data produser'),
+                    onBack: () => Navigator.of(context).pop(),
+                  ),
+                  Expanded(
+                    child: item == null
+                        ? const AdminMessageState(
+                            icon: Icons.search_off_rounded,
+                            title: 'Pengajuan tidak ditemukan',
+                            message: 'Data produser ini sudah tidak tersedia.',
+                          )
+                        : _buildBody(context, item),
+                  ),
+                ],
+              ),
+              bottomNavigationBar: item != null
+                  ? (canDecide
+                      ? _buildBottomBar(context, item)
+                      : (item.approvalStatus == ApprovalStatus.approved
+                          ? _buildApprovedBottomBar(context, item)
+                          : (item.approvalStatus == ApprovalStatus.rejected
+                              ? _buildRejectedBottomBar(context)
+                              : null)))
+                  : null,
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildBody(ProducerApplicationModel item) {
+  Widget _buildBody(BuildContext context, ProducerApplicationModel item) {
     if (item.approvalStatus == ApprovalStatus.approved) {
-      return _buildApprovedBody(item);
+      return _buildApprovedBody(context, item);
     }
     if (item.approvalStatus == ApprovalStatus.deactivated) {
-      return _buildDeactivatedBody(item);
+      return _buildDeactivatedBody(context, item);
     }
     if (item.approvalStatus == ApprovalStatus.rejected) {
-      return _buildRejectedBody(item);
+      return _buildRejectedBody(context, item);
     }
-    return _buildPendingBody(item);
+    return _buildPendingBody(context, item);
   }
 
-  Widget _buildPendingBody(ProducerApplicationModel item) {
+  Widget _buildPendingBody(
+      BuildContext context, ProducerApplicationModel item) {
     final docs = item.legalDocuments.isNotEmpty
         ? item.legalDocuments
         : ProducerDocumentModel.defaultLegalDocuments();
@@ -236,6 +248,10 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
         (item.pendingKtpUrl != null && item.pendingKtpUrl!.isNotEmpty) ||
         (item.pendingResponsibilityLetterUrl != null &&
             item.pendingResponsibilityLetterUrl!.isNotEmpty);
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+    final border = AdminColors.borderOf(context);
+    final accent = AdminColors.accentOf(context);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -255,8 +271,11 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                     child: Text(
                       item.companyName,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: textPri,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -264,12 +283,12 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                     key: const Key('admin_edit_producer_name_button_pending'),
                     onTap: () => _showEditProducerNameDialog(item),
                     borderRadius: BorderRadius.circular(999),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
                       child: Icon(
                         Icons.edit_outlined,
                         size: 16,
-                        color: AdminColors.navy,
+                        color: accent,
                       ),
                     ),
                   ),
@@ -279,15 +298,14 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
               Text(
                 item.email,
                 textAlign: TextAlign.center,
-                style:
-                    const TextStyle(fontSize: 13, color: AdminColors.textGrey),
+                style: TextStyle(fontSize: 13, color: textSec),
               ),
               const SizedBox(height: 16),
-              const Divider(height: 1, color: AdminColors.border),
+              Divider(height: 1, color: border),
               const SizedBox(height: 12),
-              _buildRow('Telepon', item.phone),
+              _buildRow(context, 'Telepon', item.phone),
               const SizedBox(height: 8),
-              _buildRow('Alamat', item.address),
+              _buildRow(context, 'Alamat', item.address),
             ],
           ),
         ),
@@ -295,27 +313,27 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
         if (hasPendingProfileEdit) ...[
           const SizedBox(height: 16),
           AdminCard(
-            color: const Color(0xFFFFFBEB),
-            borderColor: const Color(0xFFFDE68A),
+            color: AdminColors.warningBgOf(context),
+            borderColor: AdminColors.warningBorderOf(context),
             padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
                     Icon(
                       Icons.published_with_changes_rounded,
-                      color: Color(0xFFD97706),
+                      color: AdminColors.warningOf(context),
                       size: 18,
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Pengajuan Perubahan Profil / Legalitas Produser',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF92400E),
+                          color: AdminColors.warningOf(context),
                         ),
                       ),
                     ),
@@ -326,10 +344,10 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Nama Baru Diajukan: ${item.pendingName}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: AdminColors.textDark,
+                      color: textPri,
                     ),
                   ),
                 ],
@@ -338,9 +356,9 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                   const SizedBox(height: 4),
                   Text(
                     'KTP Baru: ${item.pendingKtpUrl!.split('/').last}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12.5,
-                      color: AdminColors.textDark,
+                      color: textPri,
                     ),
                   ),
                 ],
@@ -349,9 +367,9 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                   const SizedBox(height: 4),
                   Text(
                     'Lembar Penanggung Jawab Baru: ${item.pendingResponsibilityLetterUrl!.split('/').last}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12.5,
-                      color: AdminColors.textDark,
+                      color: textPri,
                     ),
                   ),
                 ],
@@ -376,12 +394,12 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
+                      color: AdminColors.infoBgOf(context),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.description_outlined,
-                      color: AdminColors.navy,
+                      color: AdminColors.infoOf(context),
                       size: 22,
                     ),
                   ),
@@ -392,17 +410,18 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                       children: [
                         Text(
                           doc.name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
+                            color: textPri,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '${doc.type} · ${doc.fileSize}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: AdminColors.textGrey,
+                            color: textSec,
                           ),
                         ),
                       ],
@@ -411,9 +430,9 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                   IconButton(
                     onPressed: () => _previewDocument(doc),
                     tooltip: 'Unduh dokumen',
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.file_download_outlined,
-                      color: Color(0xFF475467),
+                      color: textSec,
                       size: 22,
                     ),
                   ),
@@ -433,14 +452,16 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
             controller: _notesController,
             minLines: 1,
             maxLines: 3,
-            style: const TextStyle(fontSize: 13),
-            decoration: const InputDecoration(
+            style: TextStyle(fontSize: 13, color: textPri),
+            decoration: InputDecoration(
               hintText: 'Tulis alasan jika menolak pendaftaran...',
               hintStyle: TextStyle(
                 fontSize: 13,
-                color: Color(0xFF94A3B8),
+                color: AdminColors.textMutedOf(context),
               ),
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
               isDense: true,
               contentPadding: EdgeInsets.zero,
             ),
@@ -452,11 +473,11 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
           const SizedBox(height: 20),
           const AdminSectionTitle('Alasan Penolakan'),
           AdminCard(
-            color: AdminColors.dangerSoft,
-            borderColor: const Color(0xFFFECACA),
+            color: AdminColors.dangerSoftBgOf(context),
+            borderColor: AdminColors.dangerBorderOf(context),
             child: Text(
               item.rejectionReason!,
-              style: const TextStyle(fontSize: 13, height: 1.5),
+              style: TextStyle(fontSize: 13, height: 1.5, color: textPri),
             ),
           ),
         ],
@@ -464,7 +485,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
     );
   }
 
-  Widget _buildRow(String label, String value) {
+  Widget _buildRow(BuildContext context, String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -472,9 +493,9 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
           width: 80,
           child: Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: AdminColors.textGrey,
+              color: AdminColors.textSecondaryOf(context),
             ),
           ),
         ),
@@ -482,10 +503,10 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
           child: Text(
             value.isEmpty ? '-' : value,
             textAlign: TextAlign.right,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AdminColors.textDark,
+              color: AdminColors.textPrimaryOf(context),
             ),
           ),
         ),
@@ -493,11 +514,12 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
     );
   }
 
-  Widget _buildBottomBar(ProducerApplicationModel item) {
+  Widget _buildBottomBar(BuildContext context, ProducerApplicationModel item) {
+    final dangerCol = AdminColors.dangerOf(context);
     return Container(
-      decoration: const BoxDecoration(
-        color: AdminColors.surface,
-        border: Border(top: BorderSide(color: AdminColors.border)),
+      decoration: BoxDecoration(
+        color: AdminColors.surfaceOf(context),
+        border: Border(top: BorderSide(color: AdminColors.borderOf(context))),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       child: SafeArea(
@@ -509,8 +531,8 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                 onPressed: () => _openRejectScreen(item),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
-                  foregroundColor: const Color(0xFFDC2626), // Merah garis
-                  side: const BorderSide(color: Color(0xFFDC2626), width: 1.2),
+                  foregroundColor: dangerCol,
+                  side: BorderSide(color: dangerCol, width: 1.2),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -528,7 +550,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                 onPressed: () => _approve(item),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
-                  backgroundColor: AdminColors.navy,
+                  backgroundColor: AdminColors.primaryButtonBgOf(context),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -547,11 +569,11 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
     );
   }
 
-  Widget _buildRejectedBottomBar() {
+  Widget _buildRejectedBottomBar(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: AdminColors.surface,
-        border: Border(top: BorderSide(color: AdminColors.border)),
+      decoration: BoxDecoration(
+        color: AdminColors.surfaceOf(context),
+        border: Border(top: BorderSide(color: AdminColors.borderOf(context))),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       child: SafeArea(
@@ -560,7 +582,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
           onPressed: () => Navigator.of(context).pop(),
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(48),
-            backgroundColor: AdminColors.navy,
+            backgroundColor: AdminColors.primaryButtonBgOf(context),
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -576,12 +598,19 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
     );
   }
 
-  Widget _buildRejectedBody(ProducerApplicationModel item) {
+  Widget _buildRejectedBody(
+      BuildContext context, ProducerApplicationModel item) {
     final reasonText = (item.rejectionReason != null &&
             item.rejectionReason!.isNotEmpty)
         ? item.rejectionReason!
         : 'NIB yang dilampirkan tidak sesuai dengan nama perusahaan yang didaftarkan, dan nomor telepon penanggung jawab tidak dapat diverifikasi. Silakan perbaiki data tersebut lalu ajukan kembali.';
     final dateStr = ApprovalFormat.dayMonthYear(item.submittedAt);
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+    final border = AdminColors.borderOf(context);
+    final dangerCol = AdminColors.dangerOf(context);
+    final dangerBg = AdminColors.dangerBgOf(context);
+    final dangerBorder = AdminColors.dangerBorderOf(context);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -596,51 +625,53 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
               Text(
                 item.companyName,
                 textAlign: TextAlign.center,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: textPri,
+                ),
               ),
               const SizedBox(height: 2),
               Text(
                 item.email,
                 textAlign: TextAlign.center,
-                style:
-                    const TextStyle(fontSize: 13, color: AdminColors.textGrey),
+                style: TextStyle(fontSize: 13, color: textSec),
               ),
               const SizedBox(height: 12),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1F2),
+                  color: dangerBg,
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFFE11D48), width: 1),
+                  border: Border.all(color: dangerBorder, width: 1),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.cancel_outlined,
                       size: 14,
-                      color: Color(0xFFE11D48),
+                      color: dangerCol,
                     ),
                     const SizedBox(width: 6),
                     Text(
                       'Ditolak · $dateStr',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFFE11D48),
+                        color: dangerCol,
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
-              const Divider(height: 1, color: AdminColors.border),
+              Divider(height: 1, color: border),
               const SizedBox(height: 12),
-              _buildRow('Telepon', item.phone),
+              _buildRow(context, 'Telepon', item.phone),
               const SizedBox(height: 8),
-              _buildRow('Alamat', item.address),
+              _buildRow(context, 'Alamat', item.address),
             ],
           ),
         ),
@@ -652,9 +683,9 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF1F2),
+            color: AdminColors.dangerSoftBgOf(context),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFFECDD3)),
+            border: Border.all(color: dangerBorder),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -664,8 +695,8 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                   Container(
                     width: 36,
                     height: 36,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF1E3A8A),
+                    decoration: BoxDecoration(
+                      color: AdminColors.primaryButtonBgOf(context),
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
@@ -679,7 +710,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -688,15 +719,15 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
-                            color: AdminColors.textDark,
+                            color: textPri,
                           ),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
                           '24 Okt 2026 · 14.20 WIB',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AdminColors.textGrey,
+                            color: textSec,
                           ),
                         ),
                       ],
@@ -706,29 +737,29 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFEE2E2),
+                      color: dangerBg,
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Ditolak',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFFDC2626),
+                        color: dangerCol,
                       ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              const Divider(height: 1, color: Color(0xFFFECDD3)),
+              Divider(height: 1, color: dangerBorder),
               const SizedBox(height: 12),
               Text(
                 reasonText,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   height: 1.5,
-                  color: Color(0xFF334155),
+                  color: textPri,
                 ),
               ),
             ],
@@ -742,15 +773,15 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildMiniStat('Konser Diajukan', '0'),
+              child: _buildMiniStat(context, 'Konser Diajukan', '0'),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _buildMiniStat('Konser Aktif', '0'),
+              child: _buildMiniStat(context, 'Konser Aktif', '0'),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _buildMiniStat('Tiket Terjual', '0'),
+              child: _buildMiniStat(context, 'Tiket Terjual', '0'),
             ),
           ],
         ),
@@ -767,17 +798,17 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF3E8FF),
+                  color: AdminColors.purpleBgOf(context),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.confirmation_number_outlined,
-                  color: Color(0xFF9333EA),
+                  color: AdminColors.purpleOf(context),
                   size: 24,
                 ),
               ),
               const SizedBox(width: 14),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -786,15 +817,15 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: AdminColors.textDark,
+                        color: textPri,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
                       'Konser dapat diajukan setelah produser disetujui.',
                       style: TextStyle(
                         fontSize: 12,
-                        color: AdminColors.textGrey,
+                        color: textSec,
                       ),
                     ),
                   ],
@@ -807,7 +838,8 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
     );
   }
 
-  Widget _buildMiniStat(String label, String value, {Color? valueColor}) {
+  Widget _buildMiniStat(BuildContext context, String label, String value,
+      {Color? valueColor}) {
     return AdminCard(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
       child: Column(
@@ -817,9 +849,9 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: AdminColors.textGrey,
+              color: AdminColors.textSecondaryOf(context),
             ),
           ),
           const SizedBox(height: 6),
@@ -830,7 +862,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
-              color: valueColor ?? AdminColors.textDark,
+              color: valueColor ?? AdminColors.textPrimaryOf(context),
             ),
           ),
         ],
@@ -838,11 +870,13 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
     );
   }
 
-  Widget _buildApprovedBottomBar(ProducerApplicationModel item) {
+  Widget _buildApprovedBottomBar(
+      BuildContext context, ProducerApplicationModel item) {
+    final dangerCol = AdminColors.dangerOf(context);
     return Container(
-      decoration: const BoxDecoration(
-        color: AdminColors.surface,
-        border: Border(top: BorderSide(color: AdminColors.border)),
+      decoration: BoxDecoration(
+        color: AdminColors.surfaceOf(context),
+        border: Border(top: BorderSide(color: AdminColors.borderOf(context))),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       child: SafeArea(
@@ -862,8 +896,8 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                 },
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
-                  foregroundColor: const Color(0xFFDC2626),
-                  side: const BorderSide(color: Color(0xFFDC2626), width: 1.2),
+                  foregroundColor: dangerCol,
+                  side: BorderSide(color: dangerCol, width: 1.2),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -881,7 +915,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                 onPressed: () => Navigator.of(context).pop(),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
-                  backgroundColor: AdminColors.navy,
+                  backgroundColor: AdminColors.primaryButtonBgOf(context),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -900,8 +934,14 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
     );
   }
 
-  Widget _buildApprovedBody(ProducerApplicationModel item) {
+  Widget _buildApprovedBody(
+      BuildContext context, ProducerApplicationModel item) {
     final activeSummaries = item.activeConcertSummaries;
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+    final border = AdminColors.borderOf(context);
+    final accent = AdminColors.accentOf(context);
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       children: [
@@ -915,19 +955,19 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
               Text(
                 item.companyName,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: AdminColors.textDark,
+                  color: textPri,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 item.email,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: AdminColors.textGrey,
+                  color: textSec,
                 ),
               ),
               const SizedBox(height: 10),
@@ -941,19 +981,20 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
-                      border: Border.all(color: const Color(0xFF10B981)),
+                      color: AdminColors.successBgOf(context),
+                      border: Border.all(
+                          color: AdminColors.successBorderOf(context)),
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           Icons.check_rounded,
                           size: 16,
-                          color: Color(0xFF10B981),
+                          color: AdminColors.successOf(context),
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Flexible(
                           child: Text(
                             'Terverifikasi · 24 Okt 2026',
@@ -962,7 +1003,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFF059669),
+                              color: AdminColors.successOf(context),
                             ),
                           ),
                         ),
@@ -976,8 +1017,8 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                     label: const Text('Ubah Nama Produser'),
                     style: OutlinedButton.styleFrom(
                       visualDensity: VisualDensity.compact,
-                      foregroundColor: AdminColors.navy,
-                      side: const BorderSide(color: AdminColors.border),
+                      foregroundColor: accent,
+                      side: BorderSide(color: border),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(999),
                       ),
@@ -990,11 +1031,11 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              const Divider(height: 1, color: AdminColors.border),
+              Divider(height: 1, color: border),
               const SizedBox(height: 12),
-              _buildRow('Telepon', item.phone),
+              _buildRow(context, 'Telepon', item.phone),
               const SizedBox(height: 8),
-              _buildRow('Alamat', item.address),
+              _buildRow(context, 'Alamat', item.address),
             ],
           ),
         ),
@@ -1007,6 +1048,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
           children: [
             Expanded(
               child: _buildMiniStat(
+                context,
                 'Konser Diajukan',
                 '${item.proposedConcertsCount}',
               ),
@@ -1014,6 +1056,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: _buildMiniStat(
+                context,
                 'Konser Aktif',
                 '${item.activeConcertsCount}',
               ),
@@ -1021,9 +1064,10 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: _buildMiniStat(
+                context,
                 'Tiket Terjual',
                 ApprovalFormat.thousands(item.ticketsSold),
-                valueColor: const Color(0xFFC2185B),
+                valueColor: AdminColors.pinkAccentOf(context),
               ),
             ),
           ],
@@ -1037,6 +1081,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
           for (int i = 0; i < activeSummaries.length; i++) ...[
             if (i > 0) const SizedBox(height: 10),
             _buildActiveConcertCard(
+              context,
               title: activeSummaries[i]['title'] ?? '',
               subtitle: activeSummaries[i]['subtitle'] ?? '',
               posterUrl: activeSummaries[i]['posterUrl'],
@@ -1051,17 +1096,17 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF3E8FF),
+                    color: AdminColors.purpleBgOf(context),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.confirmation_number_outlined,
-                    color: Color(0xFF9333EA),
+                    color: AdminColors.purpleOf(context),
                     size: 24,
                   ),
                 ),
                 const SizedBox(width: 14),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1070,15 +1115,15 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: AdminColors.textDark,
+                          color: textPri,
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
                         'Produser ini belum memiliki konser aktif di database.',
                         style: TextStyle(
                           fontSize: 12,
-                          color: AdminColors.textGrey,
+                          color: textSec,
                         ),
                       ),
                     ],
@@ -1089,12 +1134,14 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
           )
         else ...[
           _buildActiveConcertCard(
+            context,
             title: 'Soundwave Fest 2026',
             subtitle: '12 Okt 2026 · Gate B',
             posterUrl: null,
           ),
           const SizedBox(height: 10),
           _buildActiveConcertCard(
+            context,
             title: 'Jazz Night 2026',
             subtitle: '15 Nov 2026 · Balai Sarbini',
             posterUrl: null,
@@ -1104,11 +1151,14 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
     );
   }
 
-  Widget _buildActiveConcertCard({
+  Widget _buildActiveConcertCard(
+    BuildContext context, {
     required String title,
     required String subtitle,
     String? posterUrl,
   }) {
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
     return AdminCard(
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -1147,18 +1197,18 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AdminColors.textDark,
+                    color: textPri,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AdminColors.textGrey,
+                    color: textSec,
                   ),
                 ),
               ],
@@ -1167,15 +1217,15 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFECFDF5),
+              color: AdminColors.successBgOf(context),
               borderRadius: BorderRadius.circular(999),
             ),
-            child: const Text(
+            child: Text(
               'Aktif',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF059669),
+                color: AdminColors.successOf(context),
               ),
             ),
           ),
@@ -1195,7 +1245,15 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
         name.contains('event');
   }
 
-  Widget _buildDeactivatedBody(ProducerApplicationModel item) {
+  Widget _buildDeactivatedBody(
+      BuildContext context, ProducerApplicationModel item) {
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+    final border = AdminColors.borderOf(context);
+    final dangerCol = AdminColors.dangerOf(context);
+    final dangerBg = AdminColors.dangerBgOf(context);
+    final dangerBorder = AdminColors.dangerBorderOf(context);
+
     if (_isProducerProfile(item)) {
       return ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -1210,19 +1268,19 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                 Text(
                   item.companyName,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: AdminColors.textDark,
+                    color: textPri,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   item.email,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: AdminColors.textGrey,
+                    color: textSec,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -1230,25 +1288,25 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
-                    border: Border.all(color: const Color(0xFFDC2626)),
+                    color: dangerBg,
+                    border: Border.all(color: dangerBorder),
                     borderRadius: BorderRadius.circular(999),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Nonaktif · 24 Okt 2026',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFFDC2626),
+                      color: dangerCol,
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Divider(height: 1, color: AdminColors.border),
+                Divider(height: 1, color: border),
                 const SizedBox(height: 12),
-                _buildRow('Telepon', item.phone),
+                _buildRow(context, 'Telepon', item.phone),
                 const SizedBox(height: 8),
-                _buildRow('Alamat', item.address),
+                _buildRow(context, 'Alamat', item.address),
               ],
             ),
           ),
@@ -1261,6 +1319,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
             children: [
               Expanded(
                 child: _buildMiniStat(
+                  context,
                   'Konser Diajukan',
                   SupabaseService.isInitialized
                       ? '${item.proposedConcertsCount}'
@@ -1270,6 +1329,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: _buildMiniStat(
+                  context,
                   'Konser Dihentikan',
                   SupabaseService.isInitialized
                       ? '${item.activeConcertsCount}'
@@ -1279,13 +1339,14 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: _buildMiniStat(
+                  context,
                   'Tiket Terjual',
                   SupabaseService.isInitialized
                       ? ApprovalFormat.thousands(item.ticketsSold)
                       : (item.ticketsSold == 0
                           ? '12,450'
                           : ApprovalFormat.thousands(item.ticketsSold)),
-                  valueColor: const Color(0xFFC2185B),
+                  valueColor: AdminColors.pinkAccentOf(context),
                 ),
               ),
             ],
@@ -1307,19 +1368,19 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
               Text(
                 item.companyName,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: AdminColors.textDark,
+                  color: textPri,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 item.email,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: AdminColors.textGrey,
+                  color: textSec,
                 ),
               ),
               const SizedBox(height: 10),
@@ -1327,25 +1388,25 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEF2F2),
-                  border: Border.all(color: const Color(0xFFDC2626)),
+                  color: dangerBg,
+                  border: Border.all(color: dangerBorder),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: const Text(
+                child: Text(
                   'Nonaktif · 24 Okt 2026',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFFDC2626),
+                    color: dangerCol,
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-              const Divider(height: 1, color: AdminColors.border),
+              Divider(height: 1, color: border),
               const SizedBox(height: 12),
-              _buildRow('Telepon', item.phone),
+              _buildRow(context, 'Telepon', item.phone),
               const SizedBox(height: 8),
-              _buildRow('Alamat', item.address),
+              _buildRow(context, 'Alamat', item.address),
             ],
           ),
         ),
@@ -1361,20 +1422,20 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Pembelian Tiket',
                   style: TextStyle(
                     fontSize: 12,
-                    color: AdminColors.textGrey,
+                    color: textSec,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   '${item.ticketPurchases}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
-                    color: AdminColors.textDark,
+                    color: textPri,
                   ),
                 ),
               ],
@@ -1394,154 +1455,172 @@ class _LegalDocPreviewSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFCBD5E1),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+    return AdminScope(
+      child: Builder(
+        builder: (context) {
+          final textPri = AdminColors.textPrimaryOf(context);
+          final textSec = AdminColors.textSecondaryOf(context);
+          final surfaceAlt = AdminColors.surfaceAltOf(context);
+          final border = AdminColors.borderOf(context);
+          final accent = AdminColors.accentOf(context);
+          return Container(
+            decoration: BoxDecoration(
+              color: AdminColors.surfaceOf(context),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEFF6FF),
-                    borderRadius: BorderRadius.circular(10),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.description_outlined,
-                    color: AdminColors.navy,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 16),
+                  Row(
                     children: [
-                      Text(
-                        doc.name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AdminColors.infoBgOf(context),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.description_outlined,
+                          color: AdminColors.infoOf(context),
+                          size: 24,
                         ),
                       ),
-                      Text(
-                        'Format ${doc.type} · Ukuran ${doc.fileSize}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AdminColors.textGrey,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              doc.name,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: textPri,
+                              ),
+                            ),
+                            Text(
+                              'Format ${doc.type} · Ukuran ${doc.fileSize}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: textSec,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(Icons.close_rounded, color: textPri),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    height: 160,
+                    decoration: BoxDecoration(
+                      color: surfaceAlt,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: border),
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.verified_user_outlined,
+                            size: 40,
+                            color: AdminColors.infoOf(context),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Dokumen Legalitas: ${doc.name}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: textPri,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Terverifikasi resmi dalam arsip LiveTix',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: textSec,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content:
+                                    Text('Mengunduh salinan ${doc.name}...'),
+                                backgroundColor: AdminColors.navy,
+                              ),
+                            );
+                          },
+                          icon:
+                              const Icon(Icons.file_download_outlined, size: 18),
+                          label: const Text('Unduh Salinan'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(46),
+                            foregroundColor: accent,
+                            side: BorderSide(color: accent),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(46),
+                            backgroundColor:
+                                AdminColors.primaryButtonBgOf(context),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text('Tutup'),
                         ),
                       ),
                     ],
                   ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              height: 160,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.verified_user_outlined,
-                      size: 40,
-                      color: AdminColors.navy,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Dokumen Legalitas: ${doc.name}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Terverifikasi resmi dalam arsip LiveTix',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AdminColors.textGrey,
-                      ),
-                    ),
-                  ],
-                ),
+                ],
               ),
             ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Mengunduh salinan ${doc.name}...'),
-                          backgroundColor: AdminColors.navy,
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.file_download_outlined, size: 18),
-                    label: const Text('Unduh Salinan'),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(46),
-                      foregroundColor: AdminColors.navy,
-                      side: const BorderSide(color: AdminColors.navy),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(46),
-                      backgroundColor: AdminColors.navy,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: const Text('Tutup'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

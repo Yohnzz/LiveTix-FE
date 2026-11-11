@@ -67,321 +67,340 @@ class AdminRefundDetailScreen extends StatelessWidget {
     final perluDataCountFormatted =
         ApprovalFormat.thousands(detail.needDataTickets);
 
-    return Scaffold(
-      backgroundColor: AdminColors.background,
-      body: Column(
-        children: [
-          // Header Gradien dengan Tombol Kembali (Image 3)
-          AdminHeader(
-            title: 'Detail Refund',
-            subtitle: detail.title,
-            onBack: () => Navigator.of(context).maybePop(),
-          ),
+    return AdminScope(
+      child: Builder(
+        builder: (context) {
+          final textPri = AdminColors.textPrimaryOf(context);
+          final textSec = AdminColors.textSecondaryOf(context);
+          final accent = AdminColors.accentOf(context);
+          final surface = AdminColors.surfaceOf(context);
+          final border = AdminColors.borderOf(context);
 
-          // Konten Layar Detail Refund
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          return Scaffold(
+            backgroundColor: AdminColors.bgOf(context),
+            body: Column(
               children: [
-                // 1. Kartu Progres Refund
-                AdminCard(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                // Header Gradien dengan Tombol Kembali (Image 3)
+                AdminHeader(
+                  title: 'Detail Refund',
+                  subtitle: detail.title,
+                  onBack: () => Navigator.of(context).maybePop(),
+                ),
+
+                // Konten Layar Detail Refund
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                     children: [
+                      // 1. Kartu Progres Refund
+                      AdminCard(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Progres Refund',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: textPri,
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AdminColors.warningBgOf(context),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    'Berjalan',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AdminColors.warningOf(context),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              '$refundedFormatted / $totalFormatted tiket',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: accent,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(999),
+                              child: LinearProgressIndicator(
+                                value: progress,
+                                minHeight: 8,
+                                backgroundColor: AdminColors.isDark(context)
+                                    ? AdminColors.darkBorder
+                                    : const Color(0xFFE5E7EB),
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  Color(0xFF10B981),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              '$currentAmountFormatted dari $totalAmountFormatted',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: textSec,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // 2. Tiga Kartu Metrik Selesai, Diproses, Perlu Data
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Progres Refund',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AdminColors.textDark,
+                          Expanded(
+                            child: AdminCard(
+                              padding: const EdgeInsets.all(14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selesaiCountFormatted,
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                      color: AdminColors.successOf(context),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Selesai',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: textSec,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 3,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: AdminCard(
+                              padding: const EdgeInsets.all(14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    diprosesCountFormatted,
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                      color: accent,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Diproses',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: textSec,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFEF3C7),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: const Text(
-                              'Berjalan',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF92400E),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: AdminCard(
+                              padding: const EdgeInsets.all(14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    perluDataCountFormatted,
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                      color: AdminColors.dangerOf(context),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Perlu data',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: textSec,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        '$refundedFormatted / $totalFormatted tiket',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1E3A8A),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 8,
-                          backgroundColor: const Color(0xFFE5E7EB),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFF10B981),
-                          ),
-                        ),
-                      ),
+
                       const SizedBox(height: 12),
-                      Text(
-                        '$currentAmountFormatted dari $totalAmountFormatted',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AdminColors.textGrey,
+
+                      // 3. Kartu Batas Refund Pembeli
+                      AdminCard(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Batas refund pembeli',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: textSec,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${detail.deadlineDate} · sisa ${detail.remainingDays} hari',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: textPri,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+
+                      const SizedBox(height: 20),
+
+                      // 4. Section Daftar Pembeli
+                      const AdminSectionTitle('Daftar Pembeli'),
+                      const SizedBox(height: 8),
+
+                      for (final buyer in detail.buyers) ...[
+                        _buildBuyerCard(context, buyer),
+                        const SizedBox(height: 10),
+                      ],
                     ],
                   ),
                 ),
-
-                const SizedBox(height: 12),
-
-                // 2. Tiga Kartu Metrik Selesai, Diproses, Perlu Data
-                Row(
+              ],
+            ),
+            bottomNavigationBar: Container(
+              decoration: BoxDecoration(
+                color: surface,
+                border: Border(top: BorderSide(color: border)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: SafeArea(
+                top: false,
+                child: Row(
                   children: [
                     Expanded(
-                      child: AdminCard(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              selesaiCountFormatted,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF059669),
+                      child: OutlinedButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Pengingat berhasil dikirim ke ${detail.needDataTickets} pembeli yang belum mengisi rekening.',
+                                ),
                               ),
+                            );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          side: BorderSide(
+                            color: accent,
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Kirim Pengingat (${detail.needDataTickets})',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: accent,
                             ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Selesai',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AdminColors.textGrey,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: AdminCard(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              diprosesCountFormatted,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF1B2A8C),
+                      child: FilledButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              const SnackBar(
+                                content:
+                                    Text('Laporan refund berhasil diekspor.'),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Diproses',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AdminColors.textGrey,
-                              ),
-                            ),
-                          ],
+                            );
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor:
+                              AdminColors.primaryButtonBgOf(context),
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: AdminCard(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              perluDataCountFormatted,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFFDC2626),
-                              ),
+                        child: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Ekspor Laporan',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
                             ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Perlu data',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AdminColors.textGrey,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
-
-                const SizedBox(height: 12),
-
-                // 3. Kartu Batas Refund Pembeli
-                AdminCard(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Batas refund pembeli',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AdminColors.textGrey,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${detail.deadlineDate} · sisa ${detail.remainingDays} hari',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AdminColors.textDark,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // 4. Section Daftar Pembeli
-                const AdminSectionTitle('Daftar Pembeli'),
-                const SizedBox(height: 8),
-
-                for (final buyer in detail.buyers) ...[
-                  _buildBuyerCard(buyer),
-                  const SizedBox(height: 10),
-                ],
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: AdminColors.border)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context)
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Pengingat berhasil dikirim ke ${detail.needDataTickets} pembeli yang belum mengisi rekening.',
-                          ),
-                        ),
-                      );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                    side: const BorderSide(
-                      color: Color(0xFF1B2A8C),
-                      width: 1.5,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'Kirim Pengingat (${detail.needDataTickets})',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1B2A8C),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context)
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(
-                        const SnackBar(
-                          content: Text('Laporan refund berhasil diekspor.'),
-                        ),
-                      );
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B2A8C),
-                    minimumSize: const Size.fromHeight(48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'Ekspor Laporan',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildBuyerCard(RefundBuyerModel buyer) {
+  Widget _buildBuyerCard(BuildContext context, RefundBuyerModel buyer) {
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
     final (Color bg, Color fg) = switch (buyer.status) {
       'Selesai' => (
-          const Color(0xFFDCFCE7),
-          const Color(0xFF166534),
+          AdminColors.successBgOf(context),
+          AdminColors.successOf(context),
         ),
       'Perlu data' => (
-          const Color(0xFFFEE2E2),
-          const Color(0xFFB91C1C),
+          AdminColors.dangerBgOf(context),
+          AdminColors.dangerOf(context),
         ),
       _ => (
-          const Color(0xFFFEF3C7),
-          const Color(0xFF92400E),
+          AdminColors.warningBgOf(context),
+          AdminColors.warningOf(context),
         ),
     };
 
@@ -396,18 +415,18 @@ class AdminRefundDetailScreen extends StatelessWidget {
               children: [
                 Text(
                   buyer.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: AdminColors.textDark,
+                    color: textPri,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   '${buyer.tickets} tiket · ${buyer.paymentInfo}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AdminColors.textGrey,
+                    color: textSec,
                   ),
                 ),
               ],

@@ -22,124 +22,133 @@ class _AdminRefundMonitoringScreenState
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: Listenable.merge([
-        _service.refundOverviewNotifier,
-        _service.refundMonitoringNotifier,
-      ]),
-      builder: (context, _) {
-        final overview = _service.refundOverviewNotifier.value;
-        final items = _service.refundMonitoringNotifier.value;
+    return AdminScope(
+      child: ListenableBuilder(
+        listenable: Listenable.merge([
+          _service.refundOverviewNotifier,
+          _service.refundMonitoringNotifier,
+        ]),
+        builder: (context, _) {
+          final overview = _service.refundOverviewNotifier.value;
+          final items = _service.refundMonitoringNotifier.value;
+          final textSec = AdminColors.textSecondaryOf(context);
+          final accent = AdminColors.accentOf(context);
+          final dangerCol = AdminColors.dangerOf(context);
 
-        return Scaffold(
-          backgroundColor: AdminColors.background,
-          body: Column(
-            children: [
-              // Header Gradien Monitoring Refund (Image 2)
-              AdminHeader(
-                title: 'Monitoring Refund',
-                subtitle: 'Pantau pengembalian dana konser dibatalkan',
-                onBack: () => Navigator.of(context).maybePop(),
-              ),
-
-              // 2 Kartu Metrik di Atas Tab Bar
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: AdminCard(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Total dikembalikan',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AdminColors.textGrey,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              overview.totalRefundedLabel,
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF1B2A8C),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AdminCard(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Perlu tindakan',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AdminColors.textGrey,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '${overview.actionNeededCount}',
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFFDC2626),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+          return Scaffold(
+            backgroundColor: AdminColors.bgOf(context),
+            body: Column(
+              children: [
+                // Header Gradien Monitoring Refund (Image 2)
+                AdminHeader(
+                  title: 'Monitoring Refund',
+                  subtitle: 'Pantau pengembalian dana konser dibatalkan',
+                  onBack: () => Navigator.of(context).maybePop(),
                 ),
-              ),
 
-              const SizedBox(height: 12),
+                // 2 Kartu Metrik di Atas Tab Bar
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: AdminCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Total dikembalikan',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: textSec,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                overview.totalRefundedLabel,
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: accent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: AdminCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Perlu tindakan',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: textSec,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '${overview.actionNeededCount}',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: dangerCol,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-              // Tab Bar (Berjalan (2), Selesai, Perlu data)
-              _buildTabBar(items.length),
+                const SizedBox(height: 12),
 
-              // Konten Daftar Konser
-              Expanded(
-                child: _buildTabContent(items),
-              ),
-            ],
-          ),
-          bottomNavigationBar: AdminBottomNav(
-            currentIndex: 0,
-            onTap: (index) {
-              AdminNavigation.tab.value = index;
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-          ),
-        );
-      },
+                // Tab Bar (Berjalan (2), Selesai, Perlu data)
+                _buildTabBar(context, items.length),
+
+                // Konten Daftar Konser
+                Expanded(
+                  child: _buildTabContent(context, items),
+                ),
+              ],
+            ),
+            bottomNavigationBar: AdminBottomNav(
+              currentIndex: 0,
+              onTap: (index) {
+                AdminNavigation.tab.value = index;
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildTabBar(int runningCount) {
+  Widget _buildTabBar(BuildContext context, int runningCount) {
     final tabs = [
       'Berjalan ($runningCount)',
       'Selesai',
       'Perlu data',
     ];
+    final surface = AdminColors.surfaceOf(context);
+    final border = AdminColors.borderOf(context);
+    final accent = AdminColors.accentOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
 
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: surface,
         border: Border(
-          bottom: BorderSide(color: AdminColors.border),
+          bottom: BorderSide(color: border),
         ),
       ),
       child: SingleChildScrollView(
@@ -161,9 +170,7 @@ class _AdminRefundMonitoringScreenState
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: isSelected
-                          ? const Color(0xFF1B2A8C)
-                          : Colors.transparent,
+                      color: isSelected ? accent : Colors.transparent,
                       width: 2.5,
                     ),
                   ),
@@ -173,9 +180,7 @@ class _AdminRefundMonitoringScreenState
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected
-                        ? const Color(0xFF1B2A8C)
-                        : AdminColors.textGrey,
+                    color: isSelected ? accent : textSec,
                   ),
                 ),
               ),
@@ -186,14 +191,18 @@ class _AdminRefundMonitoringScreenState
     );
   }
 
-  Widget _buildTabContent(List<RefundMonitoringModel> items) {
+  Widget _buildTabContent(
+      BuildContext context, List<RefundMonitoringModel> items) {
     if (_selectedTab != 'Berjalan') {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
             'Tidak ada refund dengan status ${_selectedTab.toLowerCase()}.',
-            style: const TextStyle(fontSize: 14, color: AdminColors.textGrey),
+            style: TextStyle(
+              fontSize: 14,
+              color: AdminColors.textSecondaryOf(context),
+            ),
             textAlign: TextAlign.center,
           ),
         ),
@@ -206,23 +215,26 @@ class _AdminRefundMonitoringScreenState
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final item = items[index];
-        return _buildMonitoringCard(item);
+        return _buildMonitoringCard(context, item);
       },
     );
   }
 
-  Widget _buildMonitoringCard(RefundMonitoringModel item) {
+  Widget _buildMonitoringCard(
+      BuildContext context, RefundMonitoringModel item) {
     final progress = item.totalTickets > 0
         ? (item.refundedTickets / item.totalTickets).clamp(0.0, 1.0)
         : 0.0;
     final isGreen = item.percent >= 50;
-    final percentColor =
-        isGreen ? const Color(0xFF059669) : const Color(0xFF1B2A8C);
-    final progressColor =
-        isGreen ? const Color(0xFF10B981) : const Color(0xFF1B2A8C);
+    final accent = AdminColors.accentOf(context);
+    final successCol = AdminColors.successOf(context);
+    final percentColor = isGreen ? successCol : accent;
+    final progressColor = isGreen ? const Color(0xFF10B981) : accent;
     final formattedRefunded = ApprovalFormat.thousands(item.refundedTickets);
     final formattedTotal = ApprovalFormat.thousands(item.totalTickets);
     final formattedAmount = ApprovalFormat.rupiah(item.refundedAmount);
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
 
     return AdminCard(
       padding: const EdgeInsets.all(16),
@@ -236,10 +248,10 @@ class _AdminRefundMonitoringScreenState
               Expanded(
                 child: Text(
                   item.title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: AdminColors.textDark,
+                    color: textPri,
                   ),
                 ),
               ),
@@ -247,15 +259,15 @@ class _AdminRefundMonitoringScreenState
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEF3C7),
+                  color: AdminColors.warningBgOf(context),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: const Text(
+                child: Text(
                   'Berjalan',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF92400E),
+                    color: AdminColors.warningOf(context),
                   ),
                 ),
               ),
@@ -269,9 +281,9 @@ class _AdminRefundMonitoringScreenState
             children: [
               Text(
                 '$formattedRefunded / $formattedTotal tiket',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: AdminColors.textGrey,
+                  color: textSec,
                 ),
               ),
               Text(
@@ -292,7 +304,9 @@ class _AdminRefundMonitoringScreenState
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
-              backgroundColor: const Color(0xFFE5E7EB),
+              backgroundColor: AdminColors.isDark(context)
+                  ? AdminColors.darkBorder
+                  : const Color(0xFFE5E7EB),
               valueColor: AlwaysStoppedAnimation<Color>(progressColor),
             ),
           ),
@@ -305,9 +319,9 @@ class _AdminRefundMonitoringScreenState
               Flexible(
                 child: Text(
                   'Dana kembali: $formattedAmount',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AdminColors.textGrey,
+                    color: textSec,
                   ),
                 ),
               ),
@@ -321,14 +335,15 @@ class _AdminRefundMonitoringScreenState
                     ),
                   );
                 },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
                   child: Text(
                     'Lihat ›',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF1B2A8C),
+                      color: accent,
                     ),
                   ),
                 ),

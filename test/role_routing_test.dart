@@ -146,5 +146,28 @@ void main() {
       expect(find.byType(GateCrewMainScreen), findsOneWidget);
       expect(find.text('Akun anda tidak terinvite event manapun'), findsOneWidget);
     });
+
+    testWidgets('Login admin1@gmail.com dengan password admin123 masuk ke AdminShell dan password lama ditolak',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      expect(DataService().loginSync('admin1@gmail.com', 'igna@123'), isNull);
+
+      await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
+      await tester.pumpAndSettle();
+
+      final textFields = find.byType(TextFormField);
+      await tester.enterText(textFields.at(0), 'admin1@gmail.com');
+      await tester.enterText(textFields.at(1), 'admin123');
+
+      await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Masuk'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Masuk'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminShell), findsOneWidget);
+      expect(find.text('Halo, Admin'), findsOneWidget);
+    });
   });
 }

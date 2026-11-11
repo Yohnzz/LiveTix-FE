@@ -246,17 +246,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final topSpacing = viewTop > 0 ? viewTop + 16 : 38.0;
 
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Colors.white,
+      return Scaffold(
+        backgroundColor: AppColors.bg(context),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(color: AppColors.primary),
-              SizedBox(height: 12),
+              CircularProgressIndicator(color: AppColors.brand(context)),
+              const SizedBox(height: 12),
               Text(
                 'Memuat daftar konser...',
-                style: TextStyle(fontSize: 13, color: AppColors.textGrey),
+                style: TextStyle(fontSize: 13, color: AppColors.subtext(context)),
               ),
             ],
           ),
@@ -919,6 +919,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Widget _buildEmptyState() {
+    final isDark = AppColors.isDark(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
@@ -928,30 +929,34 @@ class _ExploreScreenState extends State<ExploreScreen> {
           Container(
             width: 72,
             height: 72,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF2F4F7),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurface : const Color(0xFFF2F4F7),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.search_off_rounded,
               size: 36,
-              color: AppColors.textGrey,
+              color: AppColors.subtext(context),
             ),
           ),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'Tidak ada konser yang cocok',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AppColors.textDark,
+              color: AppColors.text(context),
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Belum ada jadwal konser untuk kombinasi tanggal, harga, kota, atau kata kunci yang dipilih.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: AppColors.textGrey, height: 1.4),
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.subtext(context),
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 18),
           SizedBox(

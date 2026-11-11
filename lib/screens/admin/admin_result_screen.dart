@@ -107,140 +107,142 @@ class AdminResultScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final top = MediaQuery.of(context).padding.top;
     return AdminScope(
-      child: PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) _finish(context);
-        },
-        child: Scaffold(
-          backgroundColor: const Color(0xFFF8FAFC),
-          body: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // Header gradien atas
-                      Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          gradient: approved
-                              ? AdminColors.gradient
-                              : AdminColors.dangerGradient,
-                        ),
-                        padding: EdgeInsets.fromLTRB(24, top + 24, 24, 32),
-                        child: Column(
-                          children: [
-                            if (approved) ...[
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.star_rounded,
-                                      size: 14, color: Color(0xFFFBBF24)),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    topTitle ?? 'Approval Sukses',
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
+      child: Builder(
+        builder: (context) => PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) _finish(context);
+          },
+          child: Scaffold(
+            backgroundColor: AdminColors.bgOf(context),
+            body: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        // Header gradien atas
+                        Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            gradient: approved
+                                ? AdminColors.gradient
+                                : AdminColors.dangerGradient,
+                          ),
+                          padding: EdgeInsets.fromLTRB(24, top + 24, 24, 32),
+                          child: Column(
+                            children: [
+                              if (approved) ...[
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.star_rounded,
+                                        size: 14, color: Color(0xFFFBBF24)),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      topTitle ?? 'Approval Sukses',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
                                     ),
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.star_rounded,
+                                        size: 14, color: Color(0xFFFBBF24)),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                              ] else ...[
+                                Text(
+                                  topTitle ?? 'Approval Ditolak',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
                                   ),
-                                  const SizedBox(width: 6),
-                                  const Icon(Icons.star_rounded,
-                                      size: 14, color: Color(0xFFFBBF24)),
-                                ],
-                              ),
-                              const SizedBox(height: 20),
-                            ] else ...[
-                              Text(
-                                topTitle ?? 'Approval Ditolak',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
+                                ),
+                                const SizedBox(height: 20),
+                              ],
+                              Container(
+                                width: approved ? 76 : 68,
+                                height: approved ? 76 : 68,
+                                decoration: const BoxDecoration(
                                   color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Color(0x2A000000),
+                                      blurRadius: 10,
+                                      offset: Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  approved
+                                      ? Icons.check_rounded
+                                      : Icons.arrow_back_rounded,
+                                  color: approved
+                                      ? const Color(0xFF1E3A8A)
+                                      : const Color(0xFFDC2626),
+                                  size: approved ? 40 : 32,
+                                  semanticLabel:
+                                      approved ? 'Disetujui' : 'Ditolak',
                                 ),
                               ),
-                              const SizedBox(height: 20),
-                            ],
-                            Container(
-                              width: approved ? 76 : 68,
-                              height: approved ? 76 : 68,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Color(0x2A000000),
-                                    blurRadius: 10,
-                                    offset: Offset(0, 4),
+                              const SizedBox(height: 16),
+                              Semantics(
+                                header: true,
+                                child: Text(
+                                  title,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
                                   ),
-                                ],
-                              ),
-                              child: Icon(
-                                approved
-                                    ? Icons.check_rounded
-                                    : Icons.arrow_back_rounded,
-                                color: approved
-                                    ? const Color(0xFF1E3A8A)
-                                    : const Color(0xFFDC2626),
-                                size: approved ? 40 : 32,
-                                semanticLabel:
-                                    approved ? 'Disetujui' : 'Ditolak',
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Semantics(
-                              header: true,
-                              child: Text(
-                                title,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
                                 ),
                               ),
-                            ),
-                            if (message.isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                message,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.white.withValues(alpha: 0.92),
+                              if (message.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  message,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.white.withValues(alpha: 0.92),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
 
-                      // Kartu Rincian Keputusan
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                        child: !approved
-                            ? _buildRejectionCard()
-                            : _buildApprovalCard(),
-                      ),
-                    ],
+                        // Kartu Rincian Keputusan
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                          child: !approved
+                              ? _buildRejectionCard(context)
+                              : _buildApprovalCard(context),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
 
-              // Bar tombol navigasi bawah
-              _buildBottomActions(context),
-            ],
+                // Bar tombol navigasi bawah
+                _buildBottomActions(context),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildRejectionCard() {
+  Widget _buildRejectionCard(BuildContext context) {
     final itemName = rows.isNotEmpty ? rows.first.$2 : '-';
     final labelName =
         kind == ApprovalKind.producer ? 'Nama Produser' : 'Nama Konser';
@@ -249,6 +251,9 @@ class AdminResultScreen extends StatelessWidget {
     final reasonText = (reason != null && reason!.isNotEmpty)
         ? reason!
         : 'Dokumen legalitas tidak lengkap. Silakan lengkapi dan ajukan kembali.';
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+    final border = AdminColors.borderOf(context);
 
     return AdminCard(
       padding: const EdgeInsets.all(18),
@@ -257,23 +262,23 @@ class AdminResultScreen extends StatelessWidget {
         children: [
           Text(
             labelName,
-            style: const TextStyle(fontSize: 12, color: AdminColors.textGrey),
+            style: TextStyle(fontSize: 12, color: textSec),
           ),
           const SizedBox(height: 4),
           Text(
             itemName,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AdminColors.textDark,
+              color: textPri,
             ),
           ),
           const SizedBox(height: 14),
-          const Divider(height: 1, color: AdminColors.border),
+          Divider(height: 1, color: border),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'Tanggal Penolakan',
-            style: TextStyle(fontSize: 12, color: AdminColors.textGrey),
+            style: TextStyle(fontSize: 12, color: textSec),
           ),
           const SizedBox(height: 4),
           Row(
@@ -281,10 +286,10 @@ class AdminResultScreen extends StatelessWidget {
               Expanded(
                 child: Text(
                   dateText,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: AdminColors.textDark,
+                    color: textPri,
                   ),
                 ),
               ),
@@ -292,34 +297,34 @@ class AdminResultScreen extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEE2E2),
+                  color: AdminColors.dangerBgOf(context),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: const Text(
+                child: Text(
                   'Ditolak',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFFDC2626),
+                    color: AdminColors.dangerOf(context),
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
-          const Divider(height: 1, color: AdminColors.border),
+          Divider(height: 1, color: border),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'Alasan Penolakan',
-            style: TextStyle(fontSize: 12, color: AdminColors.textGrey),
+            style: TextStyle(fontSize: 12, color: textSec),
           ),
           const SizedBox(height: 4),
           Text(
             reasonText,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               height: 1.5,
-              color: Color(0xFF334155),
+              color: textPri,
             ),
           ),
         ],
@@ -327,10 +332,13 @@ class AdminResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildApprovalCard() {
+  Widget _buildApprovalCard(BuildContext context) {
     final itemName = rows.isNotEmpty ? rows.first.$2 : '-';
     final dateText =
         ApprovalFormat.dayFullMonthYear(decidedAt ?? DateTime(2026, 10, 24));
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+    final border = AdminColors.borderOf(context);
 
     return AdminCard(
       padding: const EdgeInsets.all(18),
@@ -339,23 +347,23 @@ class AdminResultScreen extends StatelessWidget {
         children: [
           Text(
             kind == ApprovalKind.producer ? 'Nama Produser' : 'Nama Konser',
-            style: const TextStyle(fontSize: 12, color: AdminColors.textGrey),
+            style: TextStyle(fontSize: 12, color: textSec),
           ),
           const SizedBox(height: 4),
           Text(
             itemName,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AdminColors.textDark,
+              color: textPri,
             ),
           ),
           const SizedBox(height: 14),
-          const Divider(height: 1, color: AdminColors.border),
+          Divider(height: 1, color: border),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'Tanggal Approval',
-            style: TextStyle(fontSize: 12, color: AdminColors.textGrey),
+            style: TextStyle(fontSize: 12, color: textSec),
           ),
           const SizedBox(height: 4),
           Row(
@@ -363,10 +371,10 @@ class AdminResultScreen extends StatelessWidget {
               Expanded(
                 child: Text(
                   dateText,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: AdminColors.textDark,
+                    color: textPri,
                   ),
                 ),
               ),
@@ -374,15 +382,15 @@ class AdminResultScreen extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFECFDF5),
+                  color: AdminColors.successBgOf(context),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: const Text(
+                child: Text(
                   'Terverifikasi',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF059669),
+                    color: AdminColors.successOf(context),
                   ),
                 ),
               ),
@@ -390,20 +398,20 @@ class AdminResultScreen extends StatelessWidget {
           ),
           if (kind == ApprovalKind.producer) ...[
             const SizedBox(height: 14),
-            const Divider(height: 1, color: AdminColors.border),
+            Divider(height: 1, color: border),
             const SizedBox(height: 10),
-            const Row(
+            Row(
               children: [
                 Expanded(
                   child: Text(
                     'Suka dengan produser ini?',
                     style: TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF475467),
+                      color: textSec,
                     ),
                   ),
                 ),
-                _FavoriteButton(),
+                const _FavoriteButton(),
               ],
             ),
           ],
@@ -414,10 +422,11 @@ class AdminResultScreen extends StatelessWidget {
 
   Widget _buildBottomActions(BuildContext context) {
     final effectiveFinishLabel = finishLabel ?? 'Kembali ke Beranda';
+    final accent = AdminColors.accentOf(context);
     return Container(
-      decoration: const BoxDecoration(
-        color: AdminColors.surface,
-        border: Border(top: BorderSide(color: AdminColors.border)),
+      decoration: BoxDecoration(
+        color: AdminColors.surfaceOf(context),
+        border: Border(top: BorderSide(color: AdminColors.borderOf(context))),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       child: SafeArea(
@@ -429,8 +438,8 @@ class AdminResultScreen extends StatelessWidget {
               onPressed: () => _viewDetail(context),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
-                foregroundColor: AdminColors.navy,
-                side: const BorderSide(color: AdminColors.navy, width: 1.5),
+                foregroundColor: accent,
+                side: BorderSide(color: accent, width: 1.5),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -452,7 +461,8 @@ class AdminResultScreen extends StatelessWidget {
               },
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
-                backgroundColor: AdminColors.navy,
+                backgroundColor: AdminColors.primaryButtonBgOf(context),
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -482,6 +492,7 @@ class _FavoriteButtonState extends State<_FavoriteButton> {
 
   @override
   Widget build(BuildContext context) {
+    final pink = AdminColors.pinkAccentOf(context);
     return InkWell(
       onTap: () => setState(() => _isFavorite = !_isFavorite),
       borderRadius: BorderRadius.circular(999),
@@ -489,19 +500,17 @@ class _FavoriteButtonState extends State<_FavoriteButton> {
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: _isFavorite
-              ? const Color(0xFFC2185B).withValues(alpha: 0.12)
-              : Colors.transparent,
+          color: _isFavorite ? pink.withValues(alpha: 0.14) : Colors.transparent,
           shape: BoxShape.circle,
           border: Border.all(
-            color: const Color(0xFFC2185B),
+            color: pink,
             width: 1.5,
           ),
         ),
         alignment: Alignment.center,
         child: Icon(
           _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          color: const Color(0xFFC2185B),
+          color: pink,
           size: 18,
         ),
       ),

@@ -66,69 +66,80 @@ class AdminUserDetailScreen extends StatelessWidget {
 
     await showDialog<void>(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Ganti Nama Pengguna',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-        ),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Ubah nama untuk akun ${user.email}:',
-                style: const TextStyle(fontSize: 13, color: AdminColors.textGrey),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: controller,
-                autofocus: true,
-                style: const TextStyle(fontSize: 14, color: AdminColors.textDark),
-                decoration: InputDecoration(
-                  labelText: 'Nama Baru',
-                  hintText: 'Masukkan nama pengguna',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10)),
+      builder: (dialogCtx) {
+        final textPri = AdminColors.textPrimaryOf(dialogCtx);
+        final textSec = AdminColors.textSecondaryOf(dialogCtx);
+        return AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            'Ganti Nama Pengguna',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: textPri,
+            ),
+          ),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ubah nama untuk akun ${user.email}:',
+                  style: TextStyle(fontSize: 13, color: textSec),
                 ),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'Nama tidak boleh kosong';
-                  }
-                  if (v.trim().length < 2) return 'Nama minimal 2 karakter';
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (!formKey.currentState!.validate()) return;
-              final newName = controller.text.trim();
-              AdminService().updateUserName(user.id, newName);
-              Navigator.of(dialogCtx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content:
-                      Text('Nama pengguna berhasil diubah menjadi "$newName"'),
-                  backgroundColor: const Color(0xFF166534),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: controller,
+                  autofocus: true,
+                  style: TextStyle(fontSize: 14, color: textPri),
+                  decoration: InputDecoration(
+                    labelText: 'Nama Baru',
+                    hintText: 'Masukkan nama pengguna',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Nama tidak boleh kosong';
+                    }
+                    if (v.trim().length < 2) return 'Nama minimal 2 karakter';
+                    return null;
+                  },
                 ),
-              );
-            },
-            style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF1E3A8A)),
-            child: const Text('Simpan'),
+              ],
+            ),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (!formKey.currentState!.validate()) return;
+                final newName = controller.text.trim();
+                AdminService().updateUserName(user.id, newName);
+                Navigator.of(dialogCtx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                        'Nama pengguna berhasil diubah menjadi "$newName"'),
+                    backgroundColor: const Color(0xFF166534),
+                  ),
+                );
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: AdminColors.primaryButtonBgOf(dialogCtx),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -141,7 +152,7 @@ class AdminUserDetailScreen extends StatelessWidget {
         builder: (context, _) {
           final user = service.userById(userId);
           return Scaffold(
-            backgroundColor: const Color(0xFFF8FAFC),
+            backgroundColor: AdminColors.bgOf(context),
             body: Column(
               children: [
                 AdminHeader(
@@ -159,7 +170,8 @@ class AdminUserDetailScreen extends StatelessWidget {
                 ),
               ],
             ),
-            bottomNavigationBar: user != null ? _buildBottomBar(context, user) : null,
+            bottomNavigationBar:
+                user != null ? _buildBottomBar(context, user) : null,
           );
         },
       ),
@@ -167,6 +179,13 @@ class AdminUserDetailScreen extends StatelessWidget {
   }
 
   Widget _buildBody(BuildContext context, ManagedUserModel user) {
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+    final border = AdminColors.borderOf(context);
+    final dividerCol = AdminColors.dividerOf(context);
+    final (roleBg, roleFg) = AdminColors.roleBadgeColors(context, user.role);
+    final isDark = AdminColors.isDark(context);
+
     return MediaQuery.withClampedTextScaling(
       maxScaleFactor: 1.35,
       child: ListView(
@@ -182,7 +201,7 @@ class AdminUserDetailScreen extends StatelessWidget {
                   width: 68,
                   height: 68,
                   decoration: BoxDecoration(
-                    color: _avatarBg(user.role),
+                    color: roleBg,
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
@@ -191,7 +210,7 @@ class AdminUserDetailScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: _avatarTextColor(user.role),
+                      color: roleFg,
                     ),
                   ),
                 ),
@@ -199,10 +218,10 @@ class AdminUserDetailScreen extends StatelessWidget {
                 Text(
                   user.name,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: AdminColors.textDark,
+                    color: textPri,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -210,7 +229,7 @@ class AdminUserDetailScreen extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _badgeBg(user.role),
+                    color: roleBg,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -218,12 +237,12 @@ class AdminUserDetailScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: _badgeTextColor(user.role),
+                      color: roleFg,
                     ),
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                Divider(height: 1, color: dividerCol),
                 const SizedBox(height: 16),
                 // 3 Kolom Metrik
                 Row(
@@ -233,47 +252,47 @@ class AdminUserDetailScreen extends StatelessWidget {
                         children: [
                           Text(
                             '${user.ticketsBought}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
-                              color: AdminColors.textDark,
+                              color: textPri,
                             ),
                           ),
                           const SizedBox(height: 4),
-                          const Text(
+                          Text(
                             'Tiket Dibeli',
                             style: TextStyle(
                               fontSize: 12,
-                              color: AdminColors.textGrey,
+                              color: textSec,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Container(height: 32, width: 1, color: const Color(0xFFE2E8F0)),
+                    Container(height: 32, width: 1, color: border),
                     Expanded(
                       child: Column(
                         children: [
                           Text(
                             '${user.concertsAttended}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
-                              color: AdminColors.textDark,
+                              color: textPri,
                             ),
                           ),
                           const SizedBox(height: 4),
-                          const Text(
+                          Text(
                             'Konser Dihadiri',
                             style: TextStyle(
                               fontSize: 12,
-                              color: AdminColors.textGrey,
+                              color: textSec,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Container(height: 32, width: 1, color: const Color(0xFFE2E8F0)),
+                    Container(height: 32, width: 1, color: border),
                     Expanded(
                       child: Column(
                         children: [
@@ -283,15 +302,17 @@ class AdminUserDetailScreen extends StatelessWidget {
                                 : Icons.favorite_border_rounded,
                             size: 22,
                             color: user.hasFavorite
-                                ? const Color(0xFFEC4899)
-                                : AdminColors.textGrey,
+                                ? (isDark
+                                    ? const Color(0xFFF472B6)
+                                    : const Color(0xFFEC4899))
+                                : textSec,
                           ),
                           const SizedBox(height: 4),
-                          const Text(
+                          Text(
                             'Favorit',
                             style: TextStyle(
                               fontSize: 12,
-                              color: AdminColors.textGrey,
+                              color: textSec,
                             ),
                           ),
                         ],
@@ -300,7 +321,7 @@ class AdminUserDetailScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                Divider(height: 1, color: dividerCol),
                 const SizedBox(height: 10),
                 // Tombol Aksi Kelola Akun: Ganti Nama Pengguna
                 SizedBox(
@@ -318,8 +339,8 @@ class AdminUserDetailScreen extends StatelessWidget {
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1E3A8A),
-                      side: const BorderSide(color: Color(0xFFBFDBFE)),
+                      foregroundColor: AdminColors.accentOf(context),
+                      side: BorderSide(color: AdminColors.infoBorderOf(context)),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -338,19 +359,19 @@ class AdminUserDetailScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             child: Column(
               children: [
-                _buildInfoRow('Nomor HP', user.phone),
-                const Divider(height: 1, color: AdminColors.border),
-                _buildInfoRow('Bergabung Sejak', user.joinedAt),
-                const Divider(height: 1, color: AdminColors.border),
+                _buildInfoRow(context, 'Nomor HP', user.phone),
+                Divider(height: 1, color: border),
+                _buildInfoRow(context, 'Bergabung Sejak', user.joinedAt),
+                Divider(height: 1, color: border),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Row(
                     children: [
-                      const SizedBox(
+                      SizedBox(
                         width: 120,
                         child: Text(
                           'Status Akun',
-                          style: TextStyle(fontSize: 13, color: AdminColors.textGrey),
+                          style: TextStyle(fontSize: 13, color: textSec),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -362,12 +383,12 @@ class AdminUserDetailScreen extends StatelessWidget {
                                 horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: user.isActive
-                                  ? const Color(0xFFECFDF5)
-                                  : const Color(0xFFFEF2F2),
+                                  ? AdminColors.successBgOf(context)
+                                  : AdminColors.dangerBgOf(context),
                               border: Border.all(
                                 color: user.isActive
-                                    ? const Color(0xFFA7F3D0)
-                                    : const Color(0xFFFECACA),
+                                    ? AdminColors.successBorderOf(context)
+                                    : AdminColors.dangerBorderOf(context),
                               ),
                               borderRadius: BorderRadius.circular(999),
                             ),
@@ -380,8 +401,8 @@ class AdminUserDetailScreen extends StatelessWidget {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: user.isActive
-                                        ? const Color(0xFF10B981)
-                                        : const Color(0xFFEF4444),
+                                        ? AdminColors.successOf(context)
+                                        : AdminColors.dangerOf(context),
                                   ),
                                 ),
                                 const SizedBox(width: 6),
@@ -391,8 +412,8 @@ class AdminUserDetailScreen extends StatelessWidget {
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     color: user.isActive
-                                        ? const Color(0xFF059669)
-                                        : const Color(0xFFDC2626),
+                                        ? AdminColors.successOf(context)
+                                        : AdminColors.dangerOf(context),
                                   ),
                                 ),
                               ],
@@ -412,10 +433,10 @@ class AdminUserDetailScreen extends StatelessWidget {
           // 3. Riwayat Transaksi
           const AdminSectionTitle('Riwayat Transaksi'),
           if (user.transactions.isEmpty)
-            const AdminCard(
+            AdminCard(
               child: Text(
                 'Belum ada transaksi.',
-                style: TextStyle(fontSize: 13, color: AdminColors.textGrey),
+                style: TextStyle(fontSize: 13, color: textSec),
               ),
             )
           else
@@ -432,18 +453,18 @@ class AdminUserDetailScreen extends StatelessWidget {
                           children: [
                             Text(
                               tx.title,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: AdminColors.textDark,
+                                color: textPri,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               '${tx.invoice} · ${ApprovalFormat.rupiah(tx.amount)}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: AdminColors.textGrey,
+                                color: textSec,
                               ),
                             ),
                           ],
@@ -453,15 +474,15 @@ class AdminUserDetailScreen extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF5),
+                          color: AdminColors.successBgOf(context),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
                           tx.status,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF059669),
+                            color: AdminColors.successOf(context),
                           ),
                         ),
                       ),
@@ -475,7 +496,7 @@ class AdminUserDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(BuildContext context, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
@@ -485,7 +506,10 @@ class AdminUserDetailScreen extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 13, color: AdminColors.textGrey),
+              style: TextStyle(
+                fontSize: 13,
+                color: AdminColors.textSecondaryOf(context),
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -493,10 +517,10 @@ class AdminUserDetailScreen extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: AdminColors.textDark,
+                color: AdminColors.textPrimaryOf(context),
               ),
             ),
           ),
@@ -505,91 +529,127 @@ class AdminUserDetailScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _confirmDeleteGateCrew(
+      BuildContext context, ManagedUserModel user) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Hapus Gate Crew?',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Akun Gate Crew ${user.name} (${user.email}) akan dihapus permanen beserta penugasan gatenya.',
+          style: const TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            style: TextButton.styleFrom(minimumSize: const Size(64, 44)),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(64, 44),
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await AdminService().deleteGateCrewByAdmin(
+        userId: user.id,
+        email: user.email,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Akun Gate Crew ${user.name} berhasil dihapus'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+        Navigator.of(context).pop();
+      }
+    }
+  }
+
   Widget _buildBottomBar(BuildContext context, ManagedUserModel user) {
     final willDeactivate = user.isActive;
+    final isGatecrew = user.role.toLowerCase() == 'gatecrew';
+    final toggleButton = SizedBox(
+      height: 48,
+      child: OutlinedButton(
+        onPressed: () => _toggleStatus(context, user),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: willDeactivate
+              ? AdminColors.dangerBgOf(context)
+              : AdminColors.successBgOf(context),
+          foregroundColor: willDeactivate
+              ? AdminColors.dangerOf(context)
+              : AdminColors.successOf(context),
+          side: BorderSide(
+            color: willDeactivate
+                ? AdminColors.dangerBorderOf(context)
+                : AdminColors.successBorderOf(context),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: Text(
+          willDeactivate ? 'Nonaktifkan Akun' : 'Aktifkan Akun',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+
     return SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        child: SizedBox(
-          height: 48,
-          child: OutlinedButton(
-            onPressed: () => _toggleStatus(context, user),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: willDeactivate
-                  ? const Color(0xFFFEE2E2)
-                  : const Color(0xFFDCFCE7),
-              foregroundColor: willDeactivate
-                  ? const Color(0xFFDC2626)
-                  : const Color(0xFF16A34A),
-              side: BorderSide(
-                color: willDeactivate
-                    ? const Color(0xFFFECDD3)
-                    : const Color(0xFFBBF7D0),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            child: Text(
-              willDeactivate ? 'Nonaktifkan Akun' : 'Aktifkan Akun',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-            ),
-          ),
-        ),
+        child: isGatecrew
+            ? Row(
+                children: [
+                  Expanded(child: toggleButton),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: FilledButton.icon(
+                        key: const ValueKey('btn_hapus_gatecrew'),
+                        onPressed: () => _confirmDeleteGateCrew(context, user),
+                        icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                        label: const Text(
+                          'Hapus Crew',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : toggleButton,
       ),
     );
-  }
-
-  static Color _avatarBg(String role) {
-    switch (role.toLowerCase()) {
-      case 'produser':
-        return const Color(0xFFF3E8FF);
-      case 'admin':
-        return const Color(0xFFEFF6FF);
-      case 'gatecrew':
-        return const Color(0xFFECFDF5);
-      default:
-        return const Color(0xFFEFF6FF);
-    }
-  }
-
-  static Color _avatarTextColor(String role) {
-    switch (role.toLowerCase()) {
-      case 'produser':
-        return const Color(0xFF7C3AED);
-      case 'admin':
-        return const Color(0xFF1E3A8A);
-      case 'gatecrew':
-        return const Color(0xFF059669);
-      default:
-        return const Color(0xFF2563EB);
-    }
-  }
-
-  static Color _badgeBg(String role) {
-    switch (role.toLowerCase()) {
-      case 'produser':
-        return const Color(0xFFF3E8FF);
-      case 'admin':
-        return const Color(0xFFEFF6FF);
-      case 'gatecrew':
-        return const Color(0xFFECFDF5);
-      default:
-        return const Color(0xFFEFF6FF);
-    }
-  }
-
-  static Color _badgeTextColor(String role) {
-    switch (role.toLowerCase()) {
-      case 'produser':
-        return const Color(0xFF7C3AED);
-      case 'admin':
-        return const Color(0xFF1E3A8A);
-      case 'gatecrew':
-        return const Color(0xFF059669);
-      default:
-        return const Color(0xFF2563EB);
-    }
   }
 }

@@ -192,22 +192,23 @@ class StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AdminColors.isDark(context);
     final (Color bg, Color fg) = switch (status) {
       ApprovalStatus.pending => (
-          const Color(0xFFFEF3C7),
-          const Color(0xFF92400E)
+          AdminColors.warningBgOf(context),
+          AdminColors.warningOf(context),
         ),
       ApprovalStatus.approved => (
-          const Color(0xFFDCFCE7),
-          const Color(0xFF166534)
+          AdminColors.successBgOf(context),
+          isDark ? const Color(0xFF86EFAC) : const Color(0xFF166534),
         ),
       ApprovalStatus.rejected => (
-          const Color(0xFFFEE2E2),
-          const Color(0xFFB91C1C)
+          AdminColors.dangerBgOf(context),
+          isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
         ),
       ApprovalStatus.deactivated => (
-          const Color(0xFFFEE2E2),
-          const Color(0xFFB91C1C)
+          AdminColors.dangerBgOf(context),
+          isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
         ),
     };
     return MediaQuery.withClampedTextScaling(
@@ -699,6 +700,7 @@ class AdminDecisionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dangerCol = AdminColors.dangerOf(context);
     return Container(
       decoration: BoxDecoration(
         color: AdminColors.surfaceOf(context),
@@ -714,8 +716,8 @@ class AdminDecisionBar extends StatelessWidget {
                 onPressed: onReject,
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
-                  foregroundColor: AdminColors.danger,
-                  side: const BorderSide(color: AdminColors.danger),
+                  foregroundColor: dangerCol,
+                  side: BorderSide(color: dangerCol),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -733,7 +735,7 @@ class AdminDecisionBar extends StatelessWidget {
                 onPressed: onApprove,
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
-                  backgroundColor: AdminColors.navy,
+                  backgroundColor: AdminColors.primaryButtonBgOf(context),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
