@@ -1641,31 +1641,6 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                               ),
                             ],
                           ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              log['time'] as String,
-                              style: const TextStyle(
-                                color: Color(0xFFCBD5E1),
-                                fontSize: 11,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              log['status'] as String,
-                              style: TextStyle(
-                                color: isSuccess
-                                    ? const Color(0xFF34D399)
-                                    : const Color(0xFFF87171),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                   
                         ],
                       ),
                     );
