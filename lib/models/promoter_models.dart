@@ -544,6 +544,14 @@ class PromoterConcertItem {
         RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
             .hasMatch(promoterId);
 
+    final bannerValue = (posterDataUrl != null && posterDataUrl!.isNotEmpty)
+        ? posterDataUrl!
+        : posterFileName;
+    final logoValue =
+        (squareLogoDataUrl != null && squareLogoDataUrl!.isNotEmpty)
+            ? squareLogoDataUrl!
+            : squareLogoFileName;
+
     return {
       'id': id,
       if (isValidUuid) 'producer_id': promoterId,
@@ -554,19 +562,9 @@ class PromoterConcertItem {
       'venue': venueName,
       'venue_address': venueAddress,
       'description': description,
-      'banner_image_url': (posterDataUrl != null && posterDataUrl!.isNotEmpty)
-          ? posterDataUrl
-          : posterFileName,
-      'logo_image_url': (squareLogoDataUrl != null && squareLogoDataUrl!.isNotEmpty)
-          ? squareLogoDataUrl
-          : squareLogoFileName,
-      'square_logo_url': (squareLogoDataUrl != null && squareLogoDataUrl!.isNotEmpty)
-          ? squareLogoDataUrl
-          : squareLogoFileName,
-      if (posterDataUrl != null && posterDataUrl!.isNotEmpty)
-        'poster_data_url': posterDataUrl,
-      if (squareLogoDataUrl != null && squareLogoDataUrl!.isNotEmpty)
-        'square_logo_data_url': squareLogoDataUrl,
+      'banner_image_url': bannerValue,
+      'logo_image_url': logoValue,
+      if (!logoValue.startsWith('data:image/')) 'square_logo_url': logoValue,
       'highlights': highlights,
       'highlight_names': highlightNames,
       'status': statusString,

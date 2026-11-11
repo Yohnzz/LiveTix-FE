@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
 import '../../models/concert_model.dart';
@@ -40,20 +41,35 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
     super.dispose();
   }
 
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(fn);
+      });
+    } else {
+      setState(fn);
+    }
+  }
+
+  void _applyConcert(ConcertModel? concert) {
+    if (concert == null || concert.ticketTiers.isEmpty || !mounted) return;
+    _safeSetState(() {
+      _tiers = List.from(concert.ticketTiers);
+      if (_selectedTierIndex >= _tiers.length) {
+        _selectedTierIndex = 0;
+      }
+    });
+  }
+
   void _onRealtimeStockUpdate() {
-    _fetchFreshDetail();
+    _applyConcert(DataService().cachedConcertById(widget.concert.id));
   }
 
   Future<void> _fetchFreshDetail() async {
     final fresh = await DataService().getConcertById(widget.concert.id);
-    if (fresh != null && fresh.ticketTiers.isNotEmpty && mounted) {
-      setState(() {
-        _tiers = List.from(fresh.ticketTiers);
-        if (_selectedTierIndex >= _tiers.length) {
-          _selectedTierIndex = 0;
-        }
-      });
-    }
+    _applyConcert(fresh);
   }
 
   TicketTierModel? get _selectedTier =>

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../../core/app_colors.dart';
 import '../../models/concert_model.dart';
 import '../../models/ticket_order_model.dart';
@@ -99,33 +100,51 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
       );
     }
 
-    DataService().stockVersionNotifier.addListener(_loadLiveTiersIfNeeded);
+    DataService().stockVersionNotifier.addListener(_onRealtimeStockUpdate);
     _loadLiveTiersIfNeeded();
+  }
+
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(fn);
+      });
+    } else {
+      setState(fn);
+    }
+  }
+
+  void _applyConcertTiers(ConcertModel? live) {
+    if (live == null || live.ticketTiers.isEmpty || !mounted) return;
+    _safeSetState(() {
+      _availableTiers = List.from(live.ticketTiers);
+      final updatedSelected =
+          _availableTiers.where((t) => t.id == _selectedTier.id).firstOrNull;
+      if (updatedSelected != null) {
+        _selectedTier = updatedSelected;
+      } else {
+        _selectedTier = _availableTiers.firstWhere(
+          (t) => !t.isEffectivelySoldOut,
+          orElse: () => _availableTiers.first,
+        );
+      }
+    });
+  }
+
+  void _onRealtimeStockUpdate() {
+    _applyConcertTiers(DataService().cachedConcertById(widget.concert.id));
   }
 
   Future<void> _loadLiveTiersIfNeeded() async {
     final live = await DataService().getConcertById(widget.concert.id);
-    if (live != null && live.ticketTiers.isNotEmpty && mounted) {
-      setState(() {
-        _availableTiers = List.from(live.ticketTiers);
-        final updatedSelected = _availableTiers
-            .where((t) => t.id == _selectedTier.id)
-            .firstOrNull;
-        if (updatedSelected != null) {
-          _selectedTier = updatedSelected;
-        } else {
-          _selectedTier = _availableTiers.firstWhere(
-            (t) => !t.isEffectivelySoldOut,
-            orElse: () => _availableTiers.first,
-          );
-        }
-      });
-    }
+    _applyConcertTiers(live);
   }
 
   @override
   void dispose() {
-    DataService().stockVersionNotifier.removeListener(_loadLiveTiersIfNeeded);
+    DataService().stockVersionNotifier.removeListener(_onRealtimeStockUpdate);
     _nameController.dispose();
     _emailController.dispose();
     super.dispose();
