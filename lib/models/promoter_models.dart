@@ -563,8 +563,10 @@ class PromoterConcertItem {
       'square_logo_url': (squareLogoDataUrl != null && squareLogoDataUrl!.isNotEmpty)
           ? squareLogoDataUrl
           : squareLogoFileName,
-      'poster_data_url': posterDataUrl,
-      'square_logo_data_url': squareLogoDataUrl,
+      if (posterDataUrl != null && posterDataUrl!.isNotEmpty)
+        'poster_data_url': posterDataUrl,
+      if (squareLogoDataUrl != null && squareLogoDataUrl!.isNotEmpty)
+        'square_logo_data_url': squareLogoDataUrl,
       'highlights': highlights,
       'highlight_names': highlightNames,
       'status': statusString,
