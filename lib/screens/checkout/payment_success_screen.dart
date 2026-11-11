@@ -401,23 +401,26 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
         Expanded(
           child: SizedBox(
             height: 46,
-            child: OutlinedButton.icon(
+            child: ElevatedButton.icon(
               onPressed: () => ShareGateQrSheet.show(context, _issuedTicket),
               icon: const Icon(
                 Icons.share_rounded,
                 size: 18,
-                color: AppColors.primary,
+                color: Color(0xFF1B2A8C),
               ),
               label: const Text(
                 'Bagikan QR',
                 style: TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
+                  color: Color(0xFF1B2A8C),
                 ),
               ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.primary, width: 1.2),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF1B2A8C),
+                elevation: 0,
+                side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),

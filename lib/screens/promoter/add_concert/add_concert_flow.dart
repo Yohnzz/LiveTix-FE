@@ -297,6 +297,13 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
         ? _dateTimeController.text.trim()
         : 'Jadwal Segera Diumumkan';
 
+    final assignedGates = invitedCrew?.values
+            .map((v) => v.trim())
+            .where((v) => v.isNotEmpty)
+            .toSet()
+            .toList() ??
+        const <String>[];
+
     final newConcert = PromoterConcertItem(
       id: UuidUtils.generateV4(),
       title: resolvedTitle,
@@ -312,6 +319,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       status: ConcertStatus.menunggu,
       likesCount: '0',
       tiers: _ticketTiers,
+      gates: assignedGates,
     );
 
     final success = service.addConcert(newConcert);

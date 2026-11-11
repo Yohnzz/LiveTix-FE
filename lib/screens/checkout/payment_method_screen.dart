@@ -75,10 +75,26 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         customerEmail: widget.order.customerEmail,
         customerPhone: currentUser?.phone ?? '081234567890',
         userId: currentUser?.id,
+        tierName: widget.order.tier.name,
+        totalAmount: configuredOrder.totalAmount,
       );
 
       if (!mounted) return;
       Navigator.pop(context); // Tutup loading dialog
+
+      if (!chargeResult.isSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              chargeResult.errorMessage ??
+                  'Maaf, stok tiket yang tersedia tidak mencukupi jumlah pembelian.',
+            ),
+            backgroundColor: const Color(0xFFB91C1C),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
 
       configuredOrder = widget.order.copyWithPayment(
         orderId: freshOrderId,
@@ -93,6 +109,37 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
       );
 
       // Simpan pesanan tiket berstatus pending ke menu Tiket Saya
+      DataService().addPendingOrderTicket(configuredOrder);
+    } else {
+      final avail = widget.order.tier.availableStock;
+      if (avail < widget.order.quantity) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Maaf, tiket yang tersedia saat ini hanya tersisa $avail tiket. Silakan kurangi jumlah pembelian.',
+            ),
+            backgroundColor: const Color(0xFFB91C1C),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      final fallbackOrderId = widget.order.orderId.isNotEmpty
+          ? widget.order.orderId
+          : 'ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+      configuredOrder = widget.order.copyWithPayment(
+        orderId: fallbackOrderId,
+        category: category,
+        provider: provider,
+        transactionFee: fee,
+        expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      );
+      DataService().adjustLocalTierStock(
+        widget.order.concert.id,
+        widget.order.tier.id,
+        reservedDelta: widget.order.quantity,
+      );
       DataService().addPendingOrderTicket(configuredOrder);
     }
 

@@ -30,6 +30,17 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
   void initState() {
     super.initState();
     _tiers = List.from(widget.concert.ticketTiers);
+    DataService().stockVersionNotifier.addListener(_onRealtimeStockUpdate);
+    _fetchFreshDetail();
+  }
+
+  @override
+  void dispose() {
+    DataService().stockVersionNotifier.removeListener(_onRealtimeStockUpdate);
+    super.dispose();
+  }
+
+  void _onRealtimeStockUpdate() {
     _fetchFreshDetail();
   }
 
@@ -52,7 +63,7 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
 
   void _onOrderTicketPressed() {
     final activeTier = _selectedTier;
-    if (activeTier == null || activeTier.isSoldOut) return;
+    if (activeTier == null || activeTier.isEffectivelySoldOut) return;
 
     if (widget.isGuest || DataService().isGuest) {
       // Guest dibatasi: wajib login sebelum memesan tiket
@@ -453,8 +464,11 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
     bool isSelected,
     int index,
   ) {
+    final soldOut = tier.isEffectivelySoldOut;
+    final available = tier.availableStock;
+
     return GestureDetector(
-      onTap: tier.isSoldOut
+      onTap: soldOut
           ? null
           : () {
               setState(() => _selectedTierIndex = index);
@@ -463,11 +477,15 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFF8FAFC) : Colors.white,
+          color: soldOut
+              ? const Color(0xFFF3F4F6)
+              : (isSelected ? const Color(0xFFF8FAFC) : Colors.white),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.border,
-            width: isSelected ? 2 : 1,
+            color: soldOut
+                ? const Color(0xFFE5E7EB)
+                : (isSelected ? AppColors.primary : AppColors.border),
+            width: isSelected && !soldOut ? 2 : 1,
           ),
         ),
         child: Row(
@@ -477,21 +495,52 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    tier.name,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color:
-                          tier.isSoldOut ? AppColors.textGrey : AppColors.textDark,
-                    ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        tier.name,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color:
+                              soldOut ? AppColors.textGrey : AppColors.textDark,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: soldOut
+                              ? const Color(0xFFFEE2E2)
+                              : const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          soldOut
+                              ? 'Tiket Habis'
+                              : 'Tiket Tersedia: $available',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: soldOut
+                                ? const Color(0xFFB91C1C)
+                                : const Color(0xFF065F46),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    tier.description,
+                    soldOut
+                        ? 'Tiket kategori ini sudah habis terjual.'
+                        : tier.description,
                     style: TextStyle(
                       fontSize: 12,
-                      color: tier.isSoldOut
+                      color: soldOut
                           ? const Color(0xFFB91C1C)
                           : AppColors.textGrey,
                     ),
@@ -505,7 +554,7 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                color: tier.isSoldOut ? AppColors.textGrey : AppColors.primary,
+                color: soldOut ? AppColors.textGrey : AppColors.primary,
               ),
             ),
           ],
@@ -517,6 +566,7 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
   Widget _buildBottomBar() {
     final tier = _selectedTier;
     final hasTier = tier != null;
+    final soldOut = hasTier && tier.isEffectivelySoldOut;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: const BoxDecoration(
@@ -556,7 +606,7 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
             SizedBox(
               height: 48,
               child: ElevatedButton(
-                onPressed: hasTier && !tier.isSoldOut ? _onOrderTicketPressed : null,
+                onPressed: hasTier && !soldOut ? _onOrderTicketPressed : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
@@ -571,7 +621,7 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
                 child: Text(
                   !hasTier
                       ? 'Tiket Belum Tersedia'
-                      : (tier.isSoldOut ? 'Tiket Habis' : 'Pesan tiket'),
+                      : (soldOut ? 'Tiket Habis' : 'Pesan tiket'),
                   style: const TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w600,

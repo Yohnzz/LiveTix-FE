@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide LocalStorage;
 import '../models/approval_models.dart';
 import '../models/promoter_models.dart';
 import '../utils/local_storage.dart';
@@ -124,12 +125,28 @@ class PromoterDataService {
     return concertsNotifier.value.length;
   }
 
-  int get ticketsSold {
+  int get totalAvailableTickets {
     return concertsNotifier.value.fold<int>(
       0,
-      (sum, c) => sum + c.ticketsSold,
+      (sum, c) => sum + c.remainingTickets,
     );
   }
+
+  int get totalReservedTickets {
+    return concertsNotifier.value.fold<int>(
+      0,
+      (sum, c) => sum + c.totalReservedTickets,
+    );
+  }
+
+  int get totalPaidTickets {
+    return concertsNotifier.value.fold<int>(
+      0,
+      (sum, c) => sum + c.totalSoldTickets,
+    );
+  }
+
+  int get ticketsSold => totalPaidTickets;
 
   final String ticketsSoldGrowth = '+15% bulan ini';
 
@@ -493,9 +510,70 @@ class PromoterDataService {
     }
   }
 
+  RealtimeChannel? _stockRealtimeChannel;
+  bool _isRealtimeSubscribed = false;
+
+  /// Mengaktifkan sinkronisasi realtime stok & pesanan untuk role Produser
+  void startRealtimeStockSync() {
+    if (!SupabaseService.isInitialized || _isRealtimeSubscribed) return;
+    _isRealtimeSubscribed = true;
+
+    try {
+      _stockRealtimeChannel = SupabaseService.client
+          .channel('promoter_realtime_stock')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'ticket_tiers',
+            callback: (_) => fetchPromoterConcertsFromSupabase(),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'orders',
+            callback: (_) => fetchPromoterConcertsFromSupabase(),
+          )
+          .subscribe();
+    } catch (e) {
+      _isRealtimeSubscribed = false;
+      debugPrint('Error subscribe promoter realtime stock: $e');
+    }
+  }
+
+  /// Menghentikan langganan realtime stok untuk role Produser
+  void stopRealtimeStockSync() {
+    if (_stockRealtimeChannel != null && SupabaseService.isInitialized) {
+      SupabaseService.client.removeChannel(_stockRealtimeChannel!);
+    }
+    _stockRealtimeChannel = null;
+    _isRealtimeSubscribed = false;
+  }
+
+  /// Memperbarui dan menyimpan daftar Pos Gate konser ke Supabase
+  Future<void> updateConcertGates(String concertId, List<String> gates) async {
+    final list = List<PromoterConcertItem>.from(concertsNotifier.value);
+    final idx = list.indexWhere((c) => c.id == concertId);
+    if (idx != -1) {
+      list[idx] = list[idx].copyWith(gates: gates);
+      concertsNotifier.value = list;
+    }
+
+    if (SupabaseService.isInitialized) {
+      try {
+        await SupabaseService.client
+            .from('concerts')
+            .update({'gates': gates})
+            .eq('id', concertId);
+      } catch (e) {
+        debugPrint('Error updateConcertGates Supabase: $e');
+      }
+    }
+  }
+
   /// Memuat daftar konser Produser langsung dari Supabase Cloud (tanpa dummy)
   Future<void> fetchPromoterConcertsFromSupabase() async {
     if (!SupabaseService.isInitialized) return;
+    startRealtimeStockSync();
     try {
       final currentUserId = DataService().currentUser?.id;
 
@@ -550,8 +628,10 @@ class PromoterDataService {
             var parsed = PromoterConcertItem.fromJson(row);
             final cid = parsed.id;
 
-            // Hubungkan penjualan aktual dari database (0 jika belum ada yang terbeli)
-            final actualSold = actualSoldMap[cid] ?? 0;
+            // Hubungkan penjualan aktual dari database (gunakan nilai tertinggi antara orders/tickets & tier soldCount)
+            final tierSold = parsed.tiers.fold<int>(0, (s, t) => s + t.soldCount);
+            final rawActualSold = actualSoldMap[cid] ?? 0;
+            final actualSold = rawActualSold > tierSold ? rawActualSold : tierSold;
             final actualRev = actualRevenueMap[cid] ??
                 (actualSold * (parsed.tiers.isNotEmpty ? parsed.tiers.first.price : 0));
             parsed = parsed.copyWith(
@@ -1109,6 +1189,7 @@ class PromoterDataService {
               .map((t) => t.price)
               .reduce((a, b) => a < b ? a : b)
           : 0,
+      'gates': finalConcert.gates,
       'ticket_tiers': finalConcert.tiers
           .map((t) => t.toJson(concertId: finalConcert.id))
           .toList(),

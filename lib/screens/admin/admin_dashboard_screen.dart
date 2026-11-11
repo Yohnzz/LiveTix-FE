@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/approval_models.dart';
 import '../../services/admin_service.dart';
+import '../../services/customer_service_service.dart';
 import '../../services/data_service.dart';
+import '../promoter/producer_customer_service_screen.dart';
 import 'admin_concert_detail_screen.dart';
 import 'admin_notification_screen.dart';
 import 'admin_producer_detail_screen.dart';
@@ -451,6 +453,94 @@ class _ReadyBody extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 12),
+          // Akses Cepat ke Customer Service Live (Admin Inbox User & Produser)
+          ListenableBuilder(
+            listenable: CustomerServiceService(),
+            builder: (context, _) {
+              final csService = CustomerServiceService();
+              final unread = csService.totalUnreadAdminCount;
+              return AdminCard(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ProducerCustomerServiceScreen(
+                        isAdminInbox: true,
+                      ),
+                    ),
+                  );
+                },
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF2FF),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.support_agent_rounded,
+                        color: Color(0xFF4F46E5),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Customer Service Live',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AdminColors.textDark,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Kelola chat bantuan User & Produser secara realtime',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AdminColors.textGrey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (unread > 0) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AdminColors.magenta,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          unread > 99 ? '99+' : '$unread',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AdminColors.textGrey,
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
           const SizedBox(height: 24),
           const AdminSectionTitle('Approval Terbaru'),

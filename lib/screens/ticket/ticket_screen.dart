@@ -47,6 +47,18 @@ class _TicketScreenState extends State<TicketScreen> {
       return;
     }
 
+    if (ticket.status.toLowerCase().contains('expired') ||
+        ticket.status.toLowerCase().contains('cancelled') ||
+        ticket.status == 'Dibatalkan') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pesanan tiket ini telah dibatalkan atau melewati batas waktu pembayaran.'),
+          backgroundColor: Color(0xFFB91C1C),
+        ),
+      );
+      return;
+    }
+
     if (ticket.status == 'Reffund' || ticket.isCancelled) {
       if (ticket.refundData != null) {
         // Jika sudah diajukan, tampilkan tracking status refund
@@ -786,28 +798,34 @@ class _TicketScreenState extends State<TicketScreen> {
                                   if (!isRefund && !ticket.isCompleted)
                                     SizedBox(
                                       height: 44,
-                                      child: OutlinedButton.icon(
+                                      child: ElevatedButton.icon(
                                         onPressed: () =>
                                             ShareGateQrSheet.show(context, ticket),
                                         icon: const Icon(
                                           Icons.share_rounded,
                                           size: 15,
-                                          color: AppColors.primary,
+                                          color: Color(0xFF1B2A8C),
                                         ),
                                         label: const Text(
                                           'Bagikan QR',
                                           style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w700,
-                                            color: AppColors.primary,
+                                            color: Color(0xFF1B2A8C),
                                           ),
                                         ),
-                                        style: OutlinedButton.styleFrom(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.white,
+                                          foregroundColor: const Color(0xFF1B2A8C),
+                                          elevation: 0,
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 12,
                                           ),
-                                          side: const BorderSide(
-                                            color: AppColors.primary,
+                                          side: BorderSide(
+                                            color: isDark
+                                                ? Colors.white
+                                                : const Color(0xFFCBD5E1),
+                                            width: 1,
                                           ),
                                           shape: RoundedRectangleBorder(
                                             borderRadius:
@@ -872,7 +890,10 @@ class _TicketScreenState extends State<TicketScreen> {
         status.toLowerCase().contains('pending')) {
       bg = const Color(0xFFFEF3C7);
       text = const Color(0xFF92400E);
-    } else if (status == 'Reffund' || status.toLowerCase().contains('refund')) {
+    } else if (status == 'Reffund' ||
+        status.toLowerCase().contains('refund') ||
+        status.toLowerCase().contains('expired') ||
+        status.toLowerCase().contains('cancelled')) {
       bg = const Color(0xFFFEE2E2);
       text = const Color(0xFF991B1B);
     } else {

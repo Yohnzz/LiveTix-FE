@@ -843,16 +843,16 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
                       }
                       return;
                     }
-                    final ok = DataService().changePassword(
+                    final res = await DataService().changePassword(
                       oldPassword: oldPassCtrl.text.trim(),
                       newPassword: newPass,
                     );
-                    if (!ok) {
+                    if (!res.success) {
                       if (ctx.mounted) {
                         ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(
-                            content: Text('Kata sandi lama tidak sesuai.'),
-                            backgroundColor: Color(0xFFD92D20),
+                          SnackBar(
+                            content: Text(res.message ?? 'Kata sandi lama tidak sesuai.'),
+                            backgroundColor: const Color(0xFFD92D20),
                           ),
                         );
                       }

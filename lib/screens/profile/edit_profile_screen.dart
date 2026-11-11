@@ -30,6 +30,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController _confirmPasswordController = TextEditingController();
 
   bool _isPasswordFormOpen = false;
+  bool _isSavingPassword = false;
   bool _obscureOld = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
@@ -99,19 +100,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _showSuccessFeedback('Nama profil berhasil diperbarui');
   }
 
-  void _submitChangePassword() {
+  Future<void> _submitChangePassword() async {
     if (!_passwordFormKey.currentState!.validate()) return;
 
-    final success = _dataService.changePassword(
+    setState(() => _isSavingPassword = true);
+
+    final res = await _dataService.changePassword(
       oldPassword: _oldPasswordController.text,
       newPassword: _newPasswordController.text,
     );
 
-    if (!success) {
+    if (!mounted) return;
+    setState(() => _isSavingPassword = false);
+
+    if (!res.success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password lama tidak sesuai'),
-          backgroundColor: Color(0xFFB91C1C),
+        SnackBar(
+          content: Text(res.message ?? 'Password lama tidak sesuai'),
+          backgroundColor: const Color(0xFFB91C1C),
         ),
       );
       return;
@@ -212,10 +218,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             final bytes = await PhotoPicker.pickImageBytes();
                             if (!ctx.mounted) return;
                             if (bytes != null && bytes.isNotEmpty) {
-                              _dataService.updateProfile(
+                              Navigator.pop(ctx);
+                              await _dataService.updateProfile(
                                 profileImageBytes: bytes,
                               );
-                              Navigator.pop(ctx);
+                              if (!mounted) return;
                               _showSuccessFeedback(
                                 'Foto profil berhasil diperbarui',
                               );
@@ -373,7 +380,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         }),
                       ],
                     ),
-                    if (user.profileImageBytes != null) ...[
+                    if (user.profileImageBytes != null ||
+                        (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)) ...[
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
@@ -546,6 +554,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   UserAvatar(
                     initials: user.initials,
                     imageBytes: user.profileImageBytes,
+                    avatarUrl: user.avatarUrl,
                     colorIndex: user.avatarColorIndex,
                     size: 84,
                     fontSize: 26,
@@ -841,7 +850,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       if (v == null || v.isEmpty) {
                         return 'Masukkan password lama terlebih dahulu';
                       }
-                      if (v != user.password) {
+                      if (user.password.isNotEmpty && v != user.password) {
                         return 'Password lama tidak sesuai';
                       }
                       return null;
@@ -1011,7 +1020,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       SizedBox(
                         height: 46,
                         child: ElevatedButton(
-                          onPressed: _submitChangePassword,
+                          onPressed: _isSavingPassword ? null : _submitChangePassword,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
@@ -1021,13 +1030,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
-                            'Simpan Password',
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                          child: _isSavingPassword
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Simpan Password',
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                         ),
                       ),
                     ],

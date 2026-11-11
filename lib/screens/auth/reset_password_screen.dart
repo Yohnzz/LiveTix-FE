@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../services/data_service.dart';
+import '../../services/supabase_service.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_header.dart';
 import '../../widgets/primary_button.dart';
@@ -24,6 +26,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _newPassword = TextEditingController();
   final _confirmPassword = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -32,7 +35,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
     if (_newPassword.text != _confirmPassword.text) {
@@ -45,10 +48,35 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       return;
     }
 
+    setState(() => _isLoading = true);
+
+    if (SupabaseService.isInitialized) {
+      try {
+        await SupabaseService.client.auth.updateUser(
+          UserAttributes(password: _newPassword.text),
+        );
+      } on AuthException catch (e) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            backgroundColor: const Color(0xFFB91C1C),
+          ),
+        );
+        return;
+      } catch (e) {
+        debugPrint('ResetPasswordScreen updateUser note: $e');
+      }
+    }
+
     DataService().resetPasswordByEmail(
       email: widget.email,
       newPassword: _newPassword.text,
     );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
 
     if (widget.returnToCaller) {
       Navigator.pop(context, true);
@@ -158,7 +186,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 const SizedBox(height: 28),
 
                 PrimaryButton(
-                  text: widget.returnToCaller ? 'Simpan Kata Sandi' : 'Kirim data',
+                  text: widget.returnToCaller ? 'Simpan Kata Sandi' : 'Simpan Kata Sandi',
+                  isLoading: _isLoading,
                   onPressed: _submit,
                 ),
               ],

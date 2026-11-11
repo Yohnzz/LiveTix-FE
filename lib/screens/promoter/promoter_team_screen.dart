@@ -44,7 +44,7 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
               id: c.id,
               title: c.title,
               venue: c.venue,
-              gates: const ['Gate A', 'Gate B', 'Gate C']
+              gates: const <String>[]
             ))
         .toList();
   }
@@ -71,7 +71,8 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
     }
 
     String selectedConcertId = concerts.first.id;
-    String selectedGate = 'Gate A';
+    String selectedGate =
+        concerts.first.gates.isNotEmpty ? concerts.first.gates.first : '';
 
     showDialog<void>(
       context: context,
@@ -193,10 +194,10 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
                         (item) => item.id == selectedConcertId,
                         orElse: () => concerts.first,
                       );
-                      final currentGates = currentConcert.gates.isNotEmpty
-                          ? currentConcert.gates
-                          : const ['Gate A', 'Gate B', 'Gate C'];
-                      if (!currentGates.contains(selectedGate)) {
+                      final currentGates = currentConcert.gates;
+                      if (currentGates.isEmpty) {
+                        selectedGate = '';
+                      } else if (!currentGates.contains(selectedGate)) {
                         selectedGate = currentGates.first;
                       }
 
@@ -240,14 +241,11 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
                                           onPressed: () {
                                             final newGate = gateCtrl.text.trim();
                                             if (newGate.isNotEmpty && !currentConcert.gates.contains(newGate)) {
-                                              final list = List<PromoterConcertItem>.from(
-                                                  PromoterDataService().concertsNotifier.value);
-                                              final cIdx = list.indexWhere((c) => c.id == currentConcert.id);
-                                              if (cIdx != -1) {
-                                                final orig = list[cIdx];
-                                                list[cIdx] = orig.copyWith(gates: [...orig.gates, newGate]);
-                                                PromoterDataService().concertsNotifier.value = list;
-                                              }
+                                              final updatedGates = [...currentConcert.gates, newGate];
+                                              PromoterDataService().updateConcertGates(
+                                                currentConcert.id,
+                                                updatedGates,
+                                              );
                                               setDialogState(() {
                                                 selectedGate = newGate;
                                               });
@@ -275,45 +273,65 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFCBD5E1)),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                value: selectedGate,
-                                isExpanded: true,
-                                dropdownColor: Colors.white,
-                                iconEnabledColor: const Color(0xFF0F172A),
-                                style: const TextStyle(
-                                  fontSize: 13,
+                          if (currentGates.isEmpty)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFFBEB),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                    color: const Color(0xFFFCD34D)),
+                              ),
+                              child: const Text(
+                                'Jangan lupa untuk mengisi gate dan invite minimal crew pada setiap gatenya. Klik "+ Tambah Gate" di atas.',
+                                style: TextStyle(
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFF0F172A),
+                                  color: Color(0xFF92400E),
                                 ),
-                                items: currentGates.map((gate) {
-                                  return DropdownMenuItem<String>(
-                                    value: gate,
-                                    child: Text(
-                                      gate,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF0F172A),
+                              ),
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFCBD5E1)),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: selectedGate,
+                                  isExpanded: true,
+                                  dropdownColor: Colors.white,
+                                  iconEnabledColor: const Color(0xFF0F172A),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                  items: currentGates.map((gate) {
+                                    return DropdownMenuItem<String>(
+                                      value: gate,
+                                      child: Text(
+                                        gate,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF0F172A),
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                }).toList(),
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setDialogState(() => selectedGate = val);
-                                  }
-                                },
+                                    );
+                                  }).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setDialogState(() => selectedGate = val);
+                                    }
+                                  },
+                                ),
                               ),
                             ),
-                          ),
                         ],
                       );
                     },
@@ -333,6 +351,16 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
                 ),
                 ElevatedButton(
                   onPressed: () async {
+                    if (selectedGate.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              'Tambahkan pos gate terlebih dahulu sebelum menugaskan Gate Crew.'),
+                          backgroundColor: Color(0xFFD97706),
+                        ),
+                      );
+                      return;
+                    }
                     Navigator.pop(ctx);
                     await GateCrewService().inviteCrewToConcert(
                       crewId: member.id,

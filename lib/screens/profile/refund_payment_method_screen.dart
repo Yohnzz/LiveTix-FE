@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
 import '../../services/data_service.dart';
 
@@ -14,6 +16,8 @@ class RefundPaymentMethodScreen extends StatefulWidget {
 }
 
 class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
+  Timer? _ticker;
+
   final List<String> _bankOptions = const [
     'Bank BCA',
     'Bank Mandiri',
@@ -29,11 +33,25 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
     'OVO',
   ];
 
-  void _openEditAccountModal(UserRefundAccount? currentAccount) {
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  void _openEditAccountModal(UserRefundAccount? currentAccount, bool isDark) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -41,6 +59,7 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
         initialAccount: currentAccount,
         bankOptions: _bankOptions,
         ewalletOptions: _ewalletOptions,
+        isDarkMode: isDark,
         onAccountSaved: () {
           setState(() {});
           ScaffoldMessenger.of(context).showSnackBar(
@@ -81,129 +100,142 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<UserRefundAccount?>(
-      valueListenable: DataService().refundAccountNotifier,
-      builder: (context, account, _) {
-        final isCooldown = account?.isCooldownActive ?? false;
-        final remainingDays = account?.remainingDays ?? 0;
+    return ValueListenableBuilder<bool>(
+      valueListenable: DataService().isDarkModeNotifier,
+      builder: (context, isDark, _) {
+        final bgColor = isDark ? AppColors.darkBg : const Color(0xFFF9FAFB);
+        final titleColor = isDark ? AppColors.darkText : AppColors.textDark;
 
-        return Scaffold(
-          backgroundColor: const Color(0xFFF9FAFB),
-          appBar: AppBar(
-            backgroundColor: Colors.white,
-            elevation: 0,
-            leading: IconButton(
-              tooltip: 'Kembali',
-              icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: const Text(
-              'Metode Penerima Refund',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textDark,
-              ),
-            ),
-            centerTitle: false,
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Banner Penegasan Fungsi Khusus Refund
-                _buildRefundOnlyNoticeCard(),
-                const SizedBox(height: 16),
+        return ValueListenableBuilder<UserRefundAccount?>(
+          valueListenable: DataService().refundAccountNotifier,
+          builder: (context, account, _) {
+            final isCooldown = account?.isCooldownActive ?? false;
 
-                // Kartu Status Cooldown Keamanan 1 Minggu
-                _buildCooldownStatusCard(
-                  account: account,
-                  isCooldown: isCooldown,
-                  remainingDays: remainingDays,
+            return Scaffold(
+              backgroundColor: bgColor,
+              appBar: AppBar(
+                backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+                elevation: 0,
+                leading: IconButton(
+                  tooltip: 'Kembali',
+                  icon: Icon(Icons.arrow_back, color: titleColor),
+                  onPressed: () => Navigator.pop(context),
                 ),
-                const SizedBox(height: 20),
-
-                // Judul Seksi Rekening Aktif
-                const Text(
-                  'Rekening Pencairan Aktif',
+                title: Text(
+                  'Metode Penerima Refund',
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textDark,
+                    color: titleColor,
                   ),
                 ),
-                const SizedBox(height: 8),
+                centerTitle: false,
+              ),
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Banner Penegasan Fungsi Khusus Refund
+                    _buildRefundOnlyNoticeCard(isDark),
+                    const SizedBox(height: 16),
 
-                // Kartu Rekening Refund
-                if (account != null)
-                  _buildActiveAccountCard(account)
-                else
-                  _buildEmptyAccountCard(),
-                const SizedBox(height: 24),
-
-                // Tombol Aksi Tambah / Ubah Rekening
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    key: const Key('edit_refund_account_button'),
-                    onPressed: isCooldown
-                        ? null
-                        : () => _openEditAccountModal(account),
-                    icon: Icon(
-                      account == null
-                          ? Icons.add_card_rounded
-                          : Icons.edit_note_rounded,
-                      size: 20,
+                    // Kartu Status Cooldown Keamanan 1 Minggu
+                    _buildCooldownStatusCard(
+                      account: account,
+                      isCooldown: isCooldown,
+                      isDark: isDark,
                     ),
-                    label: Text(
-                      account == null
-                          ? 'Daftarkan Rekening Refund'
-                          : 'Ubah Rekening Refund',
-                      style: const TextStyle(
-                        fontSize: 14.5,
+                    const SizedBox(height: 20),
+
+                    // Judul Seksi Rekening Aktif
+                    Text(
+                      'Rekening Pencairan Aktif',
+                      style: TextStyle(
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
+                        color: titleColor,
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFFE2E8F0),
-                      disabledForegroundColor: const Color(0xFF94A3B8),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                    const SizedBox(height: 8),
+
+                    // Kartu Rekening Refund
+                    if (account != null)
+                      _buildActiveAccountCard(account, isDark)
+                    else
+                      _buildEmptyAccountCard(isDark),
+                    const SizedBox(height: 24),
+
+                    // Tombol Aksi Tambah / Ubah Rekening
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        key: const Key('edit_refund_account_button'),
+                        onPressed: isCooldown
+                            ? null
+                            : () => _openEditAccountModal(account, isDark),
+                        icon: Icon(
+                          account == null
+                              ? Icons.add_card_rounded
+                              : Icons.edit_note_rounded,
+                          size: 20,
+                        ),
+                        label: Text(
+                          account == null
+                              ? 'Daftarkan Rekening Refund'
+                              : 'Ubah Rekening Refund',
+                          style: const TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: isDark
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFE2E8F0),
+                          disabledForegroundColor: isDark
+                              ? const Color(0xFF64748B)
+                              : const Color(0xFF94A3B8),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildRefundOnlyNoticeCard() {
+  Widget _buildRefundOnlyNoticeCard(bool isDark) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFEEF2FF),
+        color: isDark ? const Color(0xFF1E2238) : const Color(0xFFEEF2FF),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFC7D2FE)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF3730A3) : const Color(0xFFC7D2FE),
+        ),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
             Icons.shield_outlined,
-            color: AppColors.primary,
+            color: isDark ? const Color(0xFF818CF8) : AppColors.primary,
             size: 24,
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,15 +245,15 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
+                    color: isDark ? const Color(0xFF818CF8) : AppColors.primary,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   'Rekening atau e-wallet yang Anda tetapkan di halaman ini hanya digunakan untuk menerima pencairan dana refund tiket (misalnya saat konser dibatalkan). Metode ini tidak digunakan untuk pembayaran tiket baru.',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF334155),
+                    color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
                     height: 1.4,
                   ),
                 ),
@@ -236,27 +268,35 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
   Widget _buildCooldownStatusCard({
     required UserRefundAccount? account,
     required bool isCooldown,
-    required int remainingDays,
+    required bool isDark,
   }) {
     if (account == null) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
+          color: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(
+            color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+          ),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.info_outline_rounded, size: 20, color: Color(0xFF475467)),
-            SizedBox(width: 10),
+            Icon(
+              Icons.info_outline_rounded,
+              size: 20,
+              color: isDark ? AppColors.darkTextSecondary : const Color(0xFF475467),
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'Belum ada rekening refund terdaftar. Daftarkan sekarang untuk pencairan dana cepat.',
                 style: TextStyle(
                   fontSize: 12,
-                  color: Color(0xFF475467),
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : const Color(0xFF475467),
                 ),
               ),
             ),
@@ -266,20 +306,24 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
     }
 
     if (isCooldown) {
+      final timerText = account.cooldownTimerFormatted;
+
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFFBEB),
+          color: isDark ? const Color(0xFF2E2008) : const Color(0xFFFFFBEB),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFFDE68A)),
+          border: Border.all(
+            color: isDark ? const Color(0xFF78350F) : const Color(0xFFFDE68A),
+          ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(
+            Icon(
               Icons.hourglass_top_rounded,
-              color: Color(0xFFB45309),
+              color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
               size: 22,
             ),
             const SizedBox(width: 12),
@@ -288,19 +332,19 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Masa Cooldown Aktif (Tersisa $remainingDays hari)',
-                    style: const TextStyle(
+                    'Masa Cooldown Aktif (Tersisa $timerText)',
+                    style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF92400E),
+                      color: isDark ? const Color(0xFFFCD34D) : const Color(0xFF92400E),
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    'Demi keamanan akun Anda dari pengambilalihan tidak sah, perubahan rekening refund hanya dapat dilakukan 1 kali setiap 1 minggu (7 hari pasca pembaruan terakhir pada ${_formatDateTime(account.lastUpdated)}).',
-                    style: const TextStyle(
+                    'Demi keamanan akun Anda dari pengambilalihan tidak sah, perubahan rekening refund hanya dapat dilakukan 1 kali setiap 1 minggu (7 hari pasca pembaruan terakhir pada ${_formatDateTime(account.lastUpdated)}). Tombol ubah akan aktif kembali saat waktu menunjukkan 00:00:00.',
+                    style: TextStyle(
                       fontSize: 11.5,
-                      color: Color(0xFF78350F),
+                      color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF78350F),
                       height: 1.35,
                     ),
                   ),
@@ -316,36 +360,38 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFECFDF5),
+        color: isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFA7F3D0)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF047857) : const Color(0xFFA7F3D0),
+        ),
       ),
-      child: const Row(
+      child: Row(
         children: [
           Icon(
             Icons.check_circle_outline_rounded,
-            color: Color(0xFF065F46),
+            color: isDark ? const Color(0xFF34D399) : const Color(0xFF065F46),
             size: 22,
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Masa Cooldown Selesai',
+                  'Masa Cooldown Selesai (00:00:00)',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF065F46),
+                    color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF065F46),
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
                   'Anda dapat memperbarui rekening atau e-wallet penerima refund kapan saja jika diperlukan.',
                   style: TextStyle(
                     fontSize: 11.5,
-                    color: Color(0xFF065F46),
+                    color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF065F46),
                   ),
                 ),
               ],
@@ -356,14 +402,18 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
     );
   }
 
-  Widget _buildActiveAccountCard(UserRefundAccount account) {
+  Widget _buildActiveAccountCard(UserRefundAccount account, bool isDark) {
+    final cardBg = isDark ? AppColors.darkSurface : Colors.white;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.border;
+    final titleColor = isDark ? Colors.white : AppColors.textDark;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: borderColor),
         boxShadow: const [
           BoxShadow(
             color: Color(0x08000000),
@@ -385,14 +435,14 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEEF2FF),
+                        color: isDark ? const Color(0xFF283548) : const Color(0xFFEEF2FF),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
                         account.accountType == 'ewallet'
                             ? Icons.account_balance_wallet_outlined
                             : Icons.account_balance_outlined,
-                        color: AppColors.primary,
+                        color: isDark ? const Color(0xFF818CF8) : AppColors.primary,
                         size: 20,
                       ),
                     ),
@@ -405,10 +455,10 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
                             account.provider,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textDark,
+                              color: titleColor,
                             ),
                           ),
                           Text(
@@ -417,9 +467,9 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
                                 : 'Transfer Rekening Bank',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11.5,
-                              color: Color(0xFF64748B),
+                              color: isDark ? AppColors.darkTextSecondary : const Color(0xFF64748B),
                             ),
                           ),
                         ],
@@ -432,21 +482,27 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFECFDF5),
+                  color: isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF047857) : const Color(0xFFA7F3D0),
+                  ),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.verified, size: 12, color: Color(0xFF065F46)),
-                    SizedBox(width: 4),
+                    Icon(
+                      Icons.verified,
+                      size: 12,
+                      color: isDark ? const Color(0xFF34D399) : const Color(0xFF065F46),
+                    ),
+                    const SizedBox(width: 4),
                     Text(
                       'TERVERIFIKASI',
                       style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF065F46),
+                        color: isDark ? const Color(0xFF34D399) : const Color(0xFF065F46),
                       ),
                     ),
                   ],
@@ -454,52 +510,62 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
               ),
             ],
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 14),
-            child: Divider(height: 1, color: AppColors.border),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Divider(
+              height: 1,
+              color: isDark ? AppColors.darkBorder : AppColors.border,
+            ),
           ),
-          _buildInfoRow('Nomor Rekening / Akun', account.maskedAccountNumber),
+          _buildInfoRow('Nomor Rekening / Akun', account.maskedAccountNumber, isDark),
           const SizedBox(height: 8),
-          _buildInfoRow('Nama Pemilik', account.accountHolderName),
+          _buildInfoRow('Nama Pemilik', account.accountHolderName, isDark),
           const SizedBox(height: 8),
           _buildInfoRow(
             'Terakhir Diperbarui',
             _formatDateTime(account.lastUpdated),
+            isDark,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyAccountCard() {
+  Widget _buildEmptyAccountCard(bool isDark) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.border,
+        ),
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Icon(Icons.credit_card_off_outlined, size: 40, color: Color(0xFF94A3B8)),
-          SizedBox(height: 10),
+          Icon(
+            Icons.credit_card_off_outlined,
+            size: 40,
+            color: isDark ? AppColors.darkTextSecondary : const Color(0xFF94A3B8),
+          ),
+          const SizedBox(height: 10),
           Text(
             'Belum Ada Rekening Refund',
             style: TextStyle(
               fontSize: 14.5,
               fontWeight: FontWeight.w700,
-              color: AppColors.textDark,
+              color: isDark ? Colors.white : AppColors.textDark,
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             'Tambahkan rekening bank atau e-wallet agar dana refund dapat langsung dikirim ke rekening Anda saat pengajuan disetujui.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12,
-              color: Color(0xFF64748B),
-              height: 1.35,
+              color: isDark ? AppColors.darkTextSecondary : const Color(0xFF64748B),
+              height: 1.4,
             ),
           ),
         ],
@@ -507,24 +573,28 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value, bool isDark) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        SizedBox(
-          width: 140,
+        Flexible(
           child: Text(
             label,
-            style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? AppColors.darkTextSecondary : const Color(0xFF64748B),
+            ),
           ),
         ),
-        Expanded(
+        const SizedBox(width: 8),
+        Flexible(
           child: Text(
             value,
-            style: const TextStyle(
+            textAlign: TextAlign.end,
+            style: TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
-              color: AppColors.textDark,
+              color: isDark ? Colors.white : AppColors.textDark,
             ),
           ),
         ),
@@ -533,16 +603,19 @@ class _RefundPaymentMethodScreenState extends State<RefundPaymentMethodScreen> {
   }
 }
 
+/// Bottom Sheet untuk menambah atau mengubah data rekening / e-wallet penerima refund
 class _EditRefundAccountSheet extends StatefulWidget {
   final UserRefundAccount? initialAccount;
   final List<String> bankOptions;
   final List<String> ewalletOptions;
+  final bool isDarkMode;
   final VoidCallback onAccountSaved;
 
   const _EditRefundAccountSheet({
     required this.initialAccount,
     required this.bankOptions,
     required this.ewalletOptions,
+    this.isDarkMode = false,
     required this.onAccountSaved,
   });
 
@@ -570,7 +643,7 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
     );
     final user = DataService().currentUser;
     _accountHolderController = TextEditingController(
-      text: init?.accountHolderName ?? (user?.name ?? 'Rafi Firmansyah'),
+      text: init?.accountHolderName ?? (user?.name ?? ''),
     );
   }
 
@@ -637,7 +710,13 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDarkMode;
     final viewInsets = MediaQuery.of(context).viewInsets;
+    final titleColor = isDark ? Colors.white : AppColors.textDark;
+    final subtitleColor = isDark ? AppColors.darkTextSecondary : const Color(0xFF475467);
+    final inputFill = isDark ? AppColors.darkSurfaceVariant : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.border;
+    final textColor = isDark ? Colors.white : const Color(0xFF101828);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 14, 20, viewInsets.bottom + 24),
@@ -651,24 +730,24 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
                 width: 44,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD0D5DD),
+                  color: isDark ? const Color(0xFF475569) : const Color(0xFFD0D5DD),
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Atur Rekening Penerima Refund',
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
-                color: AppColors.textDark,
+                color: titleColor,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Pastikan data rekening benar atas nama Anda. Rekening yang disimpan akan dikunci selama 1 minggu sebelum dapat diubah kembali.',
-              style: TextStyle(fontSize: 12, color: Color(0xFF475467)),
+              style: TextStyle(fontSize: 12, color: subtitleColor),
             ),
             const SizedBox(height: 16),
 
@@ -680,6 +759,7 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
                     label: 'Bank',
                     type: 'bank',
                     icon: Icons.account_balance_outlined,
+                    isDark: isDark,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -688,6 +768,7 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
                     label: 'E-Wallet',
                     type: 'ewallet',
                     icon: Icons.account_balance_wallet_outlined,
+                    isDark: isDark,
                   ),
                 ),
               ],
@@ -695,27 +776,31 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
             const SizedBox(height: 16),
 
             // Pilihan Provider
-            const Text(
+            Text(
               'Penyedia Bank / E-Wallet',
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textDark,
+                color: titleColor,
               ),
             ),
             const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: inputFill,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: borderColor),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _selectedProvider,
                   isExpanded: true,
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                  dropdownColor: isDark ? AppColors.darkSurface : Colors.white,
+                  icon: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: subtitleColor,
+                  ),
                   items: (_selectedType == 'bank'
                           ? widget.bankOptions
                           : widget.ewalletOptions)
@@ -724,10 +809,10 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
                       value: item,
                       child: Text(
                         item,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textDark,
+                          color: titleColor,
                         ),
                       ),
                     );
@@ -742,13 +827,13 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
             ),
             const SizedBox(height: 14),
 
-            // Nomor Rekening / E-Wallet
-            const Text(
+            // Nomor Rekening / E-Wallet (HANYA ANGKA & WARNA TEKS KONTRAS JELAS)
+            Text(
               'Nomor Rekening / Nomor HP E-Wallet',
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textDark,
+                color: titleColor,
               ),
             ),
             const SizedBox(height: 6),
@@ -756,19 +841,36 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
               key: const Key('refund_account_number_input'),
               controller: _accountNumberController,
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
               decoration: InputDecoration(
                 hintText: _selectedType == 'bank'
                     ? 'Contoh: 880812345678'
                     : 'Contoh: 081234567890',
+                hintStyle: TextStyle(
+                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  fontWeight: FontWeight.normal,
+                ),
                 filled: true,
-                fillColor: const Color(0xFFF8FAFC),
+                fillColor: inputFill,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: BorderSide(color: borderColor),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: isDark ? const Color(0xFF818CF8) : AppColors.primary,
+                    width: 1.5,
+                  ),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -778,30 +880,46 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
             ),
             const SizedBox(height: 14),
 
-            // Nama Pemilik
-            const Text(
+            // Nama Pemilik (WARNA TEKS KONTRAS JELAS)
+            Text(
               'Nama Pemilik Rekening / Akun',
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textDark,
+                color: titleColor,
               ),
             ),
             const SizedBox(height: 6),
             TextField(
               key: const Key('refund_account_name_input'),
               controller: _accountHolderController,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
               decoration: InputDecoration(
                 hintText: 'Nama lengkap sesuai rekening',
+                hintStyle: TextStyle(
+                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  fontWeight: FontWeight.normal,
+                ),
                 filled: true,
-                fillColor: const Color(0xFFF8FAFC),
+                fillColor: inputFill,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: BorderSide(color: borderColor),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: isDark ? const Color(0xFF818CF8) : AppColors.primary,
+                    width: 1.5,
+                  ),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -822,18 +940,20 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
                     key: const Key('refund_confirm_checkbox'),
                     value: _confirmAccuracy,
                     activeColor: AppColors.primary,
+                    checkColor: Colors.white,
+                    side: BorderSide(color: borderColor),
                     onChanged: (val) {
                       setState(() => _confirmAccuracy = val ?? false);
                     },
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Saya mengonfirmasi bahwa rekening ini adalah atas nama saya sendiri untuk menerima dana refund dan memahami masa cooldown 1 minggu pasca pembaruan.',
                     style: TextStyle(
                       fontSize: 11.5,
-                      color: Color(0xFF475467),
+                      color: subtitleColor,
                       height: 1.35,
                     ),
                   ),
@@ -887,6 +1007,7 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
     required String label,
     required String type,
     required IconData icon,
+    required bool isDark,
   }) {
     final isSelected = _selectedType == type;
 
@@ -897,10 +1018,14 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
         height: 44,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEEF2FF) : Colors.white,
+          color: isSelected
+              ? (isDark ? const Color(0xFF283548) : const Color(0xFFEEF2FF))
+              : (isDark ? AppColors.darkSurfaceVariant : Colors.white),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.border,
+            color: isSelected
+                ? (isDark ? const Color(0xFF818CF8) : AppColors.primary)
+                : (isDark ? AppColors.darkBorder : AppColors.border),
             width: isSelected ? 1.5 : 1.0,
           ),
         ),
@@ -910,7 +1035,9 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
             Icon(
               icon,
               size: 18,
-              color: isSelected ? AppColors.primary : const Color(0xFF64748B),
+              color: isSelected
+                  ? (isDark ? const Color(0xFF818CF8) : AppColors.primary)
+                  : (isDark ? AppColors.darkTextSecondary : const Color(0xFF64748B)),
             ),
             const SizedBox(width: 8),
             Flexible(
@@ -921,7 +1048,9 @@ class _EditRefundAccountSheetState extends State<_EditRefundAccountSheet> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                  color: isSelected ? AppColors.primary : const Color(0xFF334155),
+                  color: isSelected
+                      ? (isDark ? Colors.white : AppColors.primary)
+                      : (isDark ? AppColors.darkTextSecondary : const Color(0xFF334155)),
                 ),
               ),
             ),

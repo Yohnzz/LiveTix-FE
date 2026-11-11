@@ -251,6 +251,15 @@ class _ProducerCustomerServiceScreenState
                             ],
                           ),
                         ),
+                        IconButton(
+                          tooltip: 'Sinkronkan pesan terbaru',
+                          onPressed: () => _csService.fetchFromSupabase(),
+                          icon: const Icon(
+                            Icons.refresh_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -674,6 +683,17 @@ class _ProducerCustomerServiceScreenState
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Muat ulang pesan',
+            onPressed: () => _csService.fetchFromSupabase(),
+            icon: Icon(
+              Icons.refresh_rounded,
+              color: widget.isAdminInbox ? Colors.white : textPrimary,
+              size: 20,
+            ),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Divider(height: 1, color: borderColor),
