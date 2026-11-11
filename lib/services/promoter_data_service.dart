@@ -655,6 +655,16 @@ class PromoterDataService {
               parsed =
                   parsed.copyWith(rejectedAt: DateTime.tryParse(cachedAtStr));
             }
+            final cachedHighlights =
+                LocalStorage.getStringList('livetix_concert_highlights_$cid');
+            final cachedHighlightNames =
+                LocalStorage.getStringList('livetix_concert_highlight_names_$cid');
+            if (cachedHighlights.isNotEmpty) {
+              parsed = parsed.copyWith(
+                highlights: cachedHighlights,
+                highlightNames: cachedHighlightNames,
+              );
+            }
             supaItems.add(parsed);
           }
         } catch (e) {
@@ -1120,6 +1130,14 @@ class PromoterDataService {
 
     quotaRemainingNotifier.value = quotaRemainingNotifier.value - 1;
 
+    if (newConcert.highlights.isNotEmpty) {
+      LocalStorage.setStringList(
+          'livetix_concert_highlights_${newConcert.id}', newConcert.highlights);
+      LocalStorage.setStringList(
+          'livetix_concert_highlight_names_${newConcert.id}',
+          newConcert.highlightNames);
+    }
+
     // 1. Simpan ke Supabase Cloud jika Supabase aktif
     if (SupabaseService.isInitialized) {
       final currentUserId = DataService().currentUser?.id;
@@ -1146,6 +1164,15 @@ class PromoterDataService {
         }
       }).catchError((err) {
         debugPrint('Error upsert concert to Supabase: $err');
+        final errStr = err.toString();
+        if (errStr.contains('PGRST204') || errStr.contains('column')) {
+          final fallbackJson = Map<String, dynamic>.from(concertJson);
+          fallbackJson.remove('highlights');
+          fallbackJson.remove('highlight_names');
+          fallbackJson.remove('poster_data_url');
+          fallbackJson.remove('square_logo_data_url');
+          SupabaseService.client.from('concerts').upsert(fallbackJson).catchError((_) {});
+        }
       });
     }
 
@@ -1172,6 +1199,15 @@ class PromoterDataService {
       list.insert(0, finalConcert);
     }
     concertsNotifier.value = list;
+
+    if (finalConcert.highlights.isNotEmpty) {
+      LocalStorage.setStringList(
+          'livetix_concert_highlights_${finalConcert.id}',
+          finalConcert.highlights);
+      LocalStorage.setStringList(
+          'livetix_concert_highlight_names_${finalConcert.id}',
+          finalConcert.highlightNames);
+    }
 
     final editPayload = <String, dynamic>{
       'title': finalConcert.title,
@@ -1212,6 +1248,15 @@ class PromoterDataService {
       }
       SupabaseService.client.from('concerts').upsert(json).catchError((err) {
         debugPrint('Error update concert in Supabase: $err');
+        final errStr = err.toString();
+        if (errStr.contains('PGRST204') || errStr.contains('column')) {
+          final fallbackJson = Map<String, dynamic>.from(json);
+          fallbackJson.remove('highlights');
+          fallbackJson.remove('highlight_names');
+          fallbackJson.remove('poster_data_url');
+          fallbackJson.remove('square_logo_data_url');
+          SupabaseService.client.from('concerts').upsert(fallbackJson).catchError((_) {});
+        }
       });
 
       for (final tier in finalConcert.tiers) {
