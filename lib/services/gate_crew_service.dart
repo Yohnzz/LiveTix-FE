@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../models/gate_crew_models.dart';
+import '../models/ticket_order_model.dart';
 import '../utils/local_storage.dart';
 import 'data_service.dart';
 import 'promoter_data_service.dart';
@@ -72,72 +73,34 @@ class GateCrewService {
 
   void _seedInitialCrew() {
     final cached = _readFromLocalCache();
-    if (SupabaseService.isInitialized) {
+    if (cached.isNotEmpty) {
       teamCrewNotifier.value = cached;
+    }
+    if (SupabaseService.isInitialized) {
       loadTeam();
       return;
     }
-    if (cached.isNotEmpty) {
-      teamCrewNotifier.value = cached;
-      return;
-    }
-    teamCrewNotifier.value = [
-      GateCrewMemberModel(
-        id: 'd0000000-0000-0000-0000-000000000004',
-        name: 'Budi Petugas Gate A',
-        email: 'gatecrew@livetix.com',
-        phone: '081377889900',
-        approvalStatus: 'approved',
-        defaultPassword: defaultSystemCrewPassword,
-        producerId: 'b0000000-0000-0000-0000-000000000002',
-        producerName: 'Soundwave Entertainment',
-        producerEmail: 'produser@livetix.com',
-        activeAssignment: GateCrewAssignmentModel(
-          id: 'cgc-001',
-          concertId: 'featured-1',
-          concertTitle: 'Soundwave Fest 2026',
-          venue: 'Stadion Gajayana, Malang',
-          gateName: 'Gate A',
-          assignedAt: DateTime.now().subtract(const Duration(hours: 2)),
+    // Fallback minimal untuk lingkungan unit test & offline saat belum terkoneksi Supabase
+    if (teamCrewNotifier.value.isEmpty) {
+      teamCrewNotifier.value = [
+        GateCrewMemberModel(
+          id: '400000',
+          name: 'Petugas Gate A',
+          email: 'gatecrew@livetix.com',
+          phone: '081377889900',
+          approvalStatus: 'approved',
+          defaultPassword: defaultSystemCrewPassword,
+          activeAssignment: GateCrewAssignmentModel(
+            id: 'cgc-001',
+            concertId: 'c1',
+            concertTitle: 'Konser LiveTix',
+            venue: 'Stadion Utama',
+            gateName: 'Gate A',
+            assignedAt: DateTime.now(),
+          ),
         ),
-      ),
-      const GateCrewMemberModel(
-        id: 'd0000000-0000-0000-0000-000000000005',
-        name: 'Siti Petugas Cadangan',
-        email: 'gatecrew2@livetix.com',
-        phone: '081388990011',
-        approvalStatus: 'approved',
-        defaultPassword: defaultSystemCrewPassword,
-        producerId: 'b0000000-0000-0000-0000-000000000002',
-        producerName: 'Soundwave Entertainment',
-        producerEmail: 'produser@livetix.com',
-        activeAssignment: null,
-      ),
-      const GateCrewMemberModel(
-        id: 'd0000000-0000-0000-0000-000000000006',
-        name: 'Andi Ramadhan',
-        email: 'andi.gate@livetix.com',
-        phone: '081399001122',
-        approvalStatus: 'approved',
-        defaultPassword: defaultSystemCrewPassword,
-        producerId: 'b0000000-0000-0000-0000-000000000002',
-        producerName: 'Soundwave Entertainment',
-        producerEmail: 'produser@livetix.com',
-        activeAssignment: null,
-      ),
-      const GateCrewMemberModel(
-        id: 'd0000000-0000-0000-0000-000000000007',
-        name: 'Deni Saputra',
-        email: 'deni.gate@livetix.com',
-        phone: '081311223344',
-        approvalStatus: 'pending',
-        defaultPassword: defaultSystemCrewPassword,
-        producerId: 'b0000000-0000-0000-0000-000000000002',
-        producerName: 'Soundwave Entertainment',
-        producerEmail: 'produser@livetix.com',
-        activeAssignment: null,
-      ),
-    ];
+      ];
+    }
   }
 
   /// Mengekstrak daftar email dari isi file CSV / Excel (.csv / .tsv / teks tabel)
@@ -189,32 +152,44 @@ class GateCrewService {
       try {
         assignments = await SupabaseService.client
             .from('concert_gate_crews')
-            .select('*, concerts(title, venue)');
+            .select('*');
       } catch (_) {}
 
       final Map<String, GateCrewAssignmentModel> assignmentMap = {};
       final Map<String, GateCrewAssignmentModel> assignmentByEmail = {};
+      final Map<String, Map<String, dynamic>> rawAssignmentRowsByEmail = {};
+      final Map<String, Map<String, dynamic>> rawAssignmentRowsByCrewId = {};
       for (final a in assignments) {
         final crewId = (a['crew_id'] ?? a['crew_user_id'])?.toString();
         final crewEmail =
             (a['crew_email'] ?? '')?.toString().trim().toLowerCase();
         if ((crewId != null && crewId.isNotEmpty) ||
             (crewEmail != null && crewEmail.isNotEmpty)) {
+          final concertIdStr = a['concert_id']?.toString() ?? '';
           final rawConcert = a['concerts'];
-          final concertTitle = rawConcert is Map
+          var concertTitle = rawConcert is Map
               ? (rawConcert['title'] as String? ??
-                  (a['concert_title'] as String? ?? 'Konser LiveTix'))
-              : (a['concert_title'] as String? ?? 'Konser LiveTix');
-          final venue = rawConcert is Map
+                  (a['concert_title'] as String? ?? ''))
+              : (a['concert_title'] as String? ?? '');
+          var venue = rawConcert is Map
               ? (rawConcert['venue'] as String? ??
-                  (a['venue'] as String? ?? 'Venue Konser'))
-              : (a['venue'] as String? ?? 'Venue Konser');
+                  (a['venue'] as String? ?? ''))
+              : (a['venue'] as String? ?? '');
+
+          if (concertTitle.isEmpty || venue.isEmpty) {
+            final known = await DataService().getConcertById(concertIdStr);
+            if (known != null) {
+              if (concertTitle.isEmpty) concertTitle = known.title;
+              if (venue.isEmpty) venue = known.venue;
+            }
+          }
 
           final model = GateCrewAssignmentModel(
             id: a['id']?.toString() ?? '',
-            concertId: a['concert_id']?.toString() ?? '',
-            concertTitle: concertTitle,
-            venue: venue,
+            concertId: concertIdStr,
+            concertTitle:
+                concertTitle.isNotEmpty ? concertTitle : 'Konser LiveTix',
+            venue: venue.isNotEmpty ? venue : 'Venue Konser',
             gateName:
                 (a['gate_name'] ?? a['gate_section'])?.toString() ?? 'Gate A',
             assignedAt: DateTime.tryParse(
@@ -224,9 +199,11 @@ class GateCrewService {
 
           if (crewId != null && crewId.isNotEmpty) {
             assignmentMap[crewId] = model;
+            rawAssignmentRowsByCrewId[crewId] = Map<String, dynamic>.from(a);
           }
           if (crewEmail != null && crewEmail.isNotEmpty) {
             assignmentByEmail[crewEmail] = model;
+            rawAssignmentRowsByEmail[crewEmail] = Map<String, dynamic>.from(a);
           }
         }
       }
@@ -238,11 +215,13 @@ class GateCrewService {
 
       final List<GateCrewMemberModel> loaded = [];
       final Set<String> seenEmails = {};
+      final Set<String> seenIds = {};
 
       for (final row in crewProfiles) {
         final id = (row['id'] ?? '').toString();
         final email = (row['email'] ?? '').toString().trim().toLowerCase();
         if (email.isNotEmpty) seenEmails.add(email);
+        if (id.isNotEmpty) seenIds.add(id);
         final cached = cachedByEmail[email];
 
         final rawName =
@@ -278,6 +257,41 @@ class GateCrewService {
           producerEmail: rawProducerEmail,
           activeAssignment: assignmentMap[id] ??
               assignmentByEmail[email] ??
+              cached?.activeAssignment,
+        ));
+      }
+
+      // Pastikan seluruh crew yang tercatat pada concert_gate_crews tetap termuat meskipun belum ada di tabel profiles
+      for (final a in assignments) {
+        final crewId = (a['crew_id'] ?? a['crew_user_id'] ?? '').toString();
+        final crewEmail =
+            (a['crew_email'] ?? '').toString().trim().toLowerCase();
+        if (crewEmail.isEmpty && crewId.isEmpty) continue;
+        if ((crewEmail.isNotEmpty && seenEmails.contains(crewEmail)) ||
+            (crewId.isNotEmpty && seenIds.contains(crewId))) {
+          continue;
+        }
+        if (crewEmail.isNotEmpty) seenEmails.add(crewEmail);
+        if (crewId.isNotEmpty) seenIds.add(crewId);
+
+        final cached = cachedByEmail[crewEmail];
+        final rawName = (a['crew_name'] ?? cached?.name ?? '').toString().trim();
+        final fallbackName = crewEmail.contains('@')
+            ? 'Gate Crew (${crewEmail.split('@').first})'
+            : 'Petugas Gate';
+
+        loaded.add(GateCrewMemberModel(
+          id: crewId.isNotEmpty ? crewId : (cached?.id ?? crewEmail),
+          name: rawName.isNotEmpty ? rawName : fallbackName,
+          email: crewEmail.isNotEmpty ? crewEmail : (cached?.email ?? ''),
+          phone: (a['phone'] ?? cached?.phone ?? '-').toString(),
+          approvalStatus: cached?.approvalStatus ?? 'approved',
+          defaultPassword: defaultSystemCrewPassword,
+          producerId: cached?.producerId ?? 'b0000000-0000-0000-0000-000000000002',
+          producerName: cached?.producerName ?? 'Soundwave Entertainment',
+          producerEmail: cached?.producerEmail ?? 'produser@livetix.com',
+          activeAssignment: assignmentByEmail[crewEmail] ??
+              assignmentMap[crewId] ??
               cached?.activeAssignment,
         ));
       }
@@ -668,23 +682,102 @@ class GateCrewService {
     }
 
     if (SupabaseService.isInitialized) {
-      final bool isUuid = RegExp(
-              r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
-          .hasMatch(crewId);
-      try {
-        await SupabaseService.client.from('concert_gate_crews').upsert({
-          'concert_id': concertId,
-          'concert_title': concertTitle,
-          'venue': venue,
-          'crew_id': crewId,
-          if (isUuid) 'crew_user_id': crewId,
-          if (resolvedEmail.isNotEmpty) 'crew_email': resolvedEmail,
-          if (resolvedName.isNotEmpty) 'crew_name': resolvedName,
-          'gate_name': gateName,
-          'gate_section': gateName,
-          'assigned_at': assignment.assignedAt.toIso8601String(),
-        });
-      } catch (e) {
+      await _upsertConcertGateCrewRow(
+        concertId: concertId,
+        concertTitle: concertTitle,
+        venue: venue,
+        crewId: crewId,
+        crewEmail: resolvedEmail,
+        crewName: resolvedName,
+        gateName: gateName,
+        assignedAt: assignment.assignedAt,
+      );
+    }
+  }
+
+  /// Helper aman untuk insert atau update penugasan Gate Crew tanpa bentrok constraint 23505 atau FK
+  Future<void> _upsertConcertGateCrewRow({
+    required String concertId,
+    required String concertTitle,
+    required String venue,
+    required String crewId,
+    required String crewEmail,
+    required String crewName,
+    String? phone,
+    required String gateName,
+    required DateTime assignedAt,
+  }) async {
+    final bool isUuid = RegExp(
+            r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+        .hasMatch(crewId);
+    final payload = <String, dynamic>{
+      'concert_id': concertId,
+      'concert_title': concertTitle,
+      'venue': venue,
+      'crew_id': crewId,
+      if (isUuid) 'crew_user_id': crewId,
+      if (crewEmail.isNotEmpty) 'crew_email': crewEmail,
+      if (crewName.isNotEmpty) 'crew_name': crewName,
+      if (phone != null && phone.isNotEmpty) 'phone': phone,
+      'gate_name': gateName,
+      'gate_section': gateName,
+      'assigned_at': assignedAt.toIso8601String(),
+    };
+
+    try {
+      dynamic existing;
+      if (crewEmail.isNotEmpty) {
+        existing = await SupabaseService.client
+            .from('concert_gate_crews')
+            .select('id')
+            .eq('concert_id', concertId)
+            .ilike('crew_email', crewEmail)
+            .maybeSingle();
+      }
+      if (existing == null && isUuid) {
+        existing = await SupabaseService.client
+            .from('concert_gate_crews')
+            .select('id')
+            .eq('concert_id', concertId)
+            .eq('crew_user_id', crewId)
+            .maybeSingle();
+      }
+      if (existing != null && existing['id'] != null) {
+        await SupabaseService.client
+            .from('concert_gate_crews')
+            .update(payload)
+            .eq('id', existing['id']);
+      } else {
+        await SupabaseService.client.from('concert_gate_crews').insert(payload);
+      }
+    } catch (e) {
+      final errStr = e.toString();
+      if (errStr.contains('23505') || errStr.contains('23503')) {
+        // Fallback: hapus/abaikan kolom FK crew_user_id atau update berdasarkan crew_email/crew_id
+        final fallbackPayload = Map<String, dynamic>.from(payload)
+          ..remove('crew_user_id');
+        try {
+          if (crewEmail.isNotEmpty) {
+            final res = await SupabaseService.client
+                .from('concert_gate_crews')
+                .update(fallbackPayload)
+                .eq('concert_id', concertId)
+                .ilike('crew_email', crewEmail)
+                .select();
+            if (res.isEmpty) {
+              await SupabaseService.client
+                  .from('concert_gate_crews')
+                  .insert(fallbackPayload);
+            }
+          } else {
+            await SupabaseService.client
+                .from('concert_gate_crews')
+                .insert(fallbackPayload);
+          }
+        } catch (err2) {
+          debugPrint('Error fallback upsert concert_gate_crews: $err2');
+        }
+      } else {
         debugPrint('Error inviteCrewToConcert Supabase: $e');
       }
     }
@@ -770,6 +863,7 @@ class GateCrewService {
     );
 
     if (SupabaseService.isInitialized) {
+      // 1. Coba simpan ke profiles (terpisah agar error FK auth.users tidak menghalangi penyimpanan concert_gate_crews)
       try {
         await SupabaseService.client.from('profiles').upsert({
           'id': newId,
@@ -781,18 +875,22 @@ class GateCrewService {
           'approval_status': 'approved',
           'verification_status': 'approved',
         });
-        await SupabaseService.client.from('concert_gate_crews').upsert({
-          'concert_id': concertId,
-          'crew_id': newId,
-          'crew_email': resolvedEmail,
-          'crew_name': resolvedName,
-          'gate_name': gateName,
-          'gate_section': gateName,
-          'assigned_at': DateTime.now().toIso8601String(),
-        });
       } catch (e) {
-        debugPrint('Error inviteAndAssignCrewByProducer Supabase: $e');
+        debugPrint('Warning upsert profiles for invited crew (ignored safely): $e');
       }
+
+      // 2. Simpan penugasan ke concert_gate_crews
+      await _upsertConcertGateCrewRow(
+        concertId: concertId,
+        concertTitle: concertTitle,
+        venue: 'Stadion Utama',
+        crewId: newId,
+        crewEmail: resolvedEmail,
+        crewName: resolvedName,
+        phone: resolvedPhone,
+        gateName: gateName,
+        assignedAt: assignment.assignedAt,
+      );
     }
 
     return member;
@@ -1101,5 +1199,301 @@ class GateCrewService {
     }
 
     return {'totalCheckedIn': checkedIn, 'totalRejected': rejected};
+  }
+
+  /// Verifikasi keaslian dan status tiket langsung ke database Supabase dan memori lokal
+  Future<TicketScanValidationResult> verifyTicketInDatabase({
+    required String scannedCode,
+    required String currentConcertId,
+    required String currentGate,
+  }) async {
+    final cleanCode = scannedCode.trim();
+    if (cleanCode.isEmpty) {
+      return const TicketScanValidationResult(
+        isValid: false,
+        status: 'Ditolak (Invalid)',
+        invalidReason: 'Kode barcode/QR tiket kosong.',
+      );
+    }
+
+    Map<String, dynamic>? ticketRow;
+    String customerName = 'Pengunjung LiveTix';
+
+    // 1. Cek langsung ke tabel tickets di Supabase
+    if (SupabaseService.isInitialized) {
+      try {
+        final query = SupabaseService.client
+            .from('tickets')
+            .select('*, orders(customer_name, customer_email, customer_phone)');
+
+        List<dynamic> rows = [];
+        try {
+          rows = await query.or(
+              'ticket_code.eq.$cleanCode,id.eq.$cleanCode,order_id.eq.$cleanCode');
+        } catch (_) {}
+
+        if (rows.isEmpty) {
+          try {
+            rows = await SupabaseService.client
+                .from('tickets')
+                .select(
+                    '*, orders(customer_name, customer_email, customer_phone)')
+                .ilike('ticket_code', '%$cleanCode%');
+          } catch (_) {}
+        }
+
+        if (rows.isNotEmpty) {
+          ticketRow = rows.first as Map<String, dynamic>;
+          final rawOrder = ticketRow['orders'];
+          if (rawOrder is Map && rawOrder['customer_name'] != null) {
+            customerName = rawOrder['customer_name'].toString();
+          }
+        }
+      } catch (e) {
+        debugPrint('Error query tickets Supabase: $e');
+      }
+    }
+
+    // 2. Fallback jika offline atau ada di memori DataService userTickets
+    if (ticketRow == null) {
+      final userTickets = DataService().userTicketsNotifier.value;
+      for (final t in userTickets) {
+        if (t.bookingCode.toLowerCase() == cleanCode.toLowerCase() ||
+            t.id.toLowerCase() == cleanCode.toLowerCase() ||
+            (t.qrData != null &&
+                t.qrData!.toLowerCase() == cleanCode.toLowerCase()) ||
+            cleanCode.contains(t.bookingCode) ||
+            cleanCode.contains(t.id)) {
+          ticketRow = {
+            'id': t.id,
+            'ticket_code': t.bookingCode,
+            'order_id': t.id,
+            'concert_id': currentConcertId,
+            'concert_title': t.concertTitle,
+            'tier_name': t.category,
+            'gate_name': t.gate.isNotEmpty ? t.gate : 'Gate A',
+            'status': t.status.toUpperCase() == 'REFFUND'
+                ? 'DIREFUND'
+                : (t.isCompleted ? 'SUDAH DIPAKAI' : 'AKTIF'),
+            'qr_scan_quota': t.qrScanQuota,
+            'qr_scans_used': t.qrScansUsed,
+          };
+          customerName = DataService().currentUser?.name.isNotEmpty == true
+              ? DataService().currentUser!.name
+              : 'Pengunjung LiveTix';
+          break;
+        }
+      }
+    }
+
+    // 3. Jika tiket sama sekali tidak ditemukan di sistem
+    if (ticketRow == null) {
+      return TicketScanValidationResult(
+        isValid: false,
+        status: 'Ditolak (Tidak Ditemukan)',
+        invalidReason:
+            'Kode tiket "$cleanCode" tidak terdaftar di sistem. Pastikan tiket dibeli secara resmi melalui LiveTix.',
+        bookingCode: cleanCode,
+        ticketCode: cleanCode,
+      );
+    }
+
+    final ticketId = ticketRow['id']?.toString() ?? '';
+    final ticketCode = (ticketRow['ticket_code'] ?? ticketRow['id'] ?? cleanCode).toString();
+    final bookingCode = (ticketRow['order_id'] ?? ticketRow['ticket_code'] ?? cleanCode).toString();
+    final concertId = ticketRow['concert_id']?.toString() ?? '';
+    final concertTitle = (ticketRow['concert_title'] ?? 'Konser LiveTix').toString();
+    final tierName = (ticketRow['tier_name'] ?? ticketRow['category'] ?? 'Reguler').toString();
+    final gateName = (ticketRow['gate_name'] ?? 'Gate A').toString();
+    final status = (ticketRow['status'] ?? 'AKTIF').toString().toUpperCase();
+    final quota = (ticketRow['qr_scan_quota'] as num?)?.toInt() ?? 1;
+    final used = (ticketRow['qr_scans_used'] as num?)?.toInt() ?? 0;
+
+    // 4. Validasi Konser
+    if (currentConcertId.isNotEmpty &&
+        concertId.isNotEmpty &&
+        concertId != currentConcertId &&
+        !concertId.contains(currentConcertId) &&
+        !currentConcertId.contains(concertId)) {
+      return TicketScanValidationResult(
+        isValid: false,
+        status: 'Ditolak (Salah Konser)',
+        invalidReason:
+            'Tiket ini terdaftar untuk konser "$concertTitle", bukan untuk konser ini.',
+        ticketId: ticketId,
+        ticketCode: ticketCode,
+        bookingCode: bookingCode,
+        attendeeName: customerName,
+        category: tierName,
+        gateName: gateName,
+        concertId: concertId,
+        concertTitle: concertTitle,
+        quota: quota,
+        used: used,
+      );
+    }
+
+    // 5. Validasi Status Refund / Pembatalan
+    if (status.contains('REFUND') ||
+        status.contains('BATAL') ||
+        status.contains('CANCEL')) {
+      return TicketScanValidationResult(
+        isValid: false,
+        status: 'Ditolak (Direfund)',
+        invalidReason:
+            'Tiket ini telah dibatalkan / direfund dan tidak berlaku lagi untuk masuk.',
+        ticketId: ticketId,
+        ticketCode: ticketCode,
+        bookingCode: bookingCode,
+        attendeeName: customerName,
+        category: tierName,
+        gateName: gateName,
+        concertId: concertId,
+        concertTitle: concertTitle,
+        quota: quota,
+        used: used,
+      );
+    }
+
+    // 6. Validasi Pos Gate Sesuai Kategori / Gate yang Ditetapkan Produser
+    final cleanCurrentGate = currentGate
+        .replaceAll(RegExp(r'\(.*\)'), '')
+        .trim()
+        .toLowerCase();
+    final cleanTicketGate = gateName
+        .replaceAll(RegExp(r'\(.*\)'), '')
+        .trim()
+        .toLowerCase();
+
+    if (cleanTicketGate.isNotEmpty &&
+        cleanCurrentGate.isNotEmpty &&
+        cleanTicketGate != cleanCurrentGate &&
+        !cleanTicketGate.contains(cleanCurrentGate) &&
+        !cleanCurrentGate.contains(cleanTicketGate)) {
+      return TicketScanValidationResult(
+        isValid: false,
+        isWrongGate: true,
+        status: 'Ditolak (Salah Gate)',
+        invalidReason:
+            'Salah Pos Gate! Kategori "$tierName" dialokasikan melalui $gateName. Saat ini Anda bertugas di $currentGate. Silakan arahkan penonton ke $gateName.',
+        ticketId: ticketId,
+        ticketCode: ticketCode,
+        bookingCode: bookingCode,
+        attendeeName: customerName,
+        category: tierName,
+        gateName: gateName,
+        concertId: concertId,
+        concertTitle: concertTitle,
+        quota: quota,
+        used: used,
+      );
+    }
+
+    // 7. Validasi Kuota Scan Tiket (Multi-scan)
+    final remaining = quota - used;
+    if (remaining <= 0 || status == 'SUDAH DIPAKAI' || status == 'USED') {
+      return TicketScanValidationResult(
+        isValid: false,
+        status: 'Ditolak (Habis Kuota)',
+        invalidReason:
+            'Seluruh kuota tiket ($quota tiket) sudah pernah digunakan untuk check-in.',
+        ticketId: ticketId,
+        ticketCode: ticketCode,
+        bookingCode: bookingCode,
+        attendeeName: customerName,
+        category: tierName,
+        gateName: gateName,
+        concertId: concertId,
+        concertTitle: concertTitle,
+        quota: quota,
+        used: used,
+      );
+    }
+
+    // 8. Seluruh Validasi Lulus -> TIKET VALID RESMI
+    return TicketScanValidationResult(
+      isValid: true,
+      status: 'Berhasil',
+      ticketId: ticketId,
+      ticketCode: ticketCode,
+      bookingCode: bookingCode,
+      attendeeName: customerName,
+      category: tierName,
+      gateName: gateName,
+      concertId: concertId,
+      concertTitle: concertTitle,
+      quota: quota,
+      used: used,
+    );
+  }
+
+  /// Eksekusi Check-in Pengunjung ke Database Supabase
+  Future<bool> executeCheckIn({
+    required TicketScanValidationResult ticket,
+    required int countToUse,
+    required String gateName,
+    required String crewId,
+    required String crewName,
+    required String crewEmail,
+    required String concertTitle,
+  }) async {
+    final newUsed = ticket.used + countToUse;
+    final isFullyUsed = newUsed >= ticket.quota;
+    final newStatus = isFullyUsed ? 'SUDAH DIPAKAI' : 'AKTIF';
+
+    // 1. Update Supabase tabel tickets
+    if (SupabaseService.isInitialized && ticket.ticketId.isNotEmpty) {
+      try {
+        await SupabaseService.client.from('tickets').update({
+          'qr_scans_used': newUsed,
+          'status': newStatus,
+          if (isFullyUsed) 'used_at': DateTime.now().toIso8601String(),
+        }).eq('id', ticket.ticketId);
+      } catch (e) {
+        debugPrint('Error updating ticket by id: $e');
+        try {
+          await SupabaseService.client.from('tickets').update({
+            'qr_scans_used': newUsed,
+            'status': newStatus,
+            if (isFullyUsed) 'used_at': DateTime.now().toIso8601String(),
+          }).eq('ticket_code', ticket.ticketCode);
+        } catch (_) {}
+      }
+    }
+
+    // 2. Sinkronkan tiket di DataService userTickets (in-memory)
+    final userTickets =
+        List<UserTicketModel>.from(DataService().userTicketsNotifier.value);
+    final idx = userTickets.indexWhere((t) =>
+        t.id == ticket.ticketId ||
+        t.bookingCode == ticket.ticketCode ||
+        t.bookingCode == ticket.bookingCode);
+    if (idx != -1) {
+      final old = userTickets[idx];
+      userTickets[idx] = old.copyWith(
+        qrScansUsed: newUsed,
+        isCompleted: isFullyUsed,
+        status: isFullyUsed ? 'Selesai' : old.status,
+      );
+      DataService().userTicketsNotifier.value = userTickets;
+    }
+
+    // 3. Catat transaksi check-in ke tabel ticket_checkins
+    await recordTicketCheckIn(
+      concertId: ticket.concertId,
+      concertTitle: concertTitle,
+      bookingCode: ticket.bookingCode,
+      attendeeName: ticket.attendeeName,
+      category: ticket.category,
+      gateName: gateName,
+      crewId: crewId,
+      crewEmail: crewEmail,
+      crewName: crewName,
+      scannedCount: countToUse,
+      quota: ticket.quota,
+      status: countToUse > 1 ? 'Berhasil (Rombongan)' : 'Berhasil',
+    );
+
+    return true;
   }
 }

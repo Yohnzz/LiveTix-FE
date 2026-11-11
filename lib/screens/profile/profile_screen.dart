@@ -469,6 +469,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               UserAvatar(
                 initials: initials,
                 imageBytes: activeUser?.profileImageBytes,
+                avatarUrl: activeUser?.avatarUrl,
                 colorIndex: activeUser?.avatarColorIndex ?? -1,
                 size: 54,
                 fontSize: 16,

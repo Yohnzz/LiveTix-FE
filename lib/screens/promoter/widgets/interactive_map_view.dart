@@ -594,26 +594,33 @@ class _InteractiveMapViewState extends State<InteractiveMapView> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.verified_rounded,
-                      size: 13,
-                      color: Color(0xFF4285F4),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _useLiveGoogleMaps
-                          ? 'Google Maps Embed Langsung'
-                          : 'Mode Pin & Drag Koordinat',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF4B5563),
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.verified_rounded,
+                        size: 13,
+                        color: Color(0xFF4285F4),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          _useLiveGoogleMaps
+                              ? 'Google Maps Embed Langsung'
+                              : 'Mode Pin & Drag Koordinat',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF4B5563),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 GestureDetector(
                   onTap: () {
                     setState(() {

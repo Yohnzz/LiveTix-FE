@@ -38,6 +38,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
   bool _isCheckingStatus = false;
   int _pollCount = 0;
   bool _hasReturnedFromEWalletApp = false;
+  bool _hasHandledExpiry = false;
+  bool _isCancelling = false;
   String? _ewalletCheckMessage;
 
   bool get _isOrderPaid => DataService().isOrderPaid(widget.order.orderId);
@@ -46,36 +48,134 @@ class _PaymentScreenState extends State<PaymentScreen> {
   void initState() {
     super.initState();
     if (widget.order.expiresAt != null) {
-      final diff = widget.order.expiresAt!.difference(DateTime.now()).inSeconds;
-      _remainingSeconds = (diff > 0 && diff <= _initialExpirySeconds) ? diff : _initialExpirySeconds;
+      final diffMs = widget.order.expiresAt!
+          .toLocal()
+          .difference(DateTime.now())
+          .inMilliseconds;
+      if (diffMs <= 0) {
+        _remainingSeconds = 0;
+      } else {
+        final ceilSecs = (diffMs / 1000).ceil();
+        _remainingSeconds =
+            ceilSecs > _initialExpirySeconds ? _initialExpirySeconds : ceilSecs;
+      }
     } else {
       _remainingSeconds = _initialExpirySeconds;
     }
-    // Simpan pesanan berstatus pending ke tab Tiket Saya
-    DataService().addPendingOrderTicket(widget.order);
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_remainingSeconds > 0) {
-        setState(() => _remainingSeconds--);
-      } else {
-        _timer?.cancel();
-        _timer = null;
-        _statusPollingTimer?.cancel();
-        _statusPollingTimer = null;
-      }
-    });
+    if (_remainingSeconds > 0) {
+      // Simpan pesanan berstatus pending ke tab Tiket Saya
+      DataService().addPendingOrderTicket(widget.order);
 
-    _startStatusPolling();
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (_remainingSeconds > 1) {
+          setState(() => _remainingSeconds--);
+        } else {
+          setState(() => _remainingSeconds = 0);
+          _timer?.cancel();
+          _timer = null;
+          _statusPollingTimer?.cancel();
+          _statusPollingTimer = null;
+          _handleOrderExpired();
+        }
+      });
+
+      _startStatusPolling();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _handleOrderExpired();
+      });
+    }
   }
 
-  void _navigateBackToConcertDetail() {
+  Future<void> _handleOrderExpired() async {
+    if (_hasHandledExpiry || _isOrderPaid) return;
+    _hasHandledExpiry = true;
     _statusPollingTimer?.cancel();
     _statusPollingTimer = null;
     _timer?.cancel();
     _timer = null;
 
-    // Pastikan pesanan tersimpan di Tiket Saya sebelum kembali
-    DataService().addPendingOrderTicket(widget.order);
+    await PaymentGatewayService().cancelOrExpireOrder(
+      widget.order.orderId,
+      reason: 'EXPIRED',
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Batas waktu pembayaran 1 jam telah berakhir. Reservasi tiket dikembalikan ke stok.',
+        ),
+        backgroundColor: Color(0xFFB91C1C),
+      ),
+    );
+  }
+
+  Future<void> _handleCancelPayment() async {
+    if (_isCancelling) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text(
+          'Batalkan Pembayaran?',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Pesanan ini akan berstatus Dibatalkan dan stok tiket yang di-reserve akan langsung dikembalikan ke sistem.',
+          style: TextStyle(fontSize: 13.5, height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Lanjut Bayar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD92D20),
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: const Text('Ya, Batalkan'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    setState(() => _isCancelling = true);
+    _statusPollingTimer?.cancel();
+    _statusPollingTimer = null;
+    _timer?.cancel();
+    _timer = null;
+
+    await PaymentGatewayService().cancelOrExpireOrder(
+      widget.order.orderId,
+      reason: 'CANCELLED',
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Pembayaran dibatalkan. Stok tiket telah dikembalikan.'),
+        backgroundColor: Color(0xFF475467),
+      ),
+    );
+    _navigateBackToConcertDetail(savePending: false);
+  }
+
+  void _navigateBackToConcertDetail({bool savePending = true}) {
+    _statusPollingTimer?.cancel();
+    _statusPollingTimer = null;
+    _timer?.cancel();
+    _timer = null;
+
+    // Pastikan pesanan tersimpan di Tiket Saya hanya jika masih PENDING aktif
+    if (savePending && _remainingSeconds > 0 && !_isOrderPaid && !_hasHandledExpiry) {
+      DataService().addPendingOrderTicket(widget.order);
+    }
 
     Navigator.popUntil(
       context,
@@ -496,6 +596,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
             child: TextButton.icon(
               onPressed: () async {
                 Navigator.pop(ctx);
+                await PaymentGatewayService()
+                    .simulateSandboxPaymentSuccess(widget.order.orderId);
                 await _proceedToSuccessScreen();
               },
               icon: const Icon(Icons.check_circle, size: 14, color: Color(0xFF16A34A)),
@@ -531,7 +633,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           leading: IconButton(
             tooltip: 'Kembali',
             icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
-            onPressed: _navigateBackToConcertDetail,
+            onPressed: () => _navigateBackToConcertDetail(),
           ),
           title: const Text(
             'Selesaikan pembayaran',
@@ -1484,36 +1586,88 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
+  Widget _buildCancelPaymentButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: OutlinedButton(
+        key: const Key('cancel_payment_button'),
+        onPressed: _isCancelling ? null : _handleCancelPayment,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFFD92D20),
+          side: const BorderSide(color: Color(0xFFFCA5A5), width: 1.2),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            _isCancelling ? 'Membatalkan...' : 'Batalkan Pembayaran',
+            maxLines: 1,
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomBar() {
     if (widget.order.paymentCategory == PaymentCategory.ewallet) {
       return _buildEWalletBottomBar();
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
-        child: SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton(
-            onPressed: _handlePaymentConfirmation,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+        child: Row(
+          children: [
+            if (!_isOrderPaid) ...[
+              Expanded(
+                flex: 10,
+                child: _buildCancelPaymentButton(),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              flex: 11,
+              child: SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _remainingSeconds > 0 && !_isCancelling
+                      ? _handlePaymentConfirmation
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      _remainingSeconds > 0
+                          ? 'Saya Sudah Bayar'
+                          : 'Waktu Pembayaran Habis',
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
-            child: const Text(
-              'Saya Sudah Bayar',
-              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
-            ),
-          ),
+          ],
         ),
       ),
     );
@@ -1523,113 +1677,142 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final provider = widget.order.paymentProvider;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
         child: !_hasReturnedFromEWalletApp
-            ? SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  key: const Key('continue_to_ewallet_app_button'),
-                  onPressed: _openEWalletApp,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+            ? Row(
+                children: [
+                  if (!_isOrderPaid) ...[
+                    Expanded(
+                      flex: 10,
+                      child: _buildCancelPaymentButton(),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    flex: 11,
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton(
+                        key: const Key('continue_to_ewallet_app_button'),
+                        onPressed: _remainingSeconds > 0 && !_isCancelling
+                            ? _openEWalletApp
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _remainingSeconds > 0
+                                ? 'Lanjut ke Aplikasi $provider'
+                                : 'Waktu Pembayaran Habis',
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  child: Text(
-                    'Lanjut ke Aplikasi $provider',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
+                ],
               )
-            : LayoutBuilder(
-                builder: (context, constraints) {
-                  final stackVertically = constraints.maxWidth < 310;
-                  final checkBtn = SizedBox(
-                    height: 48,
-                    width: stackVertically ? double.infinity : null,
-                    child: ElevatedButton(
-                      key: const Key('check_ewallet_payment_button'),
-                      onPressed: _handleCheckEWalletPayment,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final stackVertically = constraints.maxWidth < 310;
+                      final checkBtn = SizedBox(
+                        height: 48,
+                        width: stackVertically ? double.infinity : null,
+                        child: ElevatedButton(
+                          key: const Key('check_ewallet_payment_button'),
+                          onPressed: _handleCheckEWalletPayment,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Cek Pembayaran',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        'Cek Pembayaran',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  );
+                      );
 
-                  final reopenBtn = SizedBox(
-                    height: 48,
-                    width: stackVertically ? double.infinity : null,
-                    child: OutlinedButton(
-                      key: const Key('reopen_ewallet_app_button'),
-                      onPressed: _openEWalletApp,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: const BorderSide(color: AppColors.primary, width: 1.3),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      final reopenBtn = SizedBox(
+                        height: 48,
+                        width: stackVertically ? double.infinity : null,
+                        child: OutlinedButton(
+                          key: const Key('reopen_ewallet_app_button'),
+                          onPressed: _openEWalletApp,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.primary, width: 1.3),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Lanjut ke Aplikasi',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        'Lanjut ke Aplikasi',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  );
+                      );
 
-                  if (stackVertically) {
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        checkBtn,
-                        const SizedBox(height: 8),
-                        reopenBtn,
-                      ],
-                    );
-                  }
+                      if (stackVertically) {
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            checkBtn,
+                            const SizedBox(height: 8),
+                            reopenBtn,
+                          ],
+                        );
+                      }
 
-                  return Row(
-                    children: [
-                      Expanded(child: checkBtn),
-                      const SizedBox(width: 10),
-                      Expanded(child: reopenBtn),
-                    ],
-                  );
-                },
+                      return Row(
+                        children: [
+                          Expanded(child: checkBtn),
+                          const SizedBox(width: 10),
+                          Expanded(child: reopenBtn),
+                        ],
+                      );
+                    },
+                  ),
+                  if (!_isOrderPaid) ...[
+                    const SizedBox(height: 8),
+                    _buildCancelPaymentButton(),
+                  ],
+                ],
               ),
       ),
     );

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide LocalStorage;
 import '../utils/local_storage.dart';
 import 'data_service.dart';
 import 'promoter_data_service.dart';
@@ -12,6 +13,9 @@ class CsMessageModel {
   final String senderName;
   final String senderEmail;
   final String senderRole; // 'Produser' | 'User' | 'Gatecrew' | 'Admin'
+  final String receiverId;
+  final String receiverName;
+  final String receiverRole;
   final bool isFromAdmin;
   final String message;
   final DateTime createdAt;
@@ -23,12 +27,23 @@ class CsMessageModel {
     required this.senderName,
     required this.senderEmail,
     required this.senderRole,
+    this.receiverId = '',
+    this.receiverName = '',
+    this.receiverRole = '',
     required this.isFromAdmin,
     required this.message,
     required this.createdAt,
   });
 
   factory CsMessageModel.fromJson(Map<String, dynamic> json) {
+    final senderRole =
+        (json['sender_role'] ?? json['senderRole'] ?? 'User').toString();
+    final isAdmin = (json['is_admin_reply'] ??
+                json['is_from_admin'] ??
+                json['isFromAdmin']) ==
+            true ||
+        senderRole.trim().toLowerCase() == 'admin';
+
     return CsMessageModel(
       id: (json['id'] ?? '').toString(),
       threadId: (json['thread_id'] ?? json['threadId'] ?? '').toString(),
@@ -37,9 +52,14 @@ class CsMessageModel {
           .toString(),
       senderEmail:
           (json['sender_email'] ?? json['senderEmail'] ?? '').toString(),
-      senderRole:
-          (json['sender_role'] ?? json['senderRole'] ?? 'User').toString(),
-      isFromAdmin: (json['is_from_admin'] ?? json['isFromAdmin'] ?? false) == true,
+      senderRole: senderRole,
+      receiverId:
+          (json['receiver_id'] ?? json['receiverId'] ?? '').toString(),
+      receiverName:
+          (json['receiver_name'] ?? json['receiverName'] ?? '').toString(),
+      receiverRole:
+          (json['receiver_role'] ?? json['receiverRole'] ?? '').toString(),
+      isFromAdmin: isAdmin,
       message: (json['message'] ?? '').toString(),
       createdAt: DateTime.tryParse(
               (json['created_at'] ?? json['createdAt'] ?? '').toString()) ??
@@ -54,9 +74,13 @@ class CsMessageModel {
         'sender_name': senderName,
         'sender_email': senderEmail,
         'sender_role': senderRole,
-        'is_from_admin': isFromAdmin,
+        'receiver_id': receiverId,
+        'receiver_name': receiverName,
+        'receiver_role': receiverRole,
         'message': message,
         'created_at': createdAt.toIso8601String(),
+        'is_admin_reply': isFromAdmin,
+        'is_from_admin': isFromAdmin,
       };
 }
 
@@ -87,6 +111,7 @@ class CsThreadModel {
       messages.isNotEmpty ? messages.last : null;
 
   CsThreadModel copyWith({
+    String? userId,
     String? userName,
     String? userEmail,
     String? userRole,
@@ -97,7 +122,7 @@ class CsThreadModel {
   }) {
     return CsThreadModel(
       threadId: threadId,
-      userId: userId,
+      userId: userId ?? this.userId,
       userName: userName ?? this.userName,
       userEmail: userEmail ?? this.userEmail,
       userRole: userRole ?? this.userRole,
@@ -151,9 +176,182 @@ class CustomerServiceService extends ChangeNotifier {
 
   final List<CsThreadModel> _threads = [];
   bool _initialized = false;
+  RealtimeChannel? _csRealtimeChannel;
+  bool _isRealtimeSubscribed = false;
 
   CustomerServiceService._internal() {
     _loadInitialThreads();
+  }
+
+  /// Membuka listener Supabase Realtime pada tabel `cs_messages`.
+  void startRealtimeSubscription() {
+    if (!SupabaseService.isInitialized || _isRealtimeSubscribed) return;
+    _isRealtimeSubscribed = true;
+    try {
+      _csRealtimeChannel = SupabaseService.client
+          .channel('livetix_cs_messages_live')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'cs_messages',
+            callback: (payload) {
+              final row = payload.newRecord;
+              if (row.isNotEmpty) {
+                _ingestRealtimeRow(row);
+              } else {
+                fetchFromSupabase();
+              }
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      _isRealtimeSubscribed = false;
+      debugPrint('CustomerServiceService.startRealtimeSubscription error: $e');
+    }
+  }
+
+  void stopRealtimeSubscription() {
+    if (_csRealtimeChannel != null && SupabaseService.isInitialized) {
+      SupabaseService.client.removeChannel(_csRealtimeChannel!);
+    }
+    _csRealtimeChannel = null;
+    _isRealtimeSubscribed = false;
+  }
+
+  String _normalizeThreadRole(String rawRole, String threadId) {
+    final lower = rawRole.trim().toLowerCase();
+    final tidLower = threadId.trim().toLowerCase();
+    if (lower == 'produser' ||
+        lower == 'promoter' ||
+        tidLower.startsWith('thread-produser-') ||
+        tidLower.startsWith('thread-promoter-')) {
+      return 'Produser';
+    }
+    if (lower == 'gatecrew' || tidLower.startsWith('thread-gatecrew-')) {
+      return 'Gatecrew';
+    }
+    return 'User';
+  }
+
+  String _extractEmailFromThreadId(String tid) {
+    final lower = tid.toLowerCase();
+    for (final prefix in [
+      'thread-produser-',
+      'thread-promoter-',
+      'thread-user-',
+      'thread-gatecrew-',
+    ]) {
+      if (lower.startsWith(prefix)) {
+        return tid.substring(prefix.length).trim();
+      }
+    }
+    return '';
+  }
+
+  Map<String, String> _extractThreadMeta(
+    Map<String, dynamic> raw,
+    CsMessageModel msg,
+  ) {
+    if (!msg.isFromAdmin) {
+      final rawRole = (raw['thread_user_role'] ?? msg.senderRole).toString();
+      return {
+        'userId': msg.senderId.isNotEmpty
+            ? msg.senderId
+            : (raw['thread_user_id'] ?? msg.senderEmail).toString(),
+        'userName': msg.senderName.isNotEmpty
+            ? msg.senderName
+            : (raw['thread_user_name'] ?? 'Pengguna LiveTix').toString(),
+        'userEmail': msg.senderEmail.isNotEmpty
+            ? msg.senderEmail
+            : (raw['thread_user_email'] ?? _extractEmailFromThreadId(msg.threadId))
+                .toString(),
+        'userRole': _normalizeThreadRole(rawRole, msg.threadId),
+      };
+    }
+
+    final fallbackEmail = _extractEmailFromThreadId(msg.threadId);
+    final rawThreadRole = (raw['thread_user_role'] ?? msg.receiverRole).toString();
+    final resolvedName =
+        (raw['thread_user_name'] ?? msg.receiverName).toString().trim();
+    final resolvedEmail =
+        (raw['thread_user_email'] ?? fallbackEmail).toString().trim();
+    final resolvedId =
+        (raw['thread_user_id'] ?? msg.receiverId).toString().trim();
+
+    return {
+      'userId': resolvedId.isNotEmpty
+          ? resolvedId
+          : (resolvedEmail.isNotEmpty ? resolvedEmail : msg.threadId),
+      'userName': resolvedName.isNotEmpty
+          ? resolvedName
+          : (resolvedEmail.isNotEmpty ? resolvedEmail : 'Pengguna LiveTix'),
+      'userEmail': resolvedEmail,
+      'userRole': _normalizeThreadRole(rawThreadRole, msg.threadId),
+    };
+  }
+
+  void _ingestRealtimeRow(Map<String, dynamic> raw) {
+    final msg = CsMessageModel.fromJson(raw);
+    if (msg.id.isEmpty || msg.threadId.isEmpty) return;
+
+    final meta = _extractThreadMeta(raw, msg);
+    final existingIdx = _threads.indexWhere((t) => t.threadId == msg.threadId);
+
+    if (existingIdx != -1) {
+      final existing = _threads[existingIdx];
+      final alreadyExists = existing.messages.any((m) => m.id == msg.id);
+      final updatedMessages = alreadyExists
+          ? existing.messages.map((m) => m.id == msg.id ? msg : m).toList()
+          : ([...existing.messages, msg]
+            ..sort((a, b) => a.createdAt.compareTo(b.createdAt)));
+      final nextUnread = msg.isFromAdmin
+          ? 0
+          : (alreadyExists
+              ? existing.unreadAdminCount
+              : existing.unreadAdminCount + 1);
+      _threads[existingIdx] = existing.copyWith(
+        userId: existing.userId.isEmpty ? meta['userId'] : existing.userId,
+        userName: !msg.isFromAdmin && meta['userName']!.isNotEmpty
+            ? meta['userName']
+            : existing.userName,
+        userEmail: !msg.isFromAdmin && meta['userEmail']!.isNotEmpty
+            ? meta['userEmail']
+            : existing.userEmail,
+        userRole: _normalizeThreadRole(
+          meta['userRole']?.isNotEmpty == true
+              ? meta['userRole']!
+              : existing.userRole,
+          msg.threadId,
+        ),
+        messages: updatedMessages,
+        updatedAt: updatedMessages.isNotEmpty
+            ? updatedMessages.last.createdAt
+            : existing.updatedAt,
+        unreadAdminCount: nextUnread,
+      );
+    } else {
+      final role = meta['userRole'] ?? 'User';
+      _threads.insert(
+        0,
+        CsThreadModel(
+          threadId: msg.threadId,
+          userId: meta['userId'] ?? msg.threadId,
+          userName: meta['userName'] ?? 'Pengguna LiveTix',
+          userEmail: meta['userEmail'] ?? '',
+          userRole: role,
+          subject: role == 'Produser'
+              ? 'Bantuan Produser & Event'
+              : 'Bantuan Pengguna LiveTix',
+          messages: [msg],
+          updatedAt: msg.createdAt,
+          unreadAdminCount: msg.isFromAdmin ? 0 : 1,
+        ),
+      );
+    }
+
+    _threads.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    _persistThreads();
+    notifyListeners();
   }
 
   List<CsThreadModel> get threads => List.unmodifiable(_threads);
@@ -295,6 +493,7 @@ class CustomerServiceService extends ChangeNotifier {
 
   Future<void> fetchFromSupabase() async {
     if (!SupabaseService.isInitialized) return;
+    startRealtimeSubscription();
     try {
       final rows = await SupabaseService.client
           .from('cs_messages')
@@ -310,21 +509,11 @@ class CustomerServiceService extends ChangeNotifier {
         final msg = CsMessageModel.fromJson(raw);
         if (msg.threadId.isEmpty) continue;
         grouped.putIfAbsent(msg.threadId, () => []).add(msg);
+        final extracted = _extractThreadMeta(raw, msg);
         if (!msg.isFromAdmin) {
-          metaByThread[msg.threadId] = {
-            'userId': msg.senderId,
-            'userName': msg.senderName,
-            'userEmail': msg.senderEmail,
-            'userRole': msg.senderRole,
-          };
+          metaByThread[msg.threadId] = extracted;
         } else {
-          metaByThread.putIfAbsent(msg.threadId, () => {
-                'userId': (raw['thread_user_id'] ?? msg.senderId).toString(),
-                'userName':
-                    (raw['thread_user_name'] ?? 'Pengguna LiveTix').toString(),
-                'userEmail': (raw['thread_user_email'] ?? '').toString(),
-                'userRole': (raw['thread_user_role'] ?? 'User').toString(),
-              });
+          metaByThread.putIfAbsent(msg.threadId, () => extracted);
         }
       }
 
@@ -508,16 +697,34 @@ class CustomerServiceService extends ChangeNotifier {
       target = _threads[idx];
     }
 
+    final currentUser = DataService().currentUser;
     final now = DateTime.now();
     final msg = CsMessageModel(
       id: 'cs-${now.microsecondsSinceEpoch}',
       threadId: target.threadId,
-      senderId: isFromAdmin ? 'admin' : target.userId,
-      senderName:
-          isFromAdmin ? 'Admin LiveTix' : (senderName ?? target.userName),
-      senderEmail:
-          isFromAdmin ? 'admin@livetix.com' : (senderEmail ?? target.userEmail),
+      senderId: isFromAdmin
+          ? (currentUser?.id.trim().isNotEmpty == true
+              ? currentUser!.id.trim()
+              : 'admin')
+          : target.userId,
+      senderName: isFromAdmin
+          ? (senderName?.trim().isNotEmpty == true
+              ? senderName!.trim()
+              : (currentUser?.name.trim().isNotEmpty == true
+                  ? currentUser!.name.trim()
+                  : 'Admin LiveTix'))
+          : (senderName ?? target.userName),
+      senderEmail: isFromAdmin
+          ? (senderEmail?.trim().isNotEmpty == true
+              ? senderEmail!.trim()
+              : (currentUser?.email.trim().isNotEmpty == true
+                  ? currentUser!.email.trim()
+                  : 'admin@livetix.com'))
+          : (senderEmail ?? target.userEmail),
       senderRole: isFromAdmin ? 'Admin' : (senderRole ?? target.userRole),
+      receiverId: isFromAdmin ? target.userId : 'admin',
+      receiverName: isFromAdmin ? target.userName : 'Admin LiveTix',
+      receiverRole: isFromAdmin ? target.userRole : 'Admin',
       isFromAdmin: isFromAdmin,
       message: trimmed,
       createdAt: now,
@@ -542,11 +749,69 @@ class CustomerServiceService extends ChangeNotifier {
     notifyListeners();
 
     if (SupabaseService.isInitialized) {
+      startRealtimeSubscription();
+      final corePayload = <String, dynamic>{
+        'id': msg.id,
+        'thread_id': msg.threadId,
+        'sender_name': msg.senderName,
+        'sender_email': msg.senderEmail,
+        'sender_role': msg.senderRole,
+        'message': msg.message,
+        'is_admin_reply': msg.isFromAdmin,
+        'created_at': msg.createdAt.toIso8601String(),
+      };
+      final richPayload = <String, dynamic>{
+        ...corePayload,
+        'is_from_admin': msg.isFromAdmin,
+        'sender_id': msg.senderId,
+        'receiver_id': msg.receiverId,
+        'receiver_name': msg.receiverName,
+        'receiver_role': msg.receiverRole,
+        'thread_user_id': target.userId,
+        'thread_user_name': target.userName,
+        'thread_user_email': target.userEmail,
+        'thread_user_role': target.userRole,
+      };
+      await _upsertCsMessageWithFallback(richPayload, corePayload);
+    }
+  }
+
+  Future<void> _upsertCsMessageWithFallback(
+    Map<String, dynamic> richPayload,
+    Map<String, dynamic> corePayload,
+  ) async {
+    final mutable = Map<String, dynamic>.from(richPayload);
+    // Coba kirim payload lengkap; jika schema DB belum termigrasi (PGRST204),
+    // buang kolom yang belum dikenal satu per satu lalu fallback ke payload inti.
+    for (int attempt = 0; attempt < 8; attempt++) {
       try {
-        await SupabaseService.client.from('cs_messages').upsert(msg.toJson());
+        await SupabaseService.client.from('cs_messages').upsert(mutable);
+        return;
+      } on PostgrestException catch (e) {
+        if (e.code == 'PGRST204' ||
+            e.message.toLowerCase().contains('schema cache')) {
+          final match = RegExp(r"'([a-zA-Z0-9_]+)' column").firstMatch(e.message);
+          final missingCol = match?.group(1);
+          if (missingCol != null &&
+              mutable.containsKey(missingCol) &&
+              !corePayload.containsKey(missingCol)) {
+            mutable.remove(missingCol);
+            continue;
+          }
+          break;
+        }
+        debugPrint('CustomerServiceService.sendMessage Supabase error: $e');
+        return;
       } catch (e) {
         debugPrint('CustomerServiceService.sendMessage Supabase error: $e');
+        return;
       }
+    }
+
+    try {
+      await SupabaseService.client.from('cs_messages').upsert(corePayload);
+    } catch (e) {
+      debugPrint('CustomerServiceService.sendMessage fallback error: $e');
     }
   }
 }

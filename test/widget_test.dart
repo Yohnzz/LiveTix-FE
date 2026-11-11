@@ -338,8 +338,8 @@ void main() {
       of: find.byType(OtpScreen),
       matching: find.byType(TextField),
     );
-    expect(otpFields, findsNWidgets(5));
-    for (int i = 0; i < 5; i++) {
+    expect(otpFields, findsNWidgets(6));
+    for (int i = 0; i < 6; i++) {
       await tester.enterText(otpFields.at(i), '${i + 1}');
     }
     await tester.tap(find.text('Verifikasi Kode'));

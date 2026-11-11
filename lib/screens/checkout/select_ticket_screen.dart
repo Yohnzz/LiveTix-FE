@@ -90,15 +90,16 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
             ),
           ];
 
-    if (widget.initialTier != null && !widget.initialTier!.isSoldOut) {
+    if (widget.initialTier != null && !widget.initialTier!.isEffectivelySoldOut) {
       _selectedTier = widget.initialTier!;
     } else {
       _selectedTier = _availableTiers.firstWhere(
-        (t) => !t.isSoldOut,
+        (t) => !t.isEffectivelySoldOut,
         orElse: () => _availableTiers.first,
       );
     }
 
+    DataService().stockVersionNotifier.addListener(_loadLiveTiersIfNeeded);
     _loadLiveTiersIfNeeded();
   }
 
@@ -107,9 +108,14 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
     if (live != null && live.ticketTiers.isNotEmpty && mounted) {
       setState(() {
         _availableTiers = List.from(live.ticketTiers);
-        if (!_availableTiers.any((t) => t.id == _selectedTier.id)) {
+        final updatedSelected = _availableTiers
+            .where((t) => t.id == _selectedTier.id)
+            .firstOrNull;
+        if (updatedSelected != null) {
+          _selectedTier = updatedSelected;
+        } else {
           _selectedTier = _availableTiers.firstWhere(
-            (t) => !t.isSoldOut,
+            (t) => !t.isEffectivelySoldOut,
             orElse: () => _availableTiers.first,
           );
         }
@@ -119,10 +125,15 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
 
   @override
   void dispose() {
+    DataService().stockVersionNotifier.removeListener(_loadLiveTiersIfNeeded);
     _nameController.dispose();
     _emailController.dispose();
     super.dispose();
   }
+
+  bool get _hasStockError =>
+      _selectedTier.isEffectivelySoldOut ||
+      _quantity > _selectedTier.availableStock;
 
   int get _subtotal => _selectedTier.price * _quantity;
   int get _taxAndAdmin => (_subtotal * 0.1).round() + 6500; // Formula pajak & admin
@@ -143,10 +154,23 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
   void _proceedToOrderSummary() {
     if (!_formKey.currentState!.validate()) return;
 
+    final available = _selectedTier.availableStock;
+    if (_selectedTier.isEffectivelySoldOut || _quantity > available) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Maaf, tiket yang tersedia saat ini hanya tersisa $available tiket. Silakan kurangi jumlah pembelian.',
+          ),
+          backgroundColor: const Color(0xFFB91C1C),
+        ),
+      );
+      return;
+    }
+
     final currentUser = DataService().currentUser;
     final order = OrderModel(
       orderId: 'ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
-      concert: widget.concert,
+      concert: widget.concert.copyWith(ticketTiers: _availableTiers),
       tier: _selectedTier,
       quantity: _quantity,
       customerName: currentUser?.name ?? _nameController.text.trim(),
@@ -261,13 +285,13 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
           const SizedBox(height: 16),
 
           // Legenda Status Pemilihan
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 14,
+            runSpacing: 6,
             children: [
               _buildLegendItem(const Color(0xFF10B981), 'Dipilih'),
-              const SizedBox(width: 18),
               _buildLegendItem(Colors.white, 'Tersedia', hasBorder: true),
-              const SizedBox(width: 18),
               _buildLegendItem(const Color(0xFFD1D5DB), 'Penuh'),
             ],
           ),
@@ -370,7 +394,8 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
     // Mengecek apakah area ini sedang aktif dipilih
     final isSelected = _selectedTier.id == tier.id ||
         _selectedTier.name.toLowerCase() == tier.name.toLowerCase();
-    final isSoldOut = tier.isSoldOut;
+    final isSoldOut = tier.isEffectivelySoldOut;
+    final available = tier.availableStock;
 
     return GestureDetector(
       onTap: isSoldOut
@@ -460,9 +485,10 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              isSoldOut ? 'Habis' : tier.formattedPrice,
+              isSoldOut ? 'Habis' : '${tier.formattedPrice} · Sisa $available',
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: isSoldOut
                     ? const Color(0xFF9CA3AF)
@@ -500,38 +526,46 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
   }
 
   Widget _buildQuantitySection() {
+    final availableStock = _selectedTier.availableStock;
+    final exceedsStock = _hasStockError;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Jumlah tiket',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textDark,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Jumlah tiket',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textDark,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${_selectedTier.formattedPrice} / tiket',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: AppColors.textGrey,
+                  const SizedBox(height: 2),
+                  Text(
+                    '${_selectedTier.formattedPrice} / tiket · Tersedia $availableStock tiket',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AppColors.textGrey,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            const SizedBox(width: 10),
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(
+                  color: exceedsStock ? const Color(0xFFB91C1C) : AppColors.border,
+                ),
               ),
               child: Row(
                 children: [
@@ -545,10 +579,10 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
                     alignment: Alignment.center,
                     child: Text(
                       '$_quantity',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textDark,
+                        color: exceedsStock ? const Color(0xFFB91C1C) : AppColors.textDark,
                       ),
                     ),
                   ),
@@ -562,6 +596,40 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
             ),
           ],
         ),
+        if (exceedsStock) ...[
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFECACA)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 18,
+                  color: Color(0xFFB91C1C),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Maaf, tiket yang tersedia saat ini hanya tersisa $availableStock tiket. Silakan kurangi jumlah pembelian.',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFB91C1C),
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 6),
         const Row(
           children: [
@@ -685,8 +753,8 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
             const SizedBox(width: 14),
             Expanded(
               child: PrimaryButton(
-                text: 'Lanjutkan',
-                onPressed: _proceedToOrderSummary,
+                text: _hasStockError ? 'Stok Tidak Cukup' : 'Lanjutkan',
+                onPressed: _hasStockError ? null : _proceedToOrderSummary,
               ),
             ),
           ],

@@ -6,6 +6,10 @@ class TicketTierModel {
   final String name;
   final String description;
   final int price;
+  final int quota;
+  final int totalQuota;
+  final int soldCount;
+  final int reservedCount;
   final bool isSoldOut;
 
   const TicketTierModel({
@@ -13,8 +17,46 @@ class TicketTierModel {
     required this.name,
     required this.description,
     required this.price,
+    this.quota = 100,
+    this.totalQuota = 100,
+    this.soldCount = 0,
+    this.reservedCount = 0,
     this.isSoldOut = false,
   });
+
+  int get effectiveTotalQuota => totalQuota > 0 ? totalQuota : quota;
+
+  int get availableStock {
+    final rem = effectiveTotalQuota - (soldCount + reservedCount);
+    return rem < 0 ? 0 : rem;
+  }
+
+  bool get isEffectivelySoldOut =>
+      isSoldOut || (effectiveTotalQuota > 0 && availableStock <= 0);
+
+  TicketTierModel copyWith({
+    String? id,
+    String? name,
+    String? description,
+    int? price,
+    int? quota,
+    int? totalQuota,
+    int? soldCount,
+    int? reservedCount,
+    bool? isSoldOut,
+  }) {
+    return TicketTierModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      price: price ?? this.price,
+      quota: quota ?? this.quota,
+      totalQuota: totalQuota ?? this.totalQuota,
+      soldCount: soldCount ?? this.soldCount,
+      reservedCount: reservedCount ?? this.reservedCount,
+      isSoldOut: isSoldOut ?? this.isSoldOut,
+    );
+  }
 
   String get formattedPrice {
     final buffer = StringBuffer('Rp');
@@ -29,14 +71,25 @@ class TicketTierModel {
   }
 
   factory TicketTierModel.fromJson(Map<String, dynamic> json) {
+    final parsedQuota = (json['quota'] as num?)?.toInt() ?? 100;
+    final parsedTotalQuota = (json['total_quota'] as num?)?.toInt() ?? parsedQuota;
+    final parsedSold = (json['sold_count'] as num?)?.toInt() ?? 0;
+    final parsedReserved = (json['reserved_count'] as num?)?.toInt() ?? 0;
+    final rawSoldOut = (json['is_sold_out'] as bool?) ??
+        (json['isSoldOut'] as bool?) ??
+        false;
+    final rem = parsedTotalQuota - (parsedSold + parsedReserved);
+
     return TicketTierModel(
       id: (json['id'] as String?) ?? '',
       name: (json['name'] as String?) ?? '',
       description: (json['description'] as String?) ?? '',
       price: (json['price'] as num?)?.toInt() ?? 0,
-      isSoldOut: (json['is_sold_out'] as bool?) ??
-          (json['isSoldOut'] as bool?) ??
-          false,
+      quota: parsedQuota,
+      totalQuota: parsedTotalQuota,
+      soldCount: parsedSold,
+      reservedCount: parsedReserved,
+      isSoldOut: rawSoldOut || (parsedTotalQuota > 0 && rem <= 0),
     );
   }
 
@@ -46,6 +99,10 @@ class TicketTierModel {
       'name': name,
       'description': description,
       'price': price,
+      'quota': quota,
+      'total_quota': totalQuota,
+      'sold_count': soldCount,
+      'reserved_count': reservedCount,
       'is_sold_out': isSoldOut,
     };
   }
