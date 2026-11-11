@@ -90,211 +90,230 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
         _focusNode.hasFocus || _reasonController.text.isNotEmpty;
 
     return AdminScope(
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        body: Column(
-          children: [
-            AdminHeader(
-              title: widget.isProducer
-                  ? 'Nonaktifkan Produser'
-                  : 'Nonaktifkan User',
-              subtitle: 'Tinjau akun sebelum menonaktifkan',
-              onBack: () => Navigator.of(context).pop(),
-            ),
-            Expanded(
-              child: MediaQuery.withClampedTextScaling(
-                maxScaleFactor: 1.35,
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                  children: [
-                    // 1. Kartu Profil Produser (Image 1 & Image 4)
-                    AdminCard(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 20),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 68,
-                            height: 68,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE8EEF5),
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              item.initials,
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF1E3A8A),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            item.companyName,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: AdminColors.textDark,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            item.email,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: AdminColors.textGrey,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          // Badge Terverifikasi
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFECFDF5),
-                              border: Border.all(color: const Color(0xFF10B981)),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.check_rounded,
-                                  size: 16,
-                                  color: Color(0xFF10B981),
+      child: Builder(
+        builder: (context) {
+          final textPri = AdminColors.textPrimaryOf(context);
+          final textSec = AdminColors.textSecondaryOf(context);
+          final border = AdminColors.borderOf(context);
+          final accent = AdminColors.accentOf(context);
+
+          return Scaffold(
+            backgroundColor: AdminColors.bgOf(context),
+            body: Column(
+              children: [
+                AdminHeader(
+                  title: widget.isProducer
+                      ? 'Nonaktifkan Produser'
+                      : 'Nonaktifkan User',
+                  subtitle: 'Tinjau akun sebelum menonaktifkan',
+                  onBack: () => Navigator.of(context).pop(),
+                ),
+                Expanded(
+                  child: MediaQuery.withClampedTextScaling(
+                    maxScaleFactor: 1.35,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                      children: [
+                        // 1. Kartu Profil Produser (Image 1 & Image 4)
+                        AdminCard(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 20),
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 68,
+                                height: 68,
+                                decoration: BoxDecoration(
+                                  color: AdminColors.infoBgOf(context),
+                                  shape: BoxShape.circle,
                                 ),
-                                SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(
-                                    'Terverifikasi · 24 Okt 2026',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF059669),
-                                    ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  item.initials,
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                    color: accent,
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Divider(height: 1, color: AdminColors.border),
-                          const SizedBox(height: 12),
-                          _buildRow('Telepon', item.phone),
-                          const SizedBox(height: 8),
-                          _buildRow('Alamat', item.address),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    if (widget.isProducer) ...[
-                      // 2. Statistik Produser (Image 4 & 5)
-                      const AdminSectionTitle('Statistik Produser'),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildMiniStat(
-                              'Konser Diajukan',
-                              '${item.proposedConcertsCount}',
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _buildMiniStat(
-                              'Konser Aktif',
-                              '${item.activeConcertsCount}',
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _buildMiniStat(
-                              'Tiket Terjual',
-                              '12.450',
-                              valueColor: const Color(0xFFC2185B),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // 3. Konser Aktif (Image 4 & 5)
-                      const AdminSectionTitle('Konser Aktif'),
-                      _buildActiveConcertCard(
-                        title: 'Soundwave Fest 2026',
-                        subtitle: '12 Okt 2026 · Gate B',
-                      ),
-                      const SizedBox(height: 10),
-                      _buildActiveConcertCard(
-                        title: 'Jazz Night 2026',
-                        subtitle: '15 Nov 2026 · Balai Sarbini',
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // 4. Banner Peringatan Konser (Image 4 & 5)
-                      _buildWarningBanner(),
-
-                      const SizedBox(height: 16),
-
-                      // 5. Input Alasan Penonaktifan Produser (Image 4 & 5)
-                      _buildProducerReasonInput(isFocusedOrFilled, textLength),
-                    ] else ...[
-                      // 2. Statistik User (Image 1)
-                      const AdminSectionTitle('Statistik User'),
-                      AdminCard(
-                        padding: const EdgeInsets.all(14),
-                        child: SizedBox(
-                          width: 120,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Pembelian Tiket',
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                item.companyName,
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: 12,
-                                  color: AdminColors.textGrey,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: textPri,
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 3),
                               Text(
-                                '${item.ticketPurchases}',
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  color: AdminColors.textDark,
+                                item.email,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: textSec,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              // Badge Terverifikasi
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AdminColors.successBgOf(context),
+                                  border: Border.all(
+                                      color: AdminColors.successBorderOf(
+                                          context)),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.check_rounded,
+                                      size: 16,
+                                      color: AdminColors.successOf(context),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        'Terverifikasi · 24 Okt 2026',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: AdminColors.successOf(context),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Divider(height: 1, color: border),
+                              const SizedBox(height: 12),
+                              _buildRow(context, 'Telepon', item.phone),
+                              const SizedBox(height: 8),
+                              _buildRow(context, 'Alamat', item.address),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        if (widget.isProducer) ...[
+                          // 2. Statistik Produser (Image 4 & 5)
+                          const AdminSectionTitle('Statistik Produser'),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildMiniStat(
+                                  context,
+                                  'Konser Diajukan',
+                                  '${item.proposedConcertsCount}',
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _buildMiniStat(
+                                  context,
+                                  'Konser Aktif',
+                                  '${item.activeConcertsCount}',
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _buildMiniStat(
+                                  context,
+                                  'Tiket Terjual',
+                                  '12.450',
+                                  valueColor: AdminColors.pinkAccentOf(context),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ),
 
-                      const SizedBox(height: 20),
+                          const SizedBox(height: 20),
 
-                      // 3. Card Form Alasan Penonaktifan User (Image 1 & 2)
-                      _buildUserReasonCard(isFocusedOrFilled, textLength),
-                    ],
-                  ],
+                          // 3. Konser Aktif (Image 4 & 5)
+                          const AdminSectionTitle('Konser Aktif'),
+                          _buildActiveConcertCard(
+                            context,
+                            title: 'Soundwave Fest 2026',
+                            subtitle: '12 Okt 2026 · Gate B',
+                          ),
+                          const SizedBox(height: 10),
+                          _buildActiveConcertCard(
+                            context,
+                            title: 'Jazz Night 2026',
+                            subtitle: '15 Nov 2026 · Balai Sarbini',
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // 4. Banner Peringatan Konser (Image 4 & 5)
+                          _buildWarningBanner(context),
+
+                          const SizedBox(height: 16),
+
+                          // 5. Input Alasan Penonaktifan Produser (Image 4 & 5)
+                          _buildProducerReasonInput(
+                              context, isFocusedOrFilled, textLength),
+                        ] else ...[
+                          // 2. Statistik User (Image 1)
+                          const AdminSectionTitle('Statistik User'),
+                          AdminCard(
+                            padding: const EdgeInsets.all(14),
+                            child: SizedBox(
+                              width: 120,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Pembelian Tiket',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: textSec,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '${item.ticketPurchases}',
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w800,
+                                      color: textPri,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // 3. Card Form Alasan Penonaktifan User (Image 1 & 2)
+                          _buildUserReasonCard(
+                              context, isFocusedOrFilled, textLength),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-        bottomNavigationBar: _buildBottomBar(),
+            bottomNavigationBar: _buildBottomBar(context),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildMiniStat(String label, String value, {Color? valueColor}) {
+  Widget _buildMiniStat(BuildContext context, String label, String value,
+      {Color? valueColor}) {
     return AdminCard(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
       child: Column(
@@ -304,9 +323,9 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: AdminColors.textGrey,
+              color: AdminColors.textSecondaryOf(context),
             ),
           ),
           const SizedBox(height: 6),
@@ -317,7 +336,7 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
-              color: valueColor ?? AdminColors.textDark,
+              color: valueColor ?? AdminColors.textPrimaryOf(context),
             ),
           ),
         ],
@@ -325,7 +344,8 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
     );
   }
 
-  Widget _buildActiveConcertCard({
+  Widget _buildActiveConcertCard(
+    BuildContext context, {
     required String title,
     required String subtitle,
   }) {
@@ -337,14 +357,14 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
+              color: AdminColors.surfaceAltOf(context),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: AdminColors.borderOf(context)),
             ),
             alignment: Alignment.center,
-            child: const Icon(
+            child: Icon(
               Icons.music_note_rounded,
-              color: AdminColors.textGrey,
+              color: AdminColors.textSecondaryOf(context),
               size: 22,
             ),
           ),
@@ -355,18 +375,18 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AdminColors.textDark,
+                    color: AdminColors.textPrimaryOf(context),
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AdminColors.textGrey,
+                    color: AdminColors.textSecondaryOf(context),
                   ),
                 ),
               ],
@@ -375,15 +395,15 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFECFDF5),
+              color: AdminColors.successBgOf(context),
               borderRadius: BorderRadius.circular(999),
             ),
-            child: const Text(
+            child: Text(
               'Aktif',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF059669),
+                color: AdminColors.successOf(context),
               ),
             ),
           ),
@@ -392,13 +412,21 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
     );
   }
 
-  Widget _buildWarningBanner() {
+  Widget _buildWarningBanner(BuildContext context) {
+    final isDark = AdminColors.isDark(context);
+    final fg = AdminColors.warningOf(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFEF9C3),
+        color: isDark
+            ? AdminColors.warningBgOf(context)
+            : const Color(0xFFFEF9C3),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFFDE047)),
+        border: Border.all(
+          color: isDark
+              ? AdminColors.warningBorderOf(context)
+              : const Color(0xFFFDE047),
+        ),
       ),
       child: Row(
         children: [
@@ -417,13 +445,13 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
             ),
           ),
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: Text(
               '2 konser aktif akan otomatis dihentikan sementara',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF78350F),
+                color: isDark ? fg : const Color(0xFF78350F),
               ),
             ),
           ),
@@ -432,15 +460,16 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
     );
   }
 
-  Widget _buildProducerReasonInput(bool isFocusedOrFilled, int textLength) {
+  Widget _buildProducerReasonInput(
+      BuildContext context, bool isFocusedOrFilled, int textLength) {
+    final textPri = AdminColors.textPrimaryOf(context);
+    final border = AdminColors.borderOf(context);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminColors.surfaceAltOf(context),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isFocusedOrFilled
-              ? const Color(0xFFDC2626)
-              : const Color(0xFFCBD5E1),
+          color: isFocusedOrFilled ? AdminColors.dangerOf(context) : border,
           width: isFocusedOrFilled ? 1.5 : 1.0,
         ),
       ),
@@ -459,20 +488,22 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
                     required isFocused,
                     maxLength}) =>
                 null,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               height: 1.45,
-              color: AdminColors.textDark,
+              color: textPri,
             ),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText:
                   'Tulis alasan akun produser ini dinonaktifkan...\nContoh: pelanggaran kebijakan penjualan tiket.',
               hintStyle: TextStyle(
                 fontSize: 13,
-                color: Color(0xFF94A3B8),
+                color: AdminColors.textMutedOf(context),
                 height: 1.45,
               ),
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
               isDense: true,
               contentPadding: EdgeInsets.zero,
             ),
@@ -482,9 +513,9 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
             alignment: Alignment.bottomRight,
             child: Text(
               '$textLength/$_maxLength',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
-                color: Color(0xFF94A3B8),
+                color: AdminColors.textMutedOf(context),
               ),
             ),
           ),
@@ -493,7 +524,11 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
     );
   }
 
-  Widget _buildUserReasonCard(bool isFocusedOrFilled, int textLength) {
+  Widget _buildUserReasonCard(
+      BuildContext context, bool isFocusedOrFilled, int textLength) {
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+    final border = AdminColors.borderOf(context);
     return AdminCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -504,19 +539,19 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
               Container(
                 width: 32,
                 height: 32,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFEE2E2),
+                decoration: BoxDecoration(
+                  color: AdminColors.dangerBgOf(context),
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
-                child: const Icon(
+                child: Icon(
                   Icons.priority_high_rounded,
-                  color: Color(0xFFEF4444),
+                  color: AdminColors.dangerOf(context),
                   size: 18,
                 ),
               ),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -525,15 +560,15 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: AdminColors.textDark,
+                        color: textPri,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
                       'Wajib diisi. Alasan ini dikirim ke produser.',
                       style: TextStyle(
                         fontSize: 12,
-                        color: AdminColors.textGrey,
+                        color: textSec,
                       ),
                     ),
                   ],
@@ -544,12 +579,11 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
           const SizedBox(height: 14),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AdminColors.surfaceAltOf(context),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isFocusedOrFilled
-                    ? const Color(0xFFDC2626)
-                    : const Color(0xFFCBD5E1),
+                color:
+                    isFocusedOrFilled ? AdminColors.dangerOf(context) : border,
                 width: isFocusedOrFilled ? 1.5 : 1.0,
               ),
             ),
@@ -568,20 +602,22 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
                           required isFocused,
                           maxLength}) =>
                       null,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     height: 1.4,
-                    color: AdminColors.textDark,
+                    color: textPri,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText:
                         'Tulis alasan akun produser ini dinonaktifkan...\nContoh: pelanggaran kebijakan penjualan tiket.',
                     hintStyle: TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF94A3B8),
+                      color: AdminColors.textMutedOf(context),
                       height: 1.4,
                     ),
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
                     isDense: true,
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -590,9 +626,9 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
                   alignment: Alignment.bottomRight,
                   child: Text(
                     '$textLength/$_maxLength',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF94A3B8),
+                      color: AdminColors.textMutedOf(context),
                     ),
                   ),
                 ),
@@ -604,7 +640,7 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
     );
   }
 
-  Widget _buildRow(String label, String value) {
+  Widget _buildRow(BuildContext context, String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -612,9 +648,9 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
           width: 80,
           child: Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: AdminColors.textGrey,
+              color: AdminColors.textSecondaryOf(context),
             ),
           ),
         ),
@@ -622,10 +658,10 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
           child: Text(
             value.isEmpty ? '-' : value,
             textAlign: TextAlign.right,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AdminColors.textDark,
+              color: AdminColors.textPrimaryOf(context),
             ),
           ),
         ),
@@ -633,11 +669,13 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
     );
   }
 
-  Widget _buildBottomBar() {
+  Widget _buildBottomBar(BuildContext context) {
+    final disabledBg = AdminColors.disabledBgOf(context);
+    final disabledFg = AdminColors.disabledFgOf(context);
     return Container(
-      decoration: const BoxDecoration(
-        color: AdminColors.surface,
-        border: Border(top: BorderSide(color: AdminColors.border)),
+      decoration: BoxDecoration(
+        color: AdminColors.surfaceOf(context),
+        border: Border(top: BorderSide(color: AdminColors.borderOf(context))),
       ),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       child: SizedBox(
@@ -647,9 +685,9 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
           onPressed: _isValid ? _submit : null,
           style: FilledButton.styleFrom(
             backgroundColor: const Color(0xFFDC2626),
-            disabledBackgroundColor: const Color(0xFFE2E8F0),
+            disabledBackgroundColor: disabledBg,
             foregroundColor: Colors.white,
-            disabledForegroundColor: const Color(0xFF94A3B8),
+            disabledForegroundColor: disabledFg,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
@@ -658,7 +696,7 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
           icon: Icon(
             Icons.access_time_rounded,
             size: 20,
-            color: _isValid ? Colors.white : const Color(0xFF94A3B8),
+            color: _isValid ? Colors.white : disabledFg,
           ),
           label: const Text(
             'Nonaktifkan Akun',

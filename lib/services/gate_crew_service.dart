@@ -646,6 +646,127 @@ class GateCrewService {
     return newMember;
   }
 
+  /// Sinkronkan perubahan nama Gate Crew ke daftar memori & cache lokal
+  void updateCrewNameInMemory({
+    required String crewId,
+    String? email,
+    required String newName,
+  }) {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) return;
+    final lowerEmail = email?.trim().toLowerCase() ?? '';
+    final current = List<GateCrewMemberModel>.from(teamCrewNotifier.value);
+    var changed = false;
+    for (var i = 0; i < current.length; i++) {
+      final c = current[i];
+      if (c.id == crewId ||
+          (lowerEmail.isNotEmpty && c.email.trim().toLowerCase() == lowerEmail)) {
+        current[i] = c.copyWith(name: trimmed);
+        changed = true;
+      }
+    }
+    if (changed) {
+      teamCrewNotifier.value = current;
+      _persistToLocalCache(current);
+    }
+  }
+
+  /// Admin menghapus akun Gate Crew secara permanen beserta penugasan konsernya
+  Future<bool> deleteGateCrewByAdmin({
+    required String crewId,
+    String? email,
+  }) async {
+    final current = List<GateCrewMemberModel>.from(teamCrewNotifier.value);
+    String resolvedEmail = email?.trim().toLowerCase() ?? '';
+    if (resolvedEmail.isEmpty) {
+      for (final c in current) {
+        if (c.id == crewId && c.email.trim().isNotEmpty) {
+          resolvedEmail = c.email.trim().toLowerCase();
+          break;
+        }
+      }
+    }
+
+    current.removeWhere((c) {
+      final matchId = crewId.isNotEmpty && c.id == crewId;
+      final matchEmail = resolvedEmail.isNotEmpty &&
+          c.email.trim().toLowerCase() == resolvedEmail;
+      return matchId || matchEmail;
+    });
+    teamCrewNotifier.value = current;
+    _persistToLocalCache(current);
+
+    DataService().removeGateCrewAccountInMemory(
+      id: crewId,
+      email: resolvedEmail,
+    );
+
+    if (SupabaseService.isInitialized) {
+      final isUuid = RegExp(
+        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+      ).hasMatch(crewId);
+
+      // 1. Panggil RPC SECURITY DEFINER jika tersedia untuk menghapus auth.users + profiles + penugasan
+      try {
+        await SupabaseService.client.rpc(
+          'delete_gate_crew_account',
+          params: {
+            'p_user_id': isUuid ? crewId : null,
+            'p_email': resolvedEmail.isNotEmpty ? resolvedEmail : null,
+          },
+        );
+      } catch (rpcErr) {
+        debugPrint('RPC delete_gate_crew_account fallback: $rpcErr');
+      }
+
+      // 2. Fallback langsung ke tabel concert_gate_crews & profiles bila RPC belum di-deploy
+      try {
+        if (isUuid && resolvedEmail.isNotEmpty) {
+          await SupabaseService.client
+              .from('concert_gate_crews')
+              .delete()
+              .or(
+                  'crew_id.eq.$crewId,crew_user_id.eq.$crewId,crew_email.ilike.$resolvedEmail');
+        } else if (isUuid) {
+          await SupabaseService.client
+              .from('concert_gate_crews')
+              .delete()
+              .or('crew_id.eq.$crewId,crew_user_id.eq.$crewId');
+        } else if (resolvedEmail.isNotEmpty) {
+          await SupabaseService.client
+              .from('concert_gate_crews')
+              .delete()
+              .ilike('crew_email', resolvedEmail);
+        }
+      } catch (e) {
+        debugPrint('Error delete concert_gate_crews Supabase: $e');
+      }
+
+      try {
+        if (isUuid && resolvedEmail.isNotEmpty) {
+          await SupabaseService.client
+              .from('profiles')
+              .delete()
+              .or('id.eq.$crewId,email.ilike.$resolvedEmail');
+        } else if (isUuid) {
+          await SupabaseService.client
+              .from('profiles')
+              .delete()
+              .eq('id', crewId);
+        } else if (resolvedEmail.isNotEmpty) {
+          await SupabaseService.client
+              .from('profiles')
+              .delete()
+              .ilike('email', resolvedEmail);
+        }
+      } catch (e) {
+        debugPrint('Error delete profiles Gate Crew Supabase: $e');
+      }
+    }
+
+    return true;
+  }
+
   /// Produser meng-invite / menugaskan Gate Crew ke konser tertentu
   Future<void> inviteCrewToConcert({
     required String crewId,

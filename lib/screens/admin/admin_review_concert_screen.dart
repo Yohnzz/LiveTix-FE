@@ -89,7 +89,7 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
         builder: (context, _) {
           final item = _service.concertById(widget.concertId);
           return Scaffold(
-            backgroundColor: const Color(0xFFF8FAFC),
+            backgroundColor: AdminColors.bgOf(context),
             body: Column(
               children: [
                 AdminHeader(
@@ -104,19 +104,23 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
                           title: 'Konser tidak ditemukan',
                           message: 'Data konser ini sudah tidak tersedia.',
                         )
-                      : _buildForm(item),
+                      : _buildForm(context, item),
                 ),
               ],
             ),
-            bottomNavigationBar: item != null ? _buildBottomBar(item) : null,
+            bottomNavigationBar:
+                item != null ? _buildBottomBar(context, item) : null,
           );
         },
       ),
     );
   }
 
-  Widget _buildForm(ConcertSubmissionModel item) {
+  Widget _buildForm(BuildContext context, ConcertSubmissionModel item) {
     final textLength = _reasonController.text.length;
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+    final border = AdminColors.borderOf(context);
 
     return MediaQuery.withClampedTextScaling(
       maxScaleFactor: 1.35,
@@ -143,25 +147,25 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
                   children: [
                     Text(
                       item.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
-                        color: AdminColors.textDark,
+                        color: textPri,
                       ),
                     ),
                     Container(
                       padding:
                           const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF3E8FF),
+                        color: AdminColors.purpleBgOf(context),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
                         item.genre,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF7C3AED),
+                          color: AdminColors.purpleOf(context),
                         ),
                       ),
                     ),
@@ -169,15 +173,15 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
                       padding:
                           const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFEF3C7),
+                        color: AdminColors.warningBgOf(context),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Menunggu',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF92400E),
+                          color: AdminColors.warningOf(context),
                         ),
                       ),
                     ),
@@ -186,9 +190,9 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'Produser: ${item.promoterName}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: AdminColors.textGrey,
+                    color: textSec,
                   ),
                 ),
               ],
@@ -203,13 +207,15 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
             child: Column(
               children: [
                 _buildMetaRow(
+                  context,
                   'Tanggal & Waktu',
                   '${ApprovalFormat.dayMonthYear(item.dateTime)} · ${ApprovalFormat.time(item.dateTime)}',
                 ),
-                const Divider(height: 1, color: AdminColors.border),
-                _buildMetaRow('Lokasi Venue', item.venue),
-                const Divider(height: 1, color: AdminColors.border),
+                Divider(height: 1, color: border),
+                _buildMetaRow(context, 'Lokasi Venue', item.venue),
+                Divider(height: 1, color: border),
                 _buildMetaRow(
+                  context,
                   'Kapasitas Total',
                   '${ApprovalFormat.thousands(item.totalCapacity).replaceAll(',', '.')} Kursi',
                 ),
@@ -231,18 +237,18 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
                     Container(
                       width: 32,
                       height: 32,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFFEE2E2),
+                      decoration: BoxDecoration(
+                        color: AdminColors.dangerBgOf(context),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.error_outline_rounded,
-                        color: Color(0xFFEF4444),
+                        color: AdminColors.dangerOf(context),
                         size: 20,
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -251,15 +257,15 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: AdminColors.textDark,
+                              color: textPri,
                             ),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
                             'Wajib diisi. Alasan ini dikirim ke penyelenggara.',
                             style: TextStyle(
                               fontSize: 12,
-                              color: AdminColors.textGrey,
+                              color: textSec,
                             ),
                           ),
                         ],
@@ -271,12 +277,12 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AdminColors.surfaceAltOf(context),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: _focusNode.hasFocus
-                          ? const Color(0xFF7C3AED)
-                          : const Color(0xFFCBD5E1),
+                          ? AdminColors.purpleOf(context)
+                          : border,
                       width: _focusNode.hasFocus ? 1.5 : 1,
                     ),
                   ),
@@ -290,17 +296,20 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
                         minLines: 4,
                         maxLines: 6,
                         maxLength: _maxLength,
-                        style: const TextStyle(fontSize: 13, height: 1.5),
-                        decoration: const InputDecoration(
+                        style: TextStyle(
+                            fontSize: 13, height: 1.5, color: textPri),
+                        decoration: InputDecoration(
                           counterText: '',
                           hintText:
                               'Tulis alasan konser ini ditolak...\nContoh: dokumen izin belum lengkap.',
                           hintStyle: TextStyle(
                             fontSize: 13,
-                            color: Color(0xFF94A3B8),
+                            color: AdminColors.textMutedOf(context),
                             height: 1.5,
                           ),
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
                         ),
@@ -309,9 +318,9 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
                         alignment: Alignment.bottomRight,
                         child: Text(
                           '$textLength/$_maxLength',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF94A3B8),
+                            color: AdminColors.textMutedOf(context),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -327,7 +336,7 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
     );
   }
 
-  Widget _buildMetaRow(String label, String value) {
+  Widget _buildMetaRow(BuildContext context, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
@@ -337,7 +346,8 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
             width: 110,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 13, color: AdminColors.textGrey),
+              style: TextStyle(
+                  fontSize: 13, color: AdminColors.textSecondaryOf(context)),
             ),
           ),
           const SizedBox(width: 8),
@@ -345,10 +355,10 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: AdminColors.textDark,
+                color: AdminColors.textPrimaryOf(context),
               ),
             ),
           ),
@@ -357,12 +367,14 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
     );
   }
 
-  Widget _buildBottomBar(ConcertSubmissionModel item) {
+  Widget _buildBottomBar(BuildContext context, ConcertSubmissionModel item) {
     final active = _isValid;
+    final disabledBg = AdminColors.disabledBgOf(context);
+    final disabledFg = AdminColors.disabledFgOf(context);
     return Container(
-      decoration: const BoxDecoration(
-        color: AdminColors.surface,
-        border: Border(top: BorderSide(color: AdminColors.border)),
+      decoration: BoxDecoration(
+        color: AdminColors.surfaceOf(context),
+        border: Border(top: BorderSide(color: AdminColors.borderOf(context))),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       child: SafeArea(
@@ -372,21 +384,20 @@ class _AdminReviewConcertScreenState extends State<AdminReviewConcertScreen> {
           icon: Icon(
             Icons.send_rounded,
             size: 18,
-            color: active ? Colors.white : const Color(0xFF94A3B8),
+            color: active ? Colors.white : disabledFg,
           ),
           label: Text(
             'Kirim Penolakan',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: active ? Colors.white : const Color(0xFF94A3B8),
+              color: active ? Colors.white : disabledFg,
             ),
           ),
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(48),
-            backgroundColor:
-                active ? const Color(0xFFDC2626) : const Color(0xFFE2E8F0),
-            disabledBackgroundColor: const Color(0xFFE2E8F0),
+            backgroundColor: active ? const Color(0xFFDC2626) : disabledBg,
+            disabledBackgroundColor: disabledBg,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),

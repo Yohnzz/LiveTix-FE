@@ -342,8 +342,12 @@ class _ReadyBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final stats = service.statsNotifier.value;
     final recent = service.recentPending();
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+    final accent = AdminColors.accentOf(context);
+
     return RefreshIndicator(
-      color: AdminColors.navy,
+      color: accent,
       onRefresh: () => service.load(force: true),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -385,7 +389,7 @@ class _ReadyBody extends StatelessWidget {
                   child: _StatCard(
                     label: 'Menunggu Approval',
                     value: ApprovalFormat.thousands(service.pendingTotal),
-                    valueColor: AdminColors.magenta,
+                    valueColor: AdminColors.magentaOf(context),
                   ),
                 ),
               ],
@@ -408,17 +412,19 @@ class _ReadyBody extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF3C7),
+                    color: AdminColors.warningBgOf(context),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.currency_exchange_rounded,
-                    color: Color(0xFFD97706),
+                    color: AdminColors.isDark(context)
+                        ? const Color(0xFFFBBF24)
+                        : const Color(0xFFD97706),
                     size: 24,
                   ),
                 ),
                 const SizedBox(width: 14),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -427,23 +433,23 @@ class _ReadyBody extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: AdminColors.textDark,
+                          color: textPri,
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
                         'Pantau pengembalian dana konser dibatalkan',
                         style: TextStyle(
                           fontSize: 12,
-                          color: AdminColors.textGrey,
+                          color: textSec,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const Icon(
+                Icon(
                   Icons.chevron_right_rounded,
-                  color: AdminColors.textGrey,
+                  color: textSec,
                 ),
               ],
             ),
@@ -539,10 +545,10 @@ class _ReadyBody extends StatelessWidget {
           const SizedBox(height: 24),
           const AdminSectionTitle('Approval Terbaru'),
           if (recent.isEmpty)
-            const AdminCard(
+            AdminCard(
               child: Text(
                 'Tidak ada pengajuan yang menunggu.',
-                style: TextStyle(fontSize: 13, color: AdminColors.textGrey),
+                style: TextStyle(fontSize: 13, color: textSec),
               ),
             )
           else
@@ -560,16 +566,18 @@ class _ReadyBody extends StatelessWidget {
 class _StatCard extends StatelessWidget {
   final String label;
   final String value;
-  final Color valueColor;
+  final Color? valueColor;
 
   const _StatCard({
     required this.label,
     required this.value,
-    this.valueColor = AdminColors.textDark,
+    this.valueColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
     return Semantics(
       label: '$label: $value',
       excludeSemantics: true,
@@ -580,7 +588,7 @@ class _StatCard extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(fontSize: 12, color: AdminColors.textGrey),
+              style: TextStyle(fontSize: 12, color: textSec),
             ),
             const SizedBox(height: 6),
             Text(
@@ -588,7 +596,7 @@ class _StatCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w700,
-                color: valueColor,
+                color: valueColor ?? textPri,
                 height: 1.2,
               ),
             ),
@@ -613,6 +621,8 @@ class _QueueCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
     return AdminCard(
       onTap: () => _open(context),
       semanticLabel: '${item.title}, ${item.subtitle}, menunggu',
@@ -630,9 +640,10 @@ class _QueueCard extends StatelessWidget {
                   children: [
                     Text(
                       item.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
+                        color: textPri,
                       ),
                     ),
                     const StatusBadge(status: ApprovalStatus.pending),
@@ -641,13 +652,12 @@ class _QueueCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   item.subtitle,
-                  style: const TextStyle(
-                      fontSize: 12, color: AdminColors.textGrey),
+                  style: TextStyle(fontSize: 12, color: textSec),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: AdminColors.textGrey),
+          Icon(Icons.chevron_right_rounded, color: textSec),
         ],
       ),
     );

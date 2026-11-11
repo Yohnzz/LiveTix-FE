@@ -80,6 +80,14 @@ class DbDummy {
       role: 'Admin',
     ),
     const UserModel(
+      id: '100003',
+      name: 'Admin LiveTix',
+      email: 'admin1@gmail.com',
+      phone: '081122334455',
+      password: 'admin123',
+      role: 'Admin',
+    ),
+    const UserModel(
       id: '200002',
       name: 'PT Harmony Ent.',
       email: 'harmony@email.com',

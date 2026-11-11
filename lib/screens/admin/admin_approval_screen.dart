@@ -267,6 +267,50 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
               );
             }
           },
+          onDeleteCrew: (crew) async {
+            final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (dialogCtx) => AlertDialog(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                title: const Text(
+                  'Hapus Gate Crew?',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                ),
+                content: Text(
+                  'Akun Gate Crew ${crew.name} (${crew.email}) akan dihapus permanen beserta penugasan gatenya.',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogCtx).pop(false),
+                    child: const Text('Batal'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(dialogCtx).pop(true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AdminColors.danger,
+                    ),
+                    child: const Text('Hapus'),
+                  ),
+                ],
+              ),
+            );
+            if (confirmed == true) {
+              await _service.deleteGateCrewByAdmin(
+                userId: crew.id,
+                email: crew.email,
+              );
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Akun Gate Crew ${crew.name} berhasil dihapus.'),
+                    backgroundColor: AdminColors.danger,
+                  ),
+                );
+              }
+            }
+          },
         );
       },
     );
@@ -438,12 +482,14 @@ class _ProducerGatecrewGroupCard extends StatelessWidget {
   final ApprovalStatus statusFilter;
   final ValueChanged<GateCrewMemberModel> onApproveCrew;
   final ValueChanged<GateCrewMemberModel> onRejectCrew;
+  final ValueChanged<GateCrewMemberModel> onDeleteCrew;
 
   const _ProducerGatecrewGroupCard({
     required this.group,
     required this.statusFilter,
     required this.onApproveCrew,
     required this.onRejectCrew,
+    required this.onDeleteCrew,
   });
 
   @override
@@ -641,7 +687,7 @@ class _ProducerGatecrewGroupCard extends StatelessWidget {
                                   onPressed: () =>
                                       onRejectCrew(group.crews[i]),
                                   style: TextButton.styleFrom(
-                                    foregroundColor: AdminColors.danger,
+                                    foregroundColor: AdminColors.dangerOf(context),
                                     visualDensity: VisualDensity.compact,
                                   ),
                                   child: const Text(
@@ -658,6 +704,7 @@ class _ProducerGatecrewGroupCard extends StatelessWidget {
                                       onApproveCrew(group.crews[i]),
                                   style: FilledButton.styleFrom(
                                     backgroundColor: const Color(0xFF059669),
+                                    foregroundColor: Colors.white,
                                     visualDensity: VisualDensity.compact,
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
@@ -672,8 +719,24 @@ class _ProducerGatecrewGroupCard extends StatelessWidget {
                                     ),
                                   ),
                                 ),
-                              ] else
+                              ] else ...[
                                 StatusBadge(status: statusFilter),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  onPressed: () =>
+                                      onDeleteCrew(group.crews[i]),
+                                  tooltip: 'Hapus Gate Crew',
+                                  visualDensity: VisualDensity.compact,
+                                  constraints: const BoxConstraints(
+                                      minWidth: 32, minHeight: 32),
+                                  padding: EdgeInsets.zero,
+                                  icon: Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 18,
+                                    color: AdminColors.dangerOf(context),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -745,10 +808,12 @@ class _ProducerRow extends StatelessWidget {
                       item.pendingName != null && item.pendingName!.isNotEmpty
                           ? 'Pengajuan Ubah Nama → ${item.pendingName}'
                           : 'Pengajuan Pembaruan Dokumen Legalitas',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFFD97706),
+                        color: AdminColors.isDark(context)
+                            ? const Color(0xFFFBBF24)
+                            : const Color(0xFFD97706),
                       ),
                     ),
                   ],
@@ -847,8 +912,8 @@ class _ConcertRow extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: item.requestType == 'cancellation'
-                            ? const Color(0xFFFEE2E2)
-                            : const Color(0xFFEEF2FF),
+                            ? AdminColors.dangerBgOf(context)
+                            : AdminColors.infoBgOf(context),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
@@ -861,8 +926,8 @@ class _ConcertRow extends StatelessWidget {
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: item.requestType == 'cancellation'
-                              ? const Color(0xFFDC2626)
-                              : const Color(0xFF4338CA),
+                              ? AdminColors.dangerOf(context)
+                              : AdminColors.infoOf(context),
                         ),
                       ),
                     ),

@@ -1069,7 +1069,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+          style: const TextStyle(fontSize: 12.5, color: Color(0xFFCBD5E1)),
         ),
         const SizedBox(width: 8),
         Flexible(
@@ -1510,7 +1510,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                   Text(
                     '${_scanHistory.length} Log',
                     style: const TextStyle(
-                      color: Color(0xFF64748B),
+                      color: Color(0xFFCBD5E1),
                       fontSize: 12,
                     ),
                   ),
@@ -1641,11 +1641,37 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                               ),
                             ],
                           ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              log['time'] as String,
+                              style: const TextStyle(
+                                color: Color(0xFFCBD5E1),
+                                fontSize: 11,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              log['status'] as String,
+                              style: TextStyle(
+                                color: isSuccess
+                                    ? const Color(0xFF34D399)
+                                    : const Color(0xFFF87171),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                   
                         ],
                       ),
                     );
                   },
                 ),
+
               const SizedBox(height: 24),
             ],
           ),
@@ -1691,7 +1717,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
           Text(
             subvalue,
             style: const TextStyle(
-              color: Color(0xFF64748B),
+              color: Color(0xFFCBD5E1),
               fontSize: 11,
             ),
           ),

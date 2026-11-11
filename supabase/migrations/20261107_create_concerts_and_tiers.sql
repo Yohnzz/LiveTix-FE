@@ -68,7 +68,7 @@ USING (
   status = 'published'
   OR (auth.uid() IS NOT NULL AND (
     producer_id = auth.uid()
-    OR auth.jwt() ->> 'email' = 'admin@livetix.com'
+    OR lower(coalesce(auth.jwt() ->> 'email', '')) IN ('admin1@gmail.com', 'admin@livetix.com')
   ))
 );
 
@@ -77,7 +77,7 @@ CREATE POLICY "concerts_insert_policy"
 ON public.concerts FOR INSERT TO authenticated
 WITH CHECK (
   producer_id = auth.uid()
-  OR auth.jwt() ->> 'email' = 'admin@livetix.com'
+  OR lower(coalesce(auth.jwt() ->> 'email', '')) IN ('admin1@gmail.com', 'admin@livetix.com')
 );
 
 -- 4.3 Kebijakan UPDATE Konser
@@ -85,11 +85,11 @@ CREATE POLICY "concerts_update_policy"
 ON public.concerts FOR UPDATE TO authenticated
 USING (
   producer_id = auth.uid()
-  OR auth.jwt() ->> 'email' = 'admin@livetix.com'
+  OR lower(coalesce(auth.jwt() ->> 'email', '')) IN ('admin1@gmail.com', 'admin@livetix.com')
 )
 WITH CHECK (
   producer_id = auth.uid()
-  OR auth.jwt() ->> 'email' = 'admin@livetix.com'
+  OR lower(coalesce(auth.jwt() ->> 'email', '')) IN ('admin1@gmail.com', 'admin@livetix.com')
 );
 
 -- 4.4 Kebijakan DELETE Konser
@@ -97,7 +97,7 @@ CREATE POLICY "concerts_delete_policy"
 ON public.concerts FOR DELETE TO authenticated
 USING (
   producer_id = auth.uid()
-  OR auth.jwt() ->> 'email' = 'admin@livetix.com'
+  OR lower(coalesce(auth.jwt() ->> 'email', '')) IN ('admin1@gmail.com', 'admin@livetix.com')
 );
 
 -- 4.5 Kebijakan SELECT Ticket Tiers
@@ -111,7 +111,7 @@ USING (
       c.status = 'published'
       OR (auth.uid() IS NOT NULL AND (
         c.producer_id = auth.uid()
-        OR auth.jwt() ->> 'email' = 'admin@livetix.com'
+        OR lower(coalesce(auth.jwt() ->> 'email', '')) IN ('admin1@gmail.com', 'admin@livetix.com')
       ))
     )
   )
@@ -126,7 +126,7 @@ USING (
     WHERE c.id = ticket_tiers.concert_id
     AND (
       c.producer_id = auth.uid()
-      OR auth.jwt() ->> 'email' = 'admin@livetix.com'
+      OR lower(coalesce(auth.jwt() ->> 'email', '')) IN ('admin1@gmail.com', 'admin@livetix.com')
     )
   )
 )
@@ -136,7 +136,7 @@ WITH CHECK (
     WHERE c.id = ticket_tiers.concert_id
     AND (
       c.producer_id = auth.uid()
-      OR auth.jwt() ->> 'email' = 'admin@livetix.com'
+      OR lower(coalesce(auth.jwt() ->> 'email', '')) IN ('admin1@gmail.com', 'admin@livetix.com')
     )
   )
 );

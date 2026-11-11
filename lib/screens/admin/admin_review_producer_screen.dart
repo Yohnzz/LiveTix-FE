@@ -95,42 +95,49 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
   @override
   Widget build(BuildContext context) {
     return AdminScope(
-      child: ListenableBuilder(
-        listenable: _service.producersNotifier,
-        builder: (context, _) {
-          final item = _service.producerById(widget.producerId);
-          return Scaffold(
-            body: Column(
-              children: [
-                AdminHeader(
-                  title: 'Tinjau Produser',
-                  subtitle: 'Periksa data pengajuan dan berikan keputusan',
-                  onBack: () => Navigator.of(context).pop(),
-                ),
-                Expanded(
-                  child: item == null
-                      ? const AdminMessageState(
-                          icon: Icons.search_off_rounded,
-                          title: 'Pengajuan tidak ditemukan',
-                          message: 'Data produser ini sudah tidak tersedia.',
-                        )
-                      : _buildForm(item),
-                ),
-              ],
-            ),
-            bottomNavigationBar: item != null ? _buildBottomBar(item) : null,
-          );
-        },
+      child: Builder(
+        builder: (context) => ListenableBuilder(
+          listenable: _service.producersNotifier,
+          builder: (context, _) {
+            final item = _service.producerById(widget.producerId);
+            return Scaffold(
+              backgroundColor: AdminColors.bgOf(context),
+              body: Column(
+                children: [
+                  AdminHeader(
+                    title: 'Tinjau Produser',
+                    subtitle: 'Periksa data pengajuan dan berikan keputusan',
+                    onBack: () => Navigator.of(context).pop(),
+                  ),
+                  Expanded(
+                    child: item == null
+                        ? const AdminMessageState(
+                            icon: Icons.search_off_rounded,
+                            title: 'Pengajuan tidak ditemukan',
+                            message: 'Data produser ini sudah tidak tersedia.',
+                          )
+                        : _buildForm(context, item),
+                  ),
+                ],
+              ),
+              bottomNavigationBar:
+                  item != null ? _buildBottomBar(context, item) : null,
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildForm(ProducerApplicationModel item) {
+  Widget _buildForm(BuildContext context, ProducerApplicationModel item) {
     final docs = item.submissionDocuments.isNotEmpty
         ? item.submissionDocuments
         : ProducerDocumentModel.defaultSubmissionDocuments();
     final dateStr = ApprovalFormat.dayMonthYear(item.submittedAt);
     final textLength = _reasonController.text.length;
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+    final border = AdminColors.borderOf(context);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -145,15 +152,17 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
               Text(
                 item.companyName,
                 textAlign: TextAlign.center,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: textPri,
+                ),
               ),
               const SizedBox(height: 2),
               Text(
                 item.email,
                 textAlign: TextAlign.center,
-                style:
-                    const TextStyle(fontSize: 13, color: AdminColors.textGrey),
+                style: TextStyle(fontSize: 13, color: textSec),
               ),
               const SizedBox(height: 12),
               // Pill Badge Menunggu Verifikasi dengan icon jam
@@ -163,18 +172,20 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBEB),
+                    color: AdminColors.warningBgOf(context),
                     borderRadius: BorderRadius.circular(999),
-                    border:
-                        Border.all(color: const Color(0xFFD97706), width: 1),
+                    border: Border.all(
+                      color: AdminColors.warningBorderOf(context),
+                      width: 1,
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.access_time_rounded,
                         size: 14,
-                        color: Color(0xFFD97706),
+                        color: AdminColors.warningOf(context),
                       ),
                       const SizedBox(width: 6),
                       Flexible(
@@ -182,10 +193,10 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
                           'Menunggu Verifikasi · $dateStr',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFFB45309),
+                            color: AdminColors.warningOf(context),
                           ),
                         ),
                       ),
@@ -194,11 +205,11 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Divider(height: 1, color: AdminColors.border),
+              Divider(height: 1, color: border),
               const SizedBox(height: 12),
-              _buildDetailRow('Telepon', item.phone),
+              _buildDetailRow(context, 'Telepon', item.phone),
               const SizedBox(height: 8),
-              _buildDetailRow('Alamat', item.address),
+              _buildDetailRow(context, 'Alamat', item.address),
             ],
           ),
         ),
@@ -218,12 +229,12 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF3E8FF),
+                      color: AdminColors.purpleBgOf(context),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.description_rounded,
-                      color: Color(0xFF9333EA),
+                      color: AdminColors.purpleOf(context),
                       size: 24,
                     ),
                   ),
@@ -234,17 +245,18 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
                       children: [
                         Text(
                           doc.name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
+                            color: textPri,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '${doc.type} · ${doc.fileSize}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: AdminColors.textGrey,
+                            color: textSec,
                           ),
                         ),
                       ],
@@ -259,15 +271,15 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF3E8FF),
+                        color: AdminColors.purpleBgOf(context),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Lihat',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF7E22CE),
+                          color: AdminColors.purpleOf(context),
                         ),
                       ),
                     ),
@@ -291,18 +303,18 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
                   Container(
                     width: 32,
                     height: 32,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFEE2E2),
+                    decoration: BoxDecoration(
+                      color: AdminColors.dangerBgOf(context),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.error_outline_rounded,
-                      color: Color(0xFFDC2626),
+                      color: AdminColors.dangerOf(context),
                       size: 20,
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -311,14 +323,15 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
+                            color: textPri,
                           ),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
                           'Wajib diisi. Alasan ini dikirim ke calon produser.',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AdminColors.textGrey,
+                            color: textSec,
                           ),
                         ),
                       ],
@@ -330,12 +343,12 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
               AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AdminColors.surfaceAltOf(context),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: _focusNode.hasFocus
-                        ? const Color(0xFF7C3AED)
-                        : const Color(0xFFCBD5E1),
+                        ? AdminColors.purpleOf(context)
+                        : border,
                     width: _focusNode.hasFocus ? 1.5 : 1,
                   ),
                 ),
@@ -349,17 +362,20 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
                       minLines: 4,
                       maxLines: 6,
                       maxLength: _maxLength,
-                      style: const TextStyle(fontSize: 13, height: 1.5),
-                      decoration: const InputDecoration(
+                      style:
+                          TextStyle(fontSize: 13, height: 1.5, color: textPri),
+                      decoration: InputDecoration(
                         counterText: '',
                         hintText:
                             'Tulis alasan pengajuan produser ini ditolak...\nContoh: dokumen legalitas belum sesuai.',
                         hintStyle: TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF94A3B8),
+                          color: AdminColors.textMutedOf(context),
                           height: 1.5,
                         ),
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
@@ -368,9 +384,9 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
                       alignment: Alignment.bottomRight,
                       child: Text(
                         '$textLength/$_maxLength',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF94A3B8),
+                          color: AdminColors.textMutedOf(context),
                         ),
                       ),
                     ),
@@ -384,7 +400,7 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(BuildContext context, String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -392,9 +408,9 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
           width: 80,
           child: Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: AdminColors.textGrey,
+              color: AdminColors.textSecondaryOf(context),
             ),
           ),
         ),
@@ -402,10 +418,10 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
           child: Text(
             value.isEmpty ? '-' : value,
             textAlign: TextAlign.right,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AdminColors.textDark,
+              color: AdminColors.textPrimaryOf(context),
             ),
           ),
         ),
@@ -413,11 +429,11 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
     );
   }
 
-  Widget _buildBottomBar(ProducerApplicationModel item) {
+  Widget _buildBottomBar(BuildContext context, ProducerApplicationModel item) {
     return Container(
-      decoration: const BoxDecoration(
-        color: AdminColors.surface,
-        border: Border(top: BorderSide(color: AdminColors.border)),
+      decoration: BoxDecoration(
+        color: AdminColors.surfaceOf(context),
+        border: Border(top: BorderSide(color: AdminColors.borderOf(context))),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       child: SafeArea(
@@ -428,10 +444,10 @@ class _AdminReviewProducerScreenState extends State<AdminReviewProducerScreen> {
           label: const Text('Kirim Penolakan'),
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(50),
-            backgroundColor: const Color(0xFFDC2626), // Merah aktif Image 5
+            backgroundColor: const Color(0xFFDC2626),
             foregroundColor: Colors.white,
-            disabledBackgroundColor: const Color(0xFFE2E8F0), // Abu disabled Image 4
-            disabledForegroundColor: const Color(0xFF94A3B8),
+            disabledBackgroundColor: AdminColors.disabledBgOf(context),
+            disabledForegroundColor: AdminColors.disabledFgOf(context),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -454,156 +470,174 @@ class _DocumentViewerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFCBD5E1),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+    return AdminScope(
+      child: Builder(
+        builder: (context) {
+          final textPri = AdminColors.textPrimaryOf(context);
+          final textSec = AdminColors.textSecondaryOf(context);
+          final surfaceAlt = AdminColors.surfaceAltOf(context);
+          final border = AdminColors.borderOf(context);
+          final accent = AdminColors.accentOf(context);
+          return Container(
+            decoration: BoxDecoration(
+              color: AdminColors.surfaceOf(context),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF3E8FF),
-                    borderRadius: BorderRadius.circular(10),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.description_rounded,
-                    color: Color(0xFF9333EA),
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 16),
+                  Row(
                     children: [
-                      Text(
-                        doc.name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AdminColors.purpleBgOf(context),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.description_rounded,
+                          color: AdminColors.purpleOf(context),
+                          size: 24,
                         ),
                       ),
-                      Text(
-                        'Format ${doc.type} · Ukuran ${doc.fileSize}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AdminColors.textGrey,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              doc.name,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: textPri,
+                              ),
+                            ),
+                            Text(
+                              'Format ${doc.type} · Ukuran ${doc.fileSize}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: textSec,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(Icons.close_rounded, color: textPri),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    height: 180,
+                    decoration: BoxDecoration(
+                      color: surfaceAlt,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: border),
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            doc.type == 'PDF'
+                                ? Icons.picture_as_pdf_rounded
+                                : Icons.image_rounded,
+                            size: 48,
+                            color: AdminColors.purpleOf(context),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Pratinjau Resmi: ${doc.name}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: textPri,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Tervalidasi oleh Sistem LiveTix Super Admin',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: textSec,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content:
+                                    Text('Mengunduh salinan ${doc.name}...'),
+                                backgroundColor: AdminColors.navy,
+                              ),
+                            );
+                          },
+                          icon:
+                              const Icon(Icons.file_download_outlined, size: 18),
+                          label: const Text('Unduh Salinan'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(46),
+                            foregroundColor: accent,
+                            side: BorderSide(color: accent),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(46),
+                            backgroundColor:
+                                AdminColors.primaryButtonBgOf(context),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text('Tutup'),
                         ),
                       ),
                     ],
                   ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              height: 180,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      doc.type == 'PDF'
-                          ? Icons.picture_as_pdf_rounded
-                          : Icons.image_rounded,
-                      size: 48,
-                      color: const Color(0xFF7C3AED),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Pratinjau Resmi: ${doc.name}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Tervalidasi oleh Sistem LiveTix Super Admin',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AdminColors.textGrey,
-                      ),
-                    ),
-                  ],
-                ),
+                ],
               ),
             ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Mengunduh salinan ${doc.name}...'),
-                          backgroundColor: AdminColors.navy,
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.file_download_outlined, size: 18),
-                    label: const Text('Unduh Salinan'),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(46),
-                      foregroundColor: AdminColors.navy,
-                      side: const BorderSide(color: AdminColors.navy),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(46),
-                      backgroundColor: AdminColors.navy,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: const Text('Tutup'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

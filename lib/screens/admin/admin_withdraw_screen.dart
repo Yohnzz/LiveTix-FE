@@ -184,301 +184,103 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final textPri = AdminColors.textPrimaryOf(context);
-    final textSec = AdminColors.textSecondaryOf(context);
+    return AdminScope(
+      child: Builder(
+        builder: (context) {
+          final textPri = AdminColors.textPrimaryOf(context);
+          final textSec = AdminColors.textSecondaryOf(context);
+          final surfaceAlt = AdminColors.surfaceAltOf(context);
+          final border = AdminColors.borderOf(context);
 
-    return Scaffold(
-      backgroundColor: AdminColors.surfaceOf(context),
-      appBar: AppBar(
-        title: const Text('Penarikan Dana Admin',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-        backgroundColor: const Color(0xFF4C1D95),
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF7C3AED)))
-          : RefreshIndicator(
-              onRefresh: _loadBalance,
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                children: [
-                  // 1. Hero Card: Saldo Fee Admin 3%
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF4C1D95), Color(0xFF6D28D9)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF4C1D95).withValues(alpha: 0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          return Scaffold(
+            backgroundColor: AdminColors.bgOf(context),
+            appBar: AppBar(
+              title: const Text('Penarikan Dana Admin',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              backgroundColor: const Color(0xFF4C1D95),
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            body: _isLoading
+                ? Center(
+                    child: CircularProgressIndicator(
+                        color: AdminColors.accentOf(context)))
+                : RefreshIndicator(
+                    onRefresh: _loadBalance,
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
                       children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.account_balance_wallet_rounded,
-                                color: Colors.white70, size: 16),
-                            SizedBox(width: 6),
-                            Text(
-                              'SALDO FEE ADMIN TERSEDIA (3%)',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white70,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          _formatCurrency(_balance.availableFeeBalance),
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        const Divider(height: 1, color: Colors.white24),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Total Terkumpul: ${_formatCurrency(_balance.totalFeeCollected)}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.white70,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Text(
-                              'Telah Ditarik: ${_formatCurrency(_balance.totalFeeWithdrawn)}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.white70,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // 2. Form Penarikan Fee Admin
-                  Text(
-                    'Form Pengajuan Penarikan Fee',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: textPri,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  AdminCard(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Nominal Penarikan (Rp)',
-                            style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: textSec)),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: _amountController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            prefixText: 'Rp ',
-                            prefixStyle: TextStyle(
-                                fontWeight: FontWeight.w700, color: textPri),
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                  color: Color(0xFF7C3AED), width: 1.5),
-                            ),
-                            filled: true,
-                            fillColor: AdminColors.surfaceOf(context),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text('Bank Tujuan',
-                            style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: textSec)),
-                        const SizedBox(height: 6),
-                        DropdownButtonFormField<String>(
-                          initialValue: _selectedBank,
-                          items: _bankList
-                              .map((b) => DropdownMenuItem(
-                                    value: b,
-                                    child: Text(b,
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: textPri)),
-                                  ))
-                              .toList(),
-                          onChanged: (val) {
-                            if (val != null) setState(() => _selectedBank = val);
-                          },
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            filled: true,
-                            fillColor: AdminColors.surfaceOf(context),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text('Nomor Rekening',
-                            style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: textSec)),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: _accountNumberController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            filled: true,
-                            fillColor: AdminColors.surfaceOf(context),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text('Nama Pemilik Rekening',
-                            style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: textSec)),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: _accountNameController,
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            filled: true,
-                            fillColor: AdminColors.surfaceOf(context),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        SizedBox(
+                        // 1. Hero Card: Saldo Fee Admin 3%
+                        Container(
                           width: double.infinity,
-                          height: 48,
-                          child: ElevatedButton(
-                            onPressed: _isSubmitting ? null : _handleWithdrawSubmit,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF7C3AED),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              elevation: 0,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF4C1D95), Color(0xFF6D28D9)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            child: _isSubmitting
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                        color: Colors.white, strokeWidth: 2),
-                                  )
-                                : const Text('Tarik Fee Admin Sekarang',
-                                    style: TextStyle(
-                                        fontSize: 14, fontWeight: FontWeight.w700)),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF4C1D95)
+                                    .withValues(alpha: 0.3),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // 3. Riwayat Mutasi Fee 3%
-                  Text(
-                    'Riwayat Fee Transaksi Konser (3%)',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: textPri,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ..._feeHistory.map((h) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: AdminCard(
-                          padding: const EdgeInsets.all(14),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFECFDF5),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Icon(Icons.percent_rounded,
-                                    color: Color(0xFF059669), size: 20),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      h['concert'] as String,
-                                      style: TextStyle(
-                                        fontSize: 13.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: textPri,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${h['orderId']} · ${h['date']}',
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        color: textSec,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
+                              const Row(
                                 children: [
+                                  Icon(Icons.account_balance_wallet_rounded,
+                                      color: Colors.white70, size: 16),
+                                  SizedBox(width: 6),
                                   Text(
-                                    '+${_formatCurrency(h['fee'] as int)}',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      color: Color(0xFF059669),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Gross: ${_formatCurrency(h['gross'] as int)}',
+                                    'SALDO FEE ADMIN TERSEDIA (3%)',
                                     style: TextStyle(
                                       fontSize: 11,
-                                      color: textSec,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white70,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                _formatCurrency(_balance.availableFeeBalance),
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              const Divider(height: 1, color: Colors.white24),
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Total Terkumpul: ${_formatCurrency(_balance.totalFeeCollected)}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.white70,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Telah Ditarik: ${_formatCurrency(_balance.totalFeeWithdrawn)}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.white70,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ],
@@ -486,10 +288,264 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
                             ],
                           ),
                         ),
-                      )),
-                ],
-              ),
-            ),
+
+                        const SizedBox(height: 24),
+
+                        // 2. Form Penarikan Fee Admin
+                        Text(
+                          'Form Pengajuan Penarikan Fee',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: textPri,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        AdminCard(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Nominal Penarikan (Rp)',
+                                  style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: textSec)),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: _amountController,
+                                keyboardType: TextInputType.number,
+                                style: TextStyle(color: textPri),
+                                decoration: InputDecoration(
+                                  prefixText: 'Rp ',
+                                  prefixStyle: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: textPri),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: border),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: border),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: AdminColors.purpleOf(context),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  filled: true,
+                                  fillColor: surfaceAlt,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Text('Bank Tujuan',
+                                  style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: textSec)),
+                              const SizedBox(height: 6),
+                              DropdownButtonFormField<String>(
+                                initialValue: _selectedBank,
+                                dropdownColor: AdminColors.surfaceOf(context),
+                                items: _bankList
+                                    .map((b) => DropdownMenuItem(
+                                          value: b,
+                                          child: Text(b,
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: textPri)),
+                                        ))
+                                    .toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() => _selectedBank = val);
+                                  }
+                                },
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: border),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: border),
+                                  ),
+                                  filled: true,
+                                  fillColor: surfaceAlt,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Text('Nomor Rekening',
+                                  style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: textSec)),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: _accountNumberController,
+                                keyboardType: TextInputType.number,
+                                style: TextStyle(color: textPri),
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: border),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: border),
+                                  ),
+                                  filled: true,
+                                  fillColor: surfaceAlt,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Text('Nama Pemilik Rekening',
+                                  style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: textSec)),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: _accountNameController,
+                                style: TextStyle(color: textPri),
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: border),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: border),
+                                  ),
+                                  filled: true,
+                                  fillColor: surfaceAlt,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: ElevatedButton(
+                                  onPressed: _isSubmitting
+                                      ? null
+                                      : _handleWithdrawSubmit,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF7C3AED),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                    elevation: 0,
+                                  ),
+                                  child: _isSubmitting
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2),
+                                        )
+                                      : const Text('Tarik Fee Admin Sekarang',
+                                          style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // 3. Riwayat Mutasi Fee 3%
+                        Text(
+                          'Riwayat Fee Transaksi Konser (3%)',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: textPri,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ..._feeHistory.map((h) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: AdminCard(
+                                padding: const EdgeInsets.all(14),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: AdminColors.successBgOf(context),
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                      ),
+                                      child: Icon(Icons.percent_rounded,
+                                          color: AdminColors.successOf(context),
+                                          size: 20),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            h['concert'] as String,
+                                            style: TextStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: textPri,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '${h['orderId']} · ${h['date']}',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: textSec,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          '+${_formatCurrency(h['fee'] as int)}',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            color:
+                                                AdminColors.successOf(context),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Gross: ${_formatCurrency(h['gross'] as int)}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: textSec,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )),
+                      ],
+                    ),
+                  ),
+          );
+        },
+      ),
     );
   }
 }

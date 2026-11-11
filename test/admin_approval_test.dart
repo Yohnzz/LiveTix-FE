@@ -7,10 +7,12 @@ import 'package:livetix/screens/admin/admin_approval_screen.dart';
 import 'package:livetix/screens/admin/admin_concert_detail_screen.dart';
 import 'package:livetix/screens/admin/admin_producer_detail_screen.dart';
 import 'package:livetix/screens/admin/admin_shell.dart';
+import 'package:livetix/screens/admin/admin_users_screen.dart';
 import 'package:livetix/screens/auth/login_screen.dart';
 import 'package:livetix/screens/home/home_screen.dart';
 import 'package:livetix/services/admin_service.dart';
 import 'package:livetix/services/data_service.dart';
+import 'package:livetix/services/gate_crew_service.dart';
 
 Future<void> _pumpAdmin(
   WidgetTester tester, {
@@ -772,6 +774,223 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Simpan'));
       await tester.pumpAndSettle();
       expect(find.text('Rafi F. Popup'), findsOneWidget);
+    });
+
+    testWidgets(
+        'AdminUsersScreen: Tombol Tambah Crew hanya muncul di chip Gatecrew dan fitur Tambah serta Hapus Gate Crew berfungsi',
+        (tester) async {
+      await _pumpAdmin(tester);
+      await _tapNav(tester, 'Kelola User');
+
+      // 1. Pada chip 'Semua', tombol Tambah Crew TIDAK muncul
+      expect(find.byKey(const ValueKey('btn_tambah_gatecrew')), findsNothing);
+      expect(find.text('Tambah Crew'), findsNothing);
+
+      // 2. Pada chip 'User', 'Produser', dan 'Admin', tombol Tambah Crew TIDAK muncul
+      for (final role in ['User', 'Produser', 'Admin']) {
+        final chip = find.byKey(ValueKey('filter_chip_$role'));
+        await tester.ensureVisible(chip);
+        await tester.tap(chip);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('btn_tambah_gatecrew')), findsNothing);
+      }
+
+      // 3. Saat berpindah ke chip 'Gatecrew', tombol Tambah Crew muncul
+      final crewChip = find.byKey(const ValueKey('filter_chip_Gatecrew'));
+      await tester.ensureVisible(crewChip);
+      await tester.tap(crewChip);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('btn_tambah_gatecrew')), findsOneWidget);
+      expect(find.text('Tambah Crew'), findsOneWidget);
+
+      // 4. Tambah Gate Crew baru ('Test Crew Alpha')
+      await tester.tap(find.byKey(const ValueKey('btn_tambah_gatecrew')));
+      await tester.pumpAndSettle();
+      expect(find.text('Tambah Gate Crew'), findsOneWidget);
+      await tester.enterText(
+          find.widgetWithText(TextFormField, 'Nama Petugas'),
+          'Test Crew Alpha');
+      await tester.enterText(
+          find.widgetWithText(TextFormField, 'Email Petugas'),
+          'test.alpha@livetix.com');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Daftarkan'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Test Crew Alpha'), findsOneWidget);
+      final alphaCrew = GateCrewService()
+          .teamCrewNotifier
+          .value
+          .firstWhere((c) => c.email == 'test.alpha@livetix.com');
+      expect(
+        AdminService()
+            .usersNotifier
+            .value
+            .any((u) => u.email == 'test.alpha@livetix.com'),
+        isTrue,
+      );
+
+      // 5. Hapus Gate Crew langsung lewat ikon hapus pada kartu pengguna
+      await tester.tap(find.byKey(ValueKey('btn_delete_gatecrew_${alphaCrew.id}')));
+      await tester.pumpAndSettle();
+      expect(find.text('Hapus Gate Crew?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Hapus'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Test Crew Alpha'), findsNothing);
+      expect(
+        AdminService()
+            .usersNotifier
+            .value
+            .any((u) => u.email == 'test.alpha@livetix.com'),
+        isFalse,
+      );
+      expect(
+        GateCrewService()
+            .teamCrewNotifier
+            .value
+            .any((c) => c.email == 'test.alpha@livetix.com'),
+        isFalse,
+      );
+
+      // 6. Tambah Gate Crew kedua ('Test Crew Beta') lalu hapus melalui AdminUserDetailScreen
+      await tester.tap(find.byKey(const ValueKey('btn_tambah_gatecrew')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+          find.widgetWithText(TextFormField, 'Nama Petugas'),
+          'Test Crew Beta');
+      await tester.enterText(
+          find.widgetWithText(TextFormField, 'Email Petugas'),
+          'test.beta@livetix.com');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Daftarkan'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Test Crew Beta'), findsOneWidget);
+      await tester.tap(find.text('Test Crew Beta'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Detail Pengguna'), findsOneWidget);
+      expect(find.byKey(const ValueKey('btn_hapus_gatecrew')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('btn_hapus_gatecrew')));
+      await tester.pumpAndSettle();
+      expect(find.text('Hapus Gate Crew?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Hapus'));
+      await tester.pumpAndSettle();
+
+      // Kembali ke AdminUsersScreen dan Test Crew Beta telah terhapus
+      expect(find.text('Kelola Pengguna'), findsOneWidget);
+      expect(find.text('Test Crew Beta'), findsNothing);
+      expect(
+        AdminService()
+            .usersNotifier
+            .value
+            .any((u) => u.email == 'test.beta@livetix.com'),
+        isFalse,
+      );
+      expect(
+        GateCrewService()
+            .teamCrewNotifier
+            .value
+            .any((c) => c.email == 'test.beta@livetix.com'),
+        isFalse,
+      );
+    });
+
+    testWidgets(
+        'AdminUsersScreen & AdminApprovalScreen: Layar kecil 320px 2x textScale pada tab Gatecrew bebas overflow dan hapus lewat menu popup berfungsi',
+        (tester) async {
+      await _pumpAdmin(tester, size: const Size(320, 568), textScale: 2.0);
+      await _tapNav(tester, 'Kelola User');
+      expect(tester.takeException(), isNull);
+
+      final crewChip = find.byKey(const ValueKey('filter_chip_Gatecrew'));
+      await tester.ensureVisible(crewChip);
+      await tester.tap(crewChip);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const ValueKey('btn_tambah_gatecrew')), findsOneWidget);
+
+      // Tambah crew uji agar aman untuk dihapus
+      final tempCrew = await GateCrewService().createGateCrewByAdmin(
+        name: 'Crew Uji Popup',
+        email: 'crew.popup@livetix.com',
+      );
+      AdminService().usersNotifier.value = [
+        ManagedUserModel(
+          id: tempCrew.id,
+          name: tempCrew.name,
+          email: tempCrew.email,
+          role: 'Gatecrew',
+          phone: tempCrew.phone,
+          joinedAt: 'Baru saja',
+          isActive: true,
+        ),
+        ...AdminService().usersNotifier.value,
+      ];
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      // Scroll ke kartu Crew Uji Popup di AdminUsersScreen lalu hapus lewat Menu Akun popup
+      final usersListScrollable = find
+          .descendant(
+            of: find.descendant(
+              of: find.byType(AdminUsersScreen),
+              matching: find.byType(ListView),
+            ),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        find.text('Crew Uji Popup'),
+        120,
+        scrollable: usersListScrollable,
+      );
+      await tester.pumpAndSettle();
+      final menuInUsers = find.descendant(
+        of: find.byType(AdminUsersScreen),
+        matching: find.byTooltip('Menu Akun'),
+      );
+      await tester.ensureVisible(menuInUsers.first);
+      await tester.pumpAndSettle();
+      await tester.tap(menuInUsers.first);
+      await tester.pumpAndSettle();
+      expect(find.text('Hapus Gate Crew'), findsOneWidget);
+      await tester.tap(find.text('Hapus Gate Crew'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Hapus'));
+      await tester.pumpAndSettle();
+      expect(find.text('Crew Uji Popup'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+        'AdminApprovalScreen tab Gatecrew Disetujui mendukung Hapus Gate Crew',
+        (tester) async {
+      await _pumpAdmin(tester);
+      await GateCrewService().createGateCrewByAdmin(
+        name: 'Crew Approval Hapus',
+        email: 'crew.approval@livetix.com',
+      );
+      await _tapNav(tester, 'Approval');
+      AdminNavigation.openApproval(ApprovalKind.gatecrew);
+      await tester.pumpAndSettle();
+      await _tapTab(tester, 'Disetujui');
+
+      expect(find.text('Crew Approval Hapus'), findsOneWidget);
+      await tester.ensureVisible(find.byTooltip('Hapus Gate Crew').first);
+      await tester.tap(find.byTooltip('Hapus Gate Crew').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Hapus Gate Crew?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Hapus'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Crew Approval Hapus'), findsNothing);
+      expect(
+        GateCrewService()
+            .teamCrewNotifier
+            .value
+            .any((c) => c.email == 'crew.approval@livetix.com'),
+        isFalse,
+      );
     });
 
     testWidgets(
