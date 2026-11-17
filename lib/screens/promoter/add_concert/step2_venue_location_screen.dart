@@ -51,22 +51,52 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
   @override
   void initState() {
     super.initState();
-    _currentVenueName = widget.venueName;
-    _currentVenueAddress = widget.venueAddress;
-    _currentSearchQuery = widget.venueSearchQuery;
+    _currentVenueName = widget.venueName.isNotEmpty ? widget.venueName : 'Stadion Gajayana Malang';
+    _currentVenueAddress = widget.venueAddress.isNotEmpty
+        ? widget.venueAddress
+        : 'Jl. Tangkuban Perahu, Kauman, Kec. Klojen, Kota Malang, Jawa Timur 65119';
+    _currentSearchQuery = widget.venueSearchQuery.isNotEmpty ? widget.venueSearchQuery : _currentVenueName;
 
     _searchController.text = _currentSearchQuery;
     _manualNameController = TextEditingController(text: _currentVenueName);
-    _manualAddressController =
-        TextEditingController(text: _currentVenueAddress);
+    _manualAddressController = TextEditingController(text: _currentVenueAddress);
+
+    // Sinkronisasi otomatis dua arah saat pengguna mengetik di form manual
+    _manualNameController.addListener(_onManualFormChanged);
+    _manualAddressController.addListener(_onManualFormChanged);
 
     // Initial search seed
     _searchResults = VenueLocationSearchService.popularVenues;
+
+    // Pastikan parent flow terisi dengan nilai default jika sebelumnya kosong
+    if (widget.venueName.isEmpty && widget.onVenueChanged != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.onVenueChanged!(
+            _currentVenueName,
+            _currentVenueAddress,
+            _currentVenueName,
+          );
+        }
+      });
+    }
+  }
+
+  void _onManualFormChanged() {
+    final name = _manualNameController.text;
+    final address = _manualAddressController.text;
+    if (name != _currentVenueName || address != _currentVenueAddress) {
+      _currentVenueName = name;
+      _currentVenueAddress = address;
+      widget.onVenueChanged?.call(_currentVenueName, _currentVenueAddress, _currentVenueName);
+    }
   }
 
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    _manualNameController.removeListener(_onManualFormChanged);
+    _manualAddressController.removeListener(_onManualFormChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     _manualNameController.dispose();
@@ -94,7 +124,11 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
     });
 
     _debounceTimer = Timer(const Duration(milliseconds: 350), () async {
-      final results = await VenueLocationSearchService().search(query);
+      final results = await VenueLocationSearchService().search(
+        query,
+        userLat: _currentLatitude,
+        userLon: _currentLongitude,
+      );
       if (mounted) {
         setState(() {
           _searchResults = results;
@@ -112,7 +146,11 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
       _isLoadingResults = true;
     });
 
-    final results = await VenueLocationSearchService().search(cleanQuery);
+    final results = await VenueLocationSearchService().search(
+      cleanQuery,
+      userLat: _currentLatitude,
+      userLon: _currentLongitude,
+    );
 
     if (results.isNotEmpty) {
       _selectVenue(results.first);
@@ -121,8 +159,8 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
         name: cleanQuery,
         address: cleanQuery.toLowerCase().contains('jl')
             ? cleanQuery
-            : 'Lokasi di , Indonesia',
-        city: 'Lokasi Pencarian',
+            : '$cleanQuery, Jawa Timur, Indonesia',
+        city: 'Kota Malang, Jawa Timur',
         latitude: _currentLatitude,
         longitude: _currentLongitude,
       );
@@ -144,8 +182,8 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
       _currentVenueAddress = venue.address;
       _currentLatitude = venue.latitude;
       _currentLongitude = venue.longitude;
-      _currentSearchQuery = '${venue.name} ${venue.city}';
-      _searchController.text = _currentSearchQuery;
+      _currentSearchQuery = venue.name;
+      _searchController.text = venue.name;
       _manualNameController.text = venue.name;
       _manualAddressController.text = venue.address;
       _isSearching = false;
@@ -156,7 +194,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
       widget.onVenueChanged!(
         venue.name,
         venue.address,
-        '${venue.name} ${venue.city}',
+        venue.name,
       );
     }
 
@@ -187,10 +225,10 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
     const userVenue = PromoterVenueLocation(
       name: 'Lokasi Anda Saat Ini',
       address:
-          '',
-      city: '',
-      latitude: 0,
-      longitude: 0,
+          'Jl. Tangkuban Perahu, Kauman, Kec. Klojen, Kota Malang, Jawa Timur 65119',
+      city: 'Kota Malang',
+      latitude: -7.9786,
+      longitude: 112.6225,
     );
     _selectVenue(userVenue);
   }
@@ -220,6 +258,31 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
+  }
+
+  void _onConfirmAndProceed() {
+    final manualName = _manualNameController.text.trim();
+    final manualAddress = _manualAddressController.text.trim();
+    final searchInput = _searchController.text.trim();
+
+    String finalName = manualName.isNotEmpty
+        ? manualName
+        : (_currentVenueName.trim().isNotEmpty
+            ? _currentVenueName.trim()
+            : (searchInput.isNotEmpty ? searchInput : 'Venue Konser'));
+
+    String finalAddress = manualAddress.isNotEmpty
+        ? manualAddress
+        : (_currentVenueAddress.trim().isNotEmpty
+            ? _currentVenueAddress.trim()
+            : (searchInput.isNotEmpty ? searchInput : 'Alamat konser'));
+
+    _currentVenueName = finalName;
+    _currentVenueAddress = finalAddress;
+    _currentSearchQuery = finalName;
+
+    widget.onVenueChanged?.call(finalName, finalAddress, finalName);
+    widget.onNext();
   }
 
   void _selectPreset(String keyword) {
@@ -699,7 +762,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
 
               const SizedBox(height: 18),
 
-                            // Rekomendasi Pilihan Venue Populer (1-Tap Selection)
+              // Rekomendasi Pilihan Venue Populer (1-Tap Selection)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
@@ -708,6 +771,22 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                     _buildPresetChip(
                       label: 'Stadion Gajayana',
                       isSelected: _currentVenueName.contains('Gajayana'),
+                      isDarkMode: isDarkMode,
+                      textColor: textColor,
+                      cardBorder: cardBorder,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPresetChip(
+                      label: 'Graha Cakrawala',
+                      isSelected: _currentVenueName.contains('Cakrawala'),
+                      isDarkMode: isDarkMode,
+                      textColor: textColor,
+                      cardBorder: cardBorder,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildPresetChip(
+                      label: 'Jl. Ijen Malang',
+                      isSelected: _currentVenueName.contains('Ijen'),
                       isDarkMode: isDarkMode,
                       textColor: textColor,
                       cardBorder: cardBorder,
@@ -757,6 +836,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
               ),
 
               const SizedBox(height: 14),
+
               // Interactive Google Maps Canvas View
               InteractiveMapView(
                 venueName: _currentVenueName,
@@ -785,8 +865,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                     _manualNameController.text = name;
                     _manualAddressController.text = address;
                   });
-                  widget.onVenueChanged
-                      ?.call(name, address, name);
+                  widget.onVenueChanged?.call(name, address, name);
                 },
               ),
 
@@ -862,6 +941,10 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                             const SizedBox(height: 6),
                             TextField(
                               controller: _manualNameController,
+                              onChanged: (val) {
+                                _currentVenueName = val;
+                                widget.onVenueChanged?.call(val, _currentVenueAddress, val);
+                              },
                               style: TextStyle(
                                 fontSize: 13,
                                 color: textColor,
@@ -894,6 +977,10 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                             TextField(
                               controller: _manualAddressController,
                               maxLines: 2,
+                              onChanged: (val) {
+                                _currentVenueAddress = val;
+                                widget.onVenueChanged?.call(_currentVenueName, val, _currentVenueName);
+                              },
                               style: TextStyle(
                                 fontSize: 13,
                                 color: textColor,
@@ -951,7 +1038,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: widget.onNext,
+                  onPressed: _onConfirmAndProceed,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1B2A8C), // Navy
                     foregroundColor: Colors.white,

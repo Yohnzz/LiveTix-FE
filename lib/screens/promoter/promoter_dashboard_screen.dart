@@ -264,77 +264,96 @@ class PromoterDashboardScreen extends StatelessWidget {
             );
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top Brand & Avatar Row
+                  // Top Brand & Avatar Row (Mepet Kanan)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Flexible(
-                        child: Text(
-                          service.promoterName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w700,
-                            color: textColor,
-                          ),
+                      Expanded(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                service.promoterName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: textColor,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2.5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF59E0B), // Orange amber pill
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                service.verificationBadge,
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2.5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF59E0B), // Orange amber pill
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          service.verificationBadge,
-                          style: const TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.5,
+                      // Matahari / Dark Mode Toggle & Profil Avatar (Mepet Kanan)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 36,
+                              minHeight: 36,
+                            ),
+                            icon: Icon(
+                              isDarkMode
+                                  ? Icons.dark_mode_outlined
+                                  : Icons.wb_sunny_outlined,
+                              size: 22,
+                              color: textColor,
+                            ),
+                            tooltip: 'Ganti Tema',
+                            onPressed: service.toggleTheme,
                           ),
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: Icon(
-                          isDarkMode
-                              ? Icons.dark_mode_outlined
-                              : Icons.wb_sunny_outlined,
-                          size: 22,
-                          color: textColor,
-                        ),
-                        tooltip: 'Ganti Tema',
-                        onPressed: service.toggleTheme,
-                      ),
-                      const SizedBox(width: 4),
-                      GestureDetector(
-                        onTap: onNavigateToProfile,
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFF3E8FF), // Soft purple-pink
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              service.promoterInitials,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF7E22CE), // Purple/Magenta
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: onNavigateToProfile,
+                            child: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF3E8FF), // Soft purple-pink
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  service.promoterInitials,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF7E22CE), // Purple/Magenta
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
