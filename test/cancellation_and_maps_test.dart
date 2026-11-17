@@ -59,8 +59,8 @@ void main() {
     });
   });
 
-  group('Google Maps Step 2 Venue Location Screen tests', () {
-    testWidgets('Renders Google Maps search and location selection', (tester) async {
+  group('OpenStreetMap Step 2 Venue Location Screen tests', () {
+    testWidgets('Renders OpenStreetMap search and location selection', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -77,9 +77,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Pilih Tempat Konser'), findsOneWidget);
-      expect(find.text('Terhubung dengan Google Maps'), findsOneWidget);
+      expect(
+        find.text('Peta OpenStreetMap · gratis tanpa API key'),
+        findsOneWidget,
+      );
       expect(find.text('Gunakan Lokasi GPS Saya'), findsOneWidget);
-      expect(find.text('Google'), findsOneWidget);
       expect(find.text('Konfirmasi Lokasi & Lanjut'), findsOneWidget);
     });
   });

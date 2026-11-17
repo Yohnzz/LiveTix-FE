@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide LocalStorage;
 import '../models/approval_models.dart';
+import '../screens/promoter/widgets/sales_trend_bar_chart.dart';
 import '../models/promoter_models.dart';
 import '../utils/local_storage.dart';
+import '../utils/pin_hash.dart';
 import 'admin_service.dart';
 import 'data_service.dart';
 import 'payment_gateway_service.dart';
@@ -79,8 +81,10 @@ class PromoterDataService {
   }
 
   /// Status verifikasi akun produser: 'unverified' | 'pending' | 'approved' | 'rejected'
+  /// Default aman 'unverified' agar produser yang belum/tidak termuat statusnya
+  /// dari database tidak bisa menembus ke fitur produser.
   final ValueNotifier<String> verificationStatusNotifier =
-      ValueNotifier<String>('approved');
+      ValueNotifier<String>('unverified');
 
   /// Alasan penolakan akun produser dari Admin (diambil langsung dari database)
   final ValueNotifier<String?> rejectionReasonNotifier =
@@ -90,15 +94,65 @@ class PromoterDataService {
   final ValueNotifier<DateTime?> rejectedAtNotifier =
       ValueNotifier<DateTime?>(null);
 
+  /// Tren penjualan 7 hari terakhir (data nyata dari tabel orders Supabase).
+  /// Digunakan oleh grafik dashboard dan kartu statistik dari sumber yang sama.
+  final ValueNotifier<List<DailySalesData>> weeklySalesNotifier =
+      ValueNotifier<List<DailySalesData>>([]);
+
+  /// Getter tren penjualan 7 hari terakhir untuk dashboard.
+  List<DailySalesData> get weeklySales => weeklySalesNotifier.value;
+
   /// Durasi cooldown sebelum produser dapat mengajukan ulang (default 24 jam dari waktu penolakan)
   static const Duration resubmitCooldownDuration = Duration(hours: 24);
 
-  /// PIN 6-digit keamanan Produser (diatur saat verifikasi dokumen & diminta setiap login)
+  /// PIN 6-digit keamanan Produser (diatur saat verifikasi dokumen & diminta setiap login).
+  /// Disimpan sebagai hash SHA-256, bukan plaintext. Hanya role Produser yang memiliki PIN.
   final ValueNotifier<String> pinCodeNotifier =
-      ValueNotifier<String>('123456');
+      ValueNotifier<String>(hashPin('123456'));
 
   /// Status apakah sesi login saat ini sudah membuka kunci PIN
   bool isPinUnlockedThisSession = false;
+
+  /// Rekening bank penerima dana Produser (diisi saat verifikasi, dimuat dari `promoter_profiles`)
+  final ValueNotifier<String> bankNameNotifier = ValueNotifier<String>('');
+  final ValueNotifier<String> bankAccountNumberNotifier =
+      ValueNotifier<String>('');
+  final ValueNotifier<String> bankAccountHolderNotifier =
+      ValueNotifier<String>('');
+
+  bool get hasBankAccount =>
+      bankNameNotifier.value.trim().isNotEmpty &&
+      bankAccountNumberNotifier.value.trim().isNotEmpty;
+
+  /// Ringkasan rekening, contoh: "BCA - 1234567890 a/n Nama"
+  String get bankAccountSummary {
+    if (!hasBankAccount) return 'Belum ada rekening. Lengkapi saat verifikasi.';
+    final holder = bankAccountHolderNotifier.value.trim();
+    final base =
+        '${bankNameNotifier.value.trim()} - ${bankAccountNumberNotifier.value.trim()}';
+    return holder.isEmpty ? base : '$base a/n $holder';
+  }
+
+  /// Reset state verifikasi saat akun Produser baru dibuat / berganti akun
+  void resetProducerVerificationStateForNewAccount(String name) {
+    promoterNameNotifier.value = name.trim();
+    verificationStatusNotifier.value = 'unverified';
+    bankNameNotifier.value = '';
+    bankAccountNumberNotifier.value = '';
+    bankAccountHolderNotifier.value = '';
+    pinCodeNotifier.value = '';
+    rejectionReasonNotifier.value = null;
+    rejectedAtNotifier.value = null;
+    isPinUnlockedThisSession = false;
+  }
+
+  static final RegExp _uuidPattern = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
+  /// ID baris `promoter_profiles`: sama dengan user UUID bila valid, agar kompatibel dengan kolom UUID.
+  static String promoterRowIdFor(String userId) =>
+      _uuidPattern.hasMatch(userId) ? userId : 'promoter-$userId';
 
   String get promoterName => promoterNameNotifier.value;
   String get verificationBadge =>
@@ -227,12 +281,10 @@ class PromoterDataService {
       ),
     ];
 
-    // Jika terhubung ke Supabase, jangan isi data konser dummy — muat murni dari database!
+    // Jika terhubung ke Supabase, inisialisasi kosong — data akan dimuat saat pengguna login sebagai Produser
     if (SupabaseService.isInitialized) {
       concertsNotifier.value = [];
       concertFinanceSummariesNotifier.value = [];
-      fetchPromoterConcertsFromSupabase();
-      loadProducerProfileFromSupabase();
       return;
     }
 
@@ -407,8 +459,17 @@ class PromoterDataService {
   /// Memuat profil, status verifikasi, dokumen, dan PIN Produser dari Supabase
   Future<void> loadProducerProfileFromSupabase([String? userId]) async {
     if (!SupabaseService.isInitialized) return;
-    final targetId = userId ?? DataService().currentUser?.id;
+    final currentUser = DataService().currentUser;
+    final role = currentUser?.role.toLowerCase();
+    if (role != null && role != 'produser' && role != 'promoter') {
+      return;
+    }
+    final targetId = userId ?? currentUser?.id;
     if (targetId == null || targetId.isEmpty) return;
+
+    bankNameNotifier.value = '';
+    bankAccountNumberNotifier.value = '';
+    bankAccountHolderNotifier.value = '';
 
     try {
       final profileRow = await SupabaseService.client
@@ -430,12 +491,29 @@ class PromoterDataService {
         if (verStatus != null && verStatus.trim().isNotEmpty) {
           verificationStatusNotifier.value = verStatus.trim().toLowerCase();
         }
+        final pBank = profileRow['bank_name']?.toString().trim() ?? '';
+        final pNum = profileRow['bank_account_number']?.toString().trim() ?? '';
+        final pHolder = (profileRow['bank_account_holder'] ??
+                    profileRow['bank_account_name'])
+                ?.toString()
+                .trim() ??
+            '';
+        if (pBank.isNotEmpty && pNum.isNotEmpty) {
+          bankNameNotifier.value = pBank;
+          bankAccountNumberNotifier.value = pNum;
+          bankAccountHolderNotifier.value = pHolder;
+        }
       }
 
-      final promoterRow = await SupabaseService.client
+      Map<String, dynamic>? promoterRow = await SupabaseService.client
           .from('promoter_profiles')
           .select()
           .eq('user_id', targetId)
+          .maybeSingle();
+      promoterRow ??= await SupabaseService.client
+          .from('promoter_profiles')
+          .select()
+          .eq('id', promoterRowIdFor(targetId))
           .maybeSingle();
 
       if (promoterRow != null) {
@@ -446,6 +524,19 @@ class PromoterDataService {
         final appStatus = promoterRow['approval_status']?.toString();
         if (appStatus != null && appStatus.trim().isNotEmpty) {
           verificationStatusNotifier.value = appStatus.trim().toLowerCase();
+        }
+        final rBank = promoterRow['bank_name']?.toString().trim() ?? '';
+        final rNum =
+            promoterRow['bank_account_number']?.toString().trim() ?? '';
+        final rHolder = (promoterRow['bank_account_holder'] ??
+                    promoterRow['bank_account_name'])
+                ?.toString()
+                .trim() ??
+            '';
+        if (rBank.isNotEmpty && rNum.isNotEmpty) {
+          bankNameNotifier.value = rBank;
+          bankAccountNumberNotifier.value = rNum;
+          bankAccountHolderNotifier.value = rHolder;
         }
         final ktpUrl = promoterRow['ktp_url']?.toString();
         if (ktpUrl != null && ktpUrl.isNotEmpty) {
@@ -575,27 +666,100 @@ class PromoterDataService {
   /// Memuat daftar konser Produser langsung dari Supabase Cloud (tanpa dummy)
   Future<void> fetchPromoterConcertsFromSupabase() async {
     if (!SupabaseService.isInitialized) return;
+    final currentUser = DataService().currentUser;
+    final role = currentUser?.role.toLowerCase();
+    if (role != null && role != 'produser' && role != 'promoter') {
+      return;
+    }
     startRealtimeStockSync();
     try {
-      final currentUserId = DataService().currentUser?.id;
+      final currentUserId = currentUser?.id;
 
       // Ambil metrik penjualan aktual langsung dari tabel orders / tickets Supabase
       final Map<String, int> actualSoldMap = {};
       final Map<String, int> actualRevenueMap = {};
+      final Map<int, int> dailySoldMap = {};
+      final Map<int, int> dailyRevenueMap = {};
       try {
         final paidOrders = await SupabaseService.client
             .from('orders')
-            .select('concert_id, quantity, gross_amount, total_amount')
+            .select('concert_id, quantity, gross_amount, total_amount, created_at')
             .eq('payment_status', 'PAID');
         for (final o in paidOrders) {
           final cid = o['concert_id']?.toString() ?? '';
+          final qty = (o['quantity'] as num?)?.toInt() ?? 1;
+          final rev = ((o['gross_amount'] ?? o['total_amount']) as num?)?.toInt() ?? 0;
           if (cid.isNotEmpty) {
-            final qty = (o['quantity'] as num?)?.toInt() ?? 1;
-            final rev = ((o['gross_amount'] ?? o['total_amount']) as num?)?.toInt() ?? 0;
             actualSoldMap[cid] = (actualSoldMap[cid] ?? 0) + qty;
             actualRevenueMap[cid] = (actualRevenueMap[cid] ?? 0) + rev;
           }
+
+          // Akumulasi penjualan harian untuk grafik tren 7 hari (sumber sama dengan totalRevenue/ticketsSold)
+          final createdAt = o['created_at']?.toString();
+          if (createdAt != null && createdAt.isNotEmpty) {
+            try {
+              final orderDate = DateTime.tryParse(createdAt);
+              if (orderDate != null) {
+                final now = DateTime.now();
+                final startOfToday = DateTime(now.year, now.month, now.day);
+                final daysAgo = startOfToday.difference(orderDate).inDays;
+                if (daysAgo >= 0 && daysAgo <= 6) {
+                  final dayKey = daysAgo;
+                  final dailyQty = dailySoldMap[dayKey] ?? 0;
+                  final dailyRev = dailyRevenueMap[dayKey] ?? 0;
+                  dailySoldMap[dayKey] = dailyQty + qty;
+                  dailyRevenueMap[dayKey] = dailyRev + rev;
+                }
+              }
+            } catch (_) {}
+          }
         }
+
+        // Bangun data grafik 7 hari terakhir dari order yang sama dengan totalRevenue/ticketsSold
+        final shortNames = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+        final fullNames = [
+          'Senin',
+          'Selasa',
+          'Rabu',
+          'Kamis',
+          'Jumat',
+          'Sabtu',
+          'Minggu',
+        ];
+        final now = DateTime.now();
+        final weekly = List<DailySalesData>.generate(7, (i) {
+          final daysAgo = 6 - i;
+          final d = now.subtract(Duration(days: daysAgo));
+          final wd = d.weekday - 1;
+          final sold = dailySoldMap[daysAgo] ?? 0;
+          final rev = dailyRevenueMap[daysAgo] ?? 0;
+          return DailySalesData(
+            dayLabel: shortNames[wd],
+            fullDayName: fullNames[wd],
+            valueK: rev / 1000,
+            ticketsSold: sold,
+            revenueAmount: rev,
+          );
+        });
+        double maxK = 0;
+        int peak = -1;
+        for (var i = 0; i < weekly.length; i++) {
+          if (weekly[i].valueK > maxK) {
+            maxK = weekly[i].valueK;
+            peak = i;
+          }
+        }
+        for (var i = 0; i < weekly.length; i++) {
+          weekly[i] = DailySalesData(
+            dayLabel: weekly[i].dayLabel,
+            fullDayName: weekly[i].fullDayName,
+            valueK: weekly[i].valueK,
+            ticketsSold: weekly[i].ticketsSold,
+            revenueAmount: weekly[i].revenueAmount,
+            isPeak: maxK > 0 && i == peak,
+          );
+        }
+        weeklySalesNotifier.value = weekly;
       } catch (errMetrics) {
         debugPrint('Catat order penjualan Supabase: $errMetrics');
       }
@@ -695,22 +859,46 @@ class PromoterDataService {
     }
   }
 
-  /// Verifikasi PIN 6-digit Produser saat login
+  /// Verifikasi PIN 6-digit Produser saat login (PIN tersimpan sebagai hash SHA-256)
   bool verifyPin(String inputPin) {
     final cleanInput = inputPin.trim();
     final storedPin = pinCodeNotifier.value.trim();
-    if (cleanInput.isNotEmpty && cleanInput == storedPin) {
-      isPinUnlockedThisSession = true;
-      return true;
+    if (cleanInput.isEmpty || storedPin.isEmpty) return false;
+    if (!pinMatchesHash(cleanInput, storedPin)) return false;
+
+    isPinUnlockedThisSession = true;
+    // Migrasikan PIN plaintext lama menjadi hash secara diam-diam.
+    if (!isHashedPin(storedPin)) {
+      _rehashLegacyPin(cleanInput);
     }
-    return false;
+    return true;
   }
 
-  /// Simpan atau perbarui PIN 6-digit Produser
+  /// Menyimpan ulang PIN sebagai hash bila sebelumnya masih tersimpan plaintext.
+  Future<void> _rehashLegacyPin(String plainPin) async {
+    final hashed = hashPin(plainPin);
+    pinCodeNotifier.value = hashed;
+    if (!SupabaseService.isInitialized) return;
+    final userId = DataService().currentUser?.id;
+    if (userId == null || userId.isEmpty) return;
+    try {
+      await SupabaseService.client
+          .from('profiles')
+          .update({'pin_code': hashed}).eq('id', userId);
+      await SupabaseService.client
+          .from('promoter_profiles')
+          .update({'pin_code': hashed}).eq('user_id', userId);
+    } catch (e) {
+      debugPrint('Error rehash legacy PIN: $e');
+    }
+  }
+
+  /// Simpan atau perbarui PIN 6-digit Produser (disimpan sebagai hash SHA-256)
   Future<void> updateProducerPin(String newPin) async {
     final trimmed = newPin.trim();
     if (trimmed.length != 6) return;
-    pinCodeNotifier.value = trimmed;
+    final hashed = hashPin(trimmed);
+    pinCodeNotifier.value = hashed;
     isPinUnlockedThisSession = true;
 
     if (SupabaseService.isInitialized) {
@@ -719,10 +907,10 @@ class PromoterDataService {
         try {
           await SupabaseService.client
               .from('profiles')
-              .update({'pin_code': trimmed}).eq('id', userId);
+              .update({'pin_code': hashed}).eq('id', userId);
           await SupabaseService.client
               .from('promoter_profiles')
-              .update({'pin_code': trimmed}).eq('user_id', userId);
+              .update({'pin_code': hashed}).eq('user_id', userId);
         } catch (e) {
           debugPrint('Error updateProducerPin Supabase: $e');
         }
@@ -730,8 +918,9 @@ class PromoterDataService {
     }
   }
 
-  /// Pengajuan verifikasi awal data diri Produser + KTP + Lembar Penanggung Jawab + PIN
-  Future<void> submitInitialVerification({
+  /// Pengajuan verifikasi data diri Produser + rekening bank + dokumen + PIN.
+  /// Setelah tersimpan, akun berstatus `approved` sehingga alur berlanjut ke halaman PIN lalu Beranda.
+  Future<({bool success, String? errorMessage})> submitInitialVerification({
     required String fullName,
     required String birthDate,
     required String phone,
@@ -739,25 +928,167 @@ class PromoterDataService {
     required String ktpFileName,
     required String responsibilityLetterFileName,
     required String pinCode,
+    String bankName = '',
+    String bankAccountNumber = '',
+    String bankAccountHolder = '',
   }) async {
     final cleanName = fullName.trim().isNotEmpty
         ? fullName.trim()
         : promoterNameNotifier.value;
+    final cleanBank = bankName.trim();
+    final cleanAccNo = bankAccountNumber.replaceAll(RegExp(r'[^0-9]'), '');
+    final cleanHolder = bankAccountHolder.trim().isNotEmpty
+        ? bankAccountHolder.trim()
+        : cleanName;
+
+    // PIN Produser selalu disimpan sebagai hash SHA-256, bukan plaintext.
+    final storedPinHash = hashPin(pinCode.trim());
+
+    final currentUser = DataService().currentUser;
+    final authUid = SupabaseService.isInitialized
+        ? SupabaseService.client.auth.currentUser?.id
+        : null;
+    final userId = (authUid != null && authUid.isNotEmpty)
+        ? authUid
+        : (currentUser?.id ?? 'prd-${DateTime.now().millisecondsSinceEpoch}');
+    final userEmail = currentUser?.email ?? 'official@javapromotor.com';
+    final rowId = promoterRowIdFor(userId);
+
+    if (SupabaseService.isInitialized) {
+      final nowIso = DateTime.now().toIso8601String();
+      String? dbError;
+      try {
+        await SupabaseService.client.from('profiles').upsert({
+          'id': userId,
+          'name': cleanName,
+          'full_name': cleanName,
+          'email': userEmail,
+          'phone': phone.trim(),
+          'role': 'Produser',
+          'pin_code': storedPinHash,
+          'bank_name': cleanBank,
+          'bank_account_number': cleanAccNo,
+          'bank_account_holder': cleanHolder,
+          'is_verified': true,
+          'verification_status': 'approved',
+          'approval_status': 'approved',
+          'updated_at': nowIso,
+        }).select();
+      } catch (e) {
+        debugPrint('Error submitInitialVerification profiles: $e');
+        dbError = e.toString();
+        // Fallback tanpa kolom opsional bila migrasi belum dijalankan
+        try {
+          await SupabaseService.client.from('profiles').upsert({
+            'id': userId,
+            'name': cleanName,
+            'full_name': cleanName,
+            'email': userEmail,
+            'phone': phone.trim(),
+            'role': 'Produser',
+            'pin_code': storedPinHash,
+            'is_verified': true,
+            'verification_status': 'approved',
+          }).select();
+          dbError = null;
+        } catch (e2) {
+          dbError = e2.toString();
+        }
+      }
+
+      String? promoterError;
+      try {
+        await SupabaseService.client.from('promoter_profiles').upsert({
+          'id': rowId,
+          'user_id': userId,
+          'full_name': cleanName,
+          'company_name': cleanName,
+          'responsible_name': cleanName,
+          'phone': phone.trim(),
+          'address': address.trim(),
+          'office_address': address.trim(),
+          'birth_date': birthDate.trim(),
+          'ktp_url': ktpFileName.trim(),
+          'responsibility_letter_url': responsibilityLetterFileName.trim(),
+          'pin_code': storedPinHash,
+          'bank_name': cleanBank,
+          'bank_account_number': cleanAccNo,
+          'bank_account_name': cleanHolder,
+          'bank_account_holder': cleanHolder,
+          'is_verified': true,
+          'verification_status': 'approved',
+          'approval_status': 'approved',
+          'submitted_at': nowIso,
+          'updated_at': nowIso,
+        }).select();
+      } catch (e) {
+        debugPrint('Error submitInitialVerification promoter_profiles: $e');
+        promoterError = e.toString();
+        final working = <String, dynamic>{
+          'id': rowId,
+          'user_id': userId,
+          'company_name': cleanName,
+          'phone': phone.trim(),
+          'ktp_url': ktpFileName.trim(),
+          'responsibility_letter_url': responsibilityLetterFileName.trim(),
+          'pin_code': storedPinHash,
+          'bank_name': cleanBank,
+          'bank_account_number': cleanAccNo,
+          'bank_account_holder': cleanHolder,
+          'is_verified': true,
+          'approval_status': 'approved',
+        };
+        for (int i = 0; i < 12; i++) {
+          try {
+            await SupabaseService.client
+                .from('promoter_profiles')
+                .upsert(working)
+                .select();
+            promoterError = null;
+            break;
+          } catch (retryErr) {
+            final m = RegExp(r"Could not find the '([^']+)' column")
+                .firstMatch(retryErr.toString());
+            final col = m?.group(1);
+            if (col != null &&
+                working.containsKey(col) &&
+                col != 'id' &&
+                col != 'user_id') {
+              working.remove(col);
+              continue;
+            }
+            promoterError = retryErr.toString();
+            break;
+          }
+        }
+      }
+
+      if (dbError != null && promoterError != null) {
+        final low = dbError.toLowerCase();
+        return (
+          success: false,
+          errorMessage: low.contains('failed to fetch') ||
+                  low.contains('socket')
+              ? 'Koneksi ke server Supabase gagal. Periksa jaringan Anda lalu coba lagi.'
+              : 'Gagal menyimpan verifikasi ke database: $dbError',
+        );
+      }
+    }
+
     promoterNameNotifier.value = cleanName;
     ktpDocumentNotifier.value = ktpFileName.trim();
     responsibilityLetterNotifier.value = responsibilityLetterFileName.trim();
-    pinCodeNotifier.value = pinCode.trim();
-    verificationStatusNotifier.value = 'pending';
+    pinCodeNotifier.value = storedPinHash;
+    bankNameNotifier.value = cleanBank;
+    bankAccountNumberNotifier.value = cleanAccNo;
+    bankAccountHolderNotifier.value = cleanHolder;
+    verificationStatusNotifier.value = 'approved';
     isPinUnlockedThisSession = false;
 
-    final currentUser = DataService().currentUser;
-    final userId = currentUser?.id ?? 'prd-${DateTime.now().millisecondsSinceEpoch}';
-    final userEmail = currentUser?.email ?? 'official@javapromotor.com';
-
-    // Sinkronkan ke antrean approval Produser di AdminService
+    // Sinkronkan ke daftar Produser di AdminService (tercatat terverifikasi)
     final adminService = AdminService();
     final newApp = ProducerApplicationModel(
-      id: 'promoter-$userId',
+      id: rowId,
       userId: userId,
       companyName: cleanName,
       email: userEmail,
@@ -765,8 +1096,8 @@ class PromoterDataService {
       address: address.trim().isNotEmpty
           ? address.trim()
           : 'Jl. Kayutangan No. 45, Malang',
-      approvalStatus: ApprovalStatus.pending,
-      isVerified: false,
+      approvalStatus: ApprovalStatus.approved,
+      isVerified: true,
       submittedAt: DateTime.now(),
       submissionDocuments: [
         ProducerDocumentModel(
@@ -778,7 +1109,8 @@ class PromoterDataService {
         ),
         ProducerDocumentModel(
           id: 'doc-letter-$userId',
-          name: 'Lembar Penanggung Jawab (${responsibilityLetterFileName.trim()})',
+          name:
+              'Lembar Penanggung Jawab (${responsibilityLetterFileName.trim()})',
           type: 'PDF',
           fileSize: '540 KB',
           fileUrl: responsibilityLetterFileName.trim(),
@@ -791,39 +1123,7 @@ class PromoterDataService {
     list.insert(0, newApp);
     adminService.producersNotifier.value = list;
 
-    if (SupabaseService.isInitialized) {
-      try {
-        await SupabaseService.client.from('profiles').upsert({
-          'id': userId,
-          'name': cleanName,
-          'full_name': cleanName,
-          'email': userEmail,
-          'phone': phone.trim(),
-          'role': 'Produser',
-          'pin_code': pinCode.trim(),
-          'is_verified': false,
-          'verification_status': 'pending',
-        });
-
-        await SupabaseService.client.from('promoter_profiles').upsert({
-          'id': 'promoter-$userId',
-          'user_id': userId,
-          'company_name': cleanName,
-          'responsible_name': cleanName,
-          'phone': phone.trim(),
-          'office_address': address.trim(),
-          'birth_date': birthDate.trim(),
-          'ktp_url': ktpFileName.trim(),
-          'responsibility_letter_url': responsibilityLetterFileName.trim(),
-          'pin_code': pinCode.trim(),
-          'is_verified': false,
-          'approval_status': 'pending',
-          'submitted_at': DateTime.now().toIso8601String(),
-        });
-      } catch (e) {
-        debugPrint('Error submitInitialVerification Supabase: $e');
-      }
-    }
+    return (success: true, errorMessage: null);
   }
 
   /// Ajukan perubahan Nama Produser atau Dokumen Legalitas (Memerlukan Approval Admin)
@@ -1072,35 +1372,6 @@ class PromoterDataService {
         likesCount: PromoterConcertItem.formatLikes(nextLikes),
       );
       concertsNotifier.value = list;
-
-      if (SupabaseService.isInitialized) {
-        SupabaseService.client
-            .from('concerts')
-            .update({'likes_count': nextLikes})
-            .eq('id', list[idx].id)
-            .catchError((err) {
-              debugPrint('Error sync likes_count to Supabase: $err');
-            });
-      }
-    } else if (SupabaseService.isInitialized) {
-      // Update langsung berdasarkan concertId di Supabase
-      SupabaseService.client
-          .from('concerts')
-          .select('likes_count')
-          .eq('id', concertId)
-          .maybeSingle()
-          .then((row) {
-        if (row != null) {
-          final curr = (row['likes_count'] as num?)?.toInt() ?? 0;
-          final next = (curr + delta) < 0 ? 0 : (curr + delta);
-          return SupabaseService.client
-              .from('concerts')
-              .update({'likes_count': next})
-              .eq('id', concertId)
-              .catchError((_) {});
-        }
-        return Future<void>.value();
-      }).catchError((_) {});
     }
   }
 
@@ -1160,40 +1431,134 @@ class PromoterDataService {
           concertId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
       final filePath =
           'concerts/$safeConcertId/${kind}_${DateTime.now().microsecondsSinceEpoch}.$ext';
-      await SupabaseService.client.storage
-          .from('concert-media')
-          .uploadBinary(
-            filePath,
-            bytes,
-            fileOptions: FileOptions(
-              contentType: contentType,
-              upsert: false,
-            ),
-          )
-          .timeout(const Duration(seconds: 12));
-      final publicUrl = SupabaseService.client.storage
-          .from('concert-media')
-          .getPublicUrl(filePath);
-      return publicUrl.isNotEmpty ? publicUrl : raw;
+      for (final bucket in const ['concert-media', 'concerts', 'avatars']) {
+        try {
+          await SupabaseService.client.storage
+              .from(bucket)
+              .uploadBinary(
+                filePath,
+                bytes,
+                fileOptions: FileOptions(
+                  contentType: contentType,
+                  upsert: true,
+                ),
+              )
+              .timeout(const Duration(seconds: 12));
+          final publicUrl = SupabaseService.client.storage
+              .from(bucket)
+              .getPublicUrl(filePath);
+          if (publicUrl.isNotEmpty) {
+            return publicUrl;
+          }
+        } catch (bucketErr) {
+          debugPrint('Upload media konser ke bucket "$bucket" gagal: $bucketErr');
+        }
+      }
+      return raw;
     } catch (e) {
-      debugPrint('Error upload media konser ke concert-media ($kind): $e');
+      debugPrint('Error upload media konser ($kind): $e');
       return raw;
     }
   }
 
-  Future<void> _persistConcertAndTiersToSupabase(
+  String _formatSupabaseError(Object err) {
+    final raw = err.toString();
+    final lower = raw.toLowerCase();
+    if (lower.contains('row-level security') || raw.contains('42501')) {
+      return 'Izin akses database ditolak (RLS). Pastikan akun Anda login sebagai Produser dan telah terhubung ke sesi Supabase.';
+    }
+    if (lower.contains('failed to fetch') ||
+        lower.contains('socketexception') ||
+        lower.contains('timed out')) {
+      return 'Koneksi ke database Supabase gagal. Periksa jaringan internet Anda lalu coba lagi.';
+    }
+    return 'Gagal menyimpan konser ke database: $raw';
+  }
+
+  Future<({bool success, String? errorMessage})> _upsertRowAdaptive({
+    required String table,
+    required Map<String, dynamic> rawPayload,
+    Set<String> requiredKeys = const {'id'},
+  }) async {
+    final working = Map<String, dynamic>.from(rawPayload);
+    for (int attempt = 0; attempt < 24; attempt++) {
+      try {
+        await SupabaseService.client.from(table).upsert(working).select();
+        return (success: true, errorMessage: null);
+      } catch (err) {
+        final msg = err.toString();
+        String? badColumn;
+        final pgrstMatch =
+            RegExp(r"Could not find the '([^']+)' column").firstMatch(msg);
+        if (pgrstMatch != null) {
+          badColumn = pgrstMatch.group(1);
+        } else {
+          final pgColMatch = RegExp(r'column "([^"]+)"').firstMatch(msg);
+          if (pgColMatch != null) {
+            badColumn = pgColMatch.group(1);
+          } else if (msg.contains('42804') || msg.contains('22P02')) {
+            if (msg.contains('gates') && working.containsKey('gates')) {
+              badColumn = 'gates';
+            } else if (msg.contains('highlights') &&
+                working.containsKey('highlights')) {
+              badColumn = 'highlights';
+            } else if (msg.contains('highlight_names') &&
+                working.containsKey('highlight_names')) {
+              badColumn = 'highlight_names';
+            } else if (msg.contains('accent_color') &&
+                working.containsKey('accent_color')) {
+              badColumn = 'accent_color';
+            }
+          }
+        }
+
+        if (badColumn != null &&
+            badColumn.isNotEmpty &&
+            !requiredKeys.contains(badColumn) &&
+            working.containsKey(badColumn)) {
+          debugPrint(
+            'Adaptive upsert ($table): melewatkan kolom "$badColumn" ($msg)',
+          );
+          working.remove(badColumn);
+          continue;
+        }
+
+        if (msg.contains('22P02') &&
+            working.containsKey('accent_color') &&
+            working['accent_color'] is int) {
+          working['accent_color'] = working['accent_color'].toString();
+          continue;
+        }
+
+        debugPrint('Error upsert $table to Supabase: $err');
+        return (success: false, errorMessage: _formatSupabaseError(err));
+      }
+    }
+    return (
+      success: false,
+      errorMessage: 'Gagal menyimpan data $table ke database Supabase.',
+    );
+  }
+
+  Future<({bool success, String? errorMessage})>
+      _persistConcertAndTiersToSupabase(
     PromoterConcertItem concert, {
     required String status,
     required String approvalStatus,
     Map<String, dynamic>? pendingEditPayload,
     bool clearPendingEditPayload = false,
   }) async {
-    if (!SupabaseService.isInitialized) return;
+    if (!SupabaseService.isInitialized) {
+      return (success: true, errorMessage: null);
+    }
 
     var resolvedConcert = concert;
-    final currentUserId = DataService().currentUser?.id;
+    final authUid = SupabaseService.client.auth.currentUser?.id.trim();
+    final currentUserId = (authUid != null && authUid.isNotEmpty)
+        ? authUid
+        : DataService().currentUser?.id;
 
-    // 1. Unggah gambar data:image/* ke bucket Storage `concert-media` agar baris DB ringkas
+    // 1. Unggah gambar data:image/* ke bucket Storage agar baris DB ringkas
     final uploadedPoster = await _uploadConcertMediaIfDataUrl(
       concertId: concert.id,
       kind: 'poster',
@@ -1266,9 +1631,10 @@ class PromoterDataService {
       }
     }
 
-    final concertJson = resolvedConcert.toJson(promoterId: currentUserId);
-    concertJson.remove('ticket_tiers');
-    concertJson['producer_name'] = promoterName;
+    final concertJson = resolvedConcert.toSupabaseMap(
+      promoterId: currentUserId,
+      producerName: promoterName,
+    );
     concertJson['status'] = status;
     concertJson['approval_status'] = approvalStatus;
     if (pendingEditPayload != null) {
@@ -1277,32 +1643,20 @@ class PromoterDataService {
       concertJson['pending_edit_payload'] = null;
     }
 
-    try {
-      await SupabaseService.client.from('concerts').upsert(concertJson);
-    } catch (err) {
-      debugPrint('Error upsert concert to Supabase: $err');
-      final errStr = err.toString();
-      if (errStr.contains('PGRST204') || errStr.contains('column')) {
-        final fallbackJson = Map<String, dynamic>.from(concertJson)
-          ..remove('highlights')
-          ..remove('highlight_names')
-          ..remove('poster_data_url')
-          ..remove('square_logo_data_url')
-          ..remove('square_logo_url');
-        try {
-          await SupabaseService.client.from('concerts').upsert(fallbackJson);
-        } catch (fallbackErr) {
-          debugPrint('Error upsert fallback concert to Supabase: $fallbackErr');
-          return;
-        }
-      } else {
-        return;
-      }
+    final concertResult = await _upsertRowAdaptive(
+      table: 'concerts',
+      rawPayload: concertJson,
+      requiredKeys: const {'id', 'title'},
+    );
+    if (!concertResult.success) {
+      return concertResult;
     }
 
-    for (final tier in resolvedConcert.tiers) {
-      try {
-        await SupabaseService.client.from('ticket_tiers').upsert({
+    for (int i = 0; i < resolvedConcert.tiers.length; i++) {
+      final tier = resolvedConcert.tiers[i];
+      final tierResult = await _upsertRowAdaptive(
+        table: 'ticket_tiers',
+        rawPayload: {
           'id': tier.id,
           'concert_id': resolvedConcert.id,
           'name': tier.name,
@@ -1311,22 +1665,34 @@ class PromoterDataService {
           'total_quota': tier.quota,
           'quota_type': tier.quotaType,
           'accent_color': tier.accentColor.toARGB32(),
-        });
-      } catch (err) {
-        debugPrint('Error upsert ticket_tier: $err');
+          'sort_order': i,
+        },
+        requiredKeys: const {'id', 'concert_id', 'name'},
+      );
+      if (!tierResult.success) {
+        return tierResult;
       }
     }
+    return (success: true, errorMessage: null);
   }
 
-  bool addConcert(PromoterConcertItem newConcert) {
+  Future<({bool success, String? errorMessage})> addConcert(
+      PromoterConcertItem newConcert) async {
     if (quotaRemainingNotifier.value <= 0) {
-      return false;
+      return (
+        success: false,
+        errorMessage: 'Kuota pengajuan konser Anda sudah habis.',
+      );
     }
-    final updatedList = List<PromoterConcertItem>.from(concertsNotifier.value);
+
+    final previousList =
+        List<PromoterConcertItem>.from(concertsNotifier.value);
+    final previousQuota = quotaRemainingNotifier.value;
+
+    final updatedList = List<PromoterConcertItem>.from(previousList);
     updatedList.insert(0, newConcert);
     concertsNotifier.value = updatedList;
-
-    quotaRemainingNotifier.value = quotaRemainingNotifier.value - 1;
+    quotaRemainingNotifier.value = previousQuota - 1;
 
     if (newConcert.highlights.isNotEmpty) {
       LocalStorage.setStringList(
@@ -1336,29 +1702,34 @@ class PromoterDataService {
           newConcert.highlightNames);
     }
 
-    // 1. Simpan ke Supabase Cloud (unggah media ke Storage lalu upsert konser & tiers)
+    // 1. Simpan ke Supabase Cloud (tunggu hasil asli agar error terlihat & FK gate crew valid)
     if (SupabaseService.isInitialized) {
-      unawaited(
-        _persistConcertAndTiersToSupabase(
-          newConcert,
-          status: 'pending',
-          approvalStatus: 'pending_create',
-        ).catchError((_) {}),
+      final result = await _persistConcertAndTiersToSupabase(
+        newConcert,
+        status: 'pending',
+        approvalStatus: 'pending_create',
       );
+      if (!result.success) {
+        concertsNotifier.value = previousList;
+        quotaRemainingNotifier.value = previousQuota;
+        return result;
+      }
     }
 
     // 2. Hubungkan ke antrean persetujuan Super Admin
     _syncConcertToAdmin(newConcert, requestType: 'create');
 
-    return true;
+    return (success: true, errorMessage: null);
   }
 
   /// Memperbarui informasi konser dan mengirim ulang ke antrean approval Admin
-  void updateConcert(
+  Future<({bool success, String? errorMessage})> updateConcert(
     PromoterConcertItem updatedConcert, {
     bool requiresAdminApproval = true,
-  }) {
-    final list = List<PromoterConcertItem>.from(concertsNotifier.value);
+  }) async {
+    final previousList =
+        List<PromoterConcertItem>.from(concertsNotifier.value);
+    final list = List<PromoterConcertItem>.from(previousList);
     final idx = list.indexWhere((c) => c.id == updatedConcert.id);
     final finalConcert = requiresAdminApproval
         ? updatedConcert.copyWith(status: ConcertStatus.menunggu)
@@ -1387,6 +1758,13 @@ class PromoterDataService {
       'time': finalConcert.time,
       'venue': finalConcert.venueName,
       'venue_address': finalConcert.venueAddress,
+      if (finalConcert.venueLatitude != null)
+        'venue_latitude': finalConcert.venueLatitude,
+      if (finalConcert.venueLongitude != null)
+        'venue_longitude': finalConcert.venueLongitude,
+      if (finalConcert.venuePlaceId != null &&
+          finalConcert.venuePlaceId!.isNotEmpty)
+        'venue_place_id': finalConcert.venuePlaceId,
       'description': finalConcert.description,
       'banner_image_url':
           (finalConcert.posterDataUrl?.isNotEmpty == true)
@@ -1409,16 +1787,18 @@ class PromoterDataService {
     };
 
     if (SupabaseService.isInitialized) {
-      unawaited(
-        _persistConcertAndTiersToSupabase(
-          finalConcert,
-          status: requiresAdminApproval ? 'pending' : 'published',
-          approvalStatus:
-              requiresAdminApproval ? 'pending_edit' : 'approved',
-          pendingEditPayload: requiresAdminApproval ? editPayload : null,
-          clearPendingEditPayload: !requiresAdminApproval,
-        ).catchError((_) {}),
+      final result = await _persistConcertAndTiersToSupabase(
+        finalConcert,
+        status: requiresAdminApproval ? 'pending' : 'published',
+        approvalStatus:
+            requiresAdminApproval ? 'pending_edit' : 'approved',
+        pendingEditPayload: requiresAdminApproval ? editPayload : null,
+        clearPendingEditPayload: !requiresAdminApproval,
       );
+      if (!result.success) {
+        concertsNotifier.value = previousList;
+        return result;
+      }
     }
 
     if (requiresAdminApproval) {
@@ -1428,6 +1808,7 @@ class PromoterDataService {
         pendingEditPayload: editPayload,
       );
     }
+    return (success: true, errorMessage: null);
   }
 
   void deleteConcert(String id) {

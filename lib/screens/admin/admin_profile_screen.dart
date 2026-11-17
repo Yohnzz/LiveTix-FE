@@ -78,9 +78,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         final email = (user?.email.isNotEmpty == true)
             ? user!.email
             : 'admin@livetix.com';
-        final name =
-            (user?.name.isNotEmpty == true) ? user!.name : 'Super Admin';
-        final initials = ApprovalFormat.initialsOf(name);
+        // Tampilkan selalu 'Super Admin' untuk role Admin agar konsisten
+        const name = 'Super Admin';
+        const initials = 'AD';
         final isDark = DataService().isDarkModeNotifier.value;
 
         final approvedProducers = adminService.producersNotifier.value

@@ -945,5 +945,6 @@ class Step1DetailPosterScreen extends StatelessWidget {
 
     dateTimeController.text =
         '$dayName, $day $monthName $year - $hourStr:$minuteStr WIB';
+
   }
 }

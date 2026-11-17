@@ -27,10 +27,11 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _emailController;
+  late TextEditingController _nikController;
 
   late TicketTierModel _selectedTier;
   late List<TicketTierModel> _availableTiers;
-  int _quantity = 2; // Default sesuai Figma (2 tiket)
+  int _quantity = 1;
   final int _maxQuantity = 4;
   final int _serviceFee = 15000;
 
@@ -43,6 +44,7 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
     if (currentUser == null) {
       _nameController = TextEditingController();
       _emailController = TextEditingController();
+      _nikController = TextEditingController();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -60,6 +62,7 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
       // Ambil otomatis dari auth state / user profil yang login
       _nameController = TextEditingController(text: currentUser.name);
       _emailController = TextEditingController(text: currentUser.email);
+      _nikController = TextEditingController(text: currentUser.nik.isNotEmpty ? currentUser.nik : '');
     }
 
     _availableTiers = widget.concert.ticketTiers.isNotEmpty
@@ -147,6 +150,7 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
     DataService().stockVersionNotifier.removeListener(_onRealtimeStockUpdate);
     _nameController.dispose();
     _emailController.dispose();
+    _nikController.dispose();
     super.dispose();
   }
 
@@ -211,20 +215,20 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+          icon: Icon(Icons.arrow_back, color: AppColors.isDark(context) ? AppColors.darkText : AppColors.textDark),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Pilih tiket',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
-            color: AppColors.textDark,
+            color: AppColors.isDark(context) ? AppColors.darkText : AppColors.textDark,
           ),
         ),
         centerTitle: false,
@@ -665,6 +669,7 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
   }
 
   Widget _buildCustomerDataSection() {
+    final currentUser = DataService().currentUser;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -727,12 +732,23 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
         ),
         const SizedBox(height: 12),
         AppTextField(
-          label: 'Email',
+          label: 'Akun (Email)',
           icon: Icons.mail_outline,
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
           readOnly: true,
           helperText: 'Otomatis terisi dari profil akun LiveTix kamu',
+        ),
+        const SizedBox(height: 12),
+        AppTextField(
+          label: 'NIK',
+          icon: Icons.credit_card_outlined,
+          controller: _nikController,
+          keyboardType: TextInputType.number,
+          readOnly: true,
+          helperText: currentUser?.nik.isEmpty ?? true
+              ? 'Lengkapi verifikasi data diri terlebih dahulu'
+              : 'NIK tercatat sebagai identitas pemesan tiket',
         ),
       ],
     );

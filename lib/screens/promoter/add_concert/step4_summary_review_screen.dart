@@ -23,6 +23,7 @@ class Step4SummaryReviewScreen extends StatefulWidget {
   final void Function(Map<String, String> invitedCrew) onSubmit;
   final VoidCallback onBack;
   final bool isEditMode;
+  final bool isSubmitting;
 
   const Step4SummaryReviewScreen({
     super.key,
@@ -42,6 +43,7 @@ class Step4SummaryReviewScreen extends StatefulWidget {
     required this.onSubmit,
     required this.onBack,
     this.isEditMode = false,
+    this.isSubmitting = false,
   });
 
   @override
@@ -708,24 +710,50 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: () => widget.onSubmit(_selectedCrewGates),
+                  onPressed: widget.isSubmitting
+                      ? null
+                      : () => widget.onSubmit(_selectedCrewGates),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF9E1B82), // Magenta-purple
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFF7B1465),
+                    disabledForegroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: Text(
-                    widget.isEditMode
-                        ? 'Simpan Perubahan Konser'
-                        : 'Kirim untuk Approval Admin',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  child: widget.isSubmitting
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'Menyimpan ke Database...',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          widget.isEditMode
+                              ? 'Simpan Perubahan Konser'
+                              : 'Kirim untuk Approval Admin',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                 ),
               ),
             ),

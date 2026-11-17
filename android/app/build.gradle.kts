@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.livetix"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -881,15 +881,16 @@ void main() {
   });
 
   testWidgets(
-      'ProfileScreen: Bahasa & Notifikasi dihapus pada User, Mode tampilan mengubah tema global (isDarkModeNotifier) dan default adalah Dark',
+      'ProfileScreen: Bahasa & Notifikasi dihapus pada User, Mode tampilan mengubah tema global (isDarkModeNotifier) dan default adalah Light',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(375, 860);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     final dataService = DataService();
-    // Pastikan default tema awal pada dummy data adalah Dark
-    expect(dataService.isDarkModeNotifier.value, isTrue);
+    // Pastikan default tema awal adalah Light (putih)
+    dataService.setDarkMode(false);
+    expect(dataService.isDarkModeNotifier.value, isFalse);
 
     await tester.pumpWidget(
       const MaterialApp(
@@ -916,25 +917,28 @@ void main() {
     // 2. Verifikasi Notifikasi telah dihapus dari menu profil
     expect(find.text('Notifikasi'), findsNothing);
 
-    // 3. Verifikasi Mode Tampilan switch hadir dengan status Dark
+    // 3. Verifikasi Mode Tampilan switch hadir dengan status Light (default)
     expect(find.text('Mode tampilan'), findsOneWidget);
-    expect(find.text('Dark'), findsOneWidget);
+    expect(find.text('Light'), findsOneWidget);
 
-    // 4. Ubah switch Mode Tampilan ke Light
+    // 4. Ubah switch Mode Tampilan ke Dark
     final switchFinder = find.byType(Switch);
     expect(switchFinder, findsOneWidget);
     await tester.tap(switchFinder);
     await tester.pumpAndSettle();
 
-    // Verifikasi tema global berubah ke Light di DataService
+    // Verifikasi tema global berubah ke Dark di DataService
+    expect(dataService.isDarkModeNotifier.value, isTrue);
+    expect(find.text('Dark'), findsOneWidget);
+
+    // Kembalikan ke tema Light
+    await tester.tap(switchFinder);
+    await tester.pumpAndSettle();
     expect(dataService.isDarkModeNotifier.value, isFalse);
     expect(find.text('Light'), findsOneWidget);
 
-    // Kembalikan ke tema Dark
-    await tester.tap(switchFinder);
-    await tester.pumpAndSettle();
-    expect(dataService.isDarkModeNotifier.value, isTrue);
-    expect(find.text('Dark'), findsOneWidget);
+    // Pulihkan default Light untuk test berikutnya
+    dataService.setDarkMode(false);
   });
 
   testWidgets(

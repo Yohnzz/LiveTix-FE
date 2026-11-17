@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:livetix/screens/promoter/promoter_main_screen.dart';
 import 'package:livetix/screens/promoter/promoter_concert_list_screen.dart';
+import 'package:livetix/screens/promoter/promoter_pin_lock_screen.dart';
 import 'package:livetix/screens/promoter/add_concert/add_concert_flow.dart';
 import 'package:livetix/screens/promoter/verification/producer_verification_flow.dart';
 import 'package:livetix/services/promoter_data_service.dart';
@@ -56,8 +57,17 @@ void main() {
     // Step 3: Paket Harga Tiket (starts with empty fields)
     expect(find.text('Paket Harga Tiket'), findsOneWidget);
     expect(find.text('0 Tiket'), findsOneWidget);
-    expect(find.text('Lanjut ke Pilih Gate Crew'), findsOneWidget);
 
+    // Tambahkan minimal 1 kategori tiket agar lolos validasi Step 3
+    await tester.tap(find.text('Tambah Kategori Tiket'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), 'VIP');
+    await tester.enterText(find.byType(TextField).at(1), '500000');
+    await tester.enterText(find.byType(TextField).at(2), '100');
+    await tester.tap(find.text('Simpan Kategori'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lanjut ke Pilih Gate Crew'), findsOneWidget);
     await tester.tap(find.text('Lanjut ke Pilih Gate Crew'));
     await tester.pumpAndSettle();
 
@@ -82,15 +92,24 @@ void main() {
     expect(find.text('Pengajuan baru sedang ditinjau kurasi LiveTix'), findsOneWidget);
   });
 
-  testWidgets('ProducerVerificationFlow requires KTP, Lembar Penanggung Jawab, and PIN setup',
+  testWidgets(
+      'ProducerVerificationFlow requires data diri, rekening, KTP, Lembar Penanggung Jawab, then PIN and goes to PIN lock',
       (WidgetTester tester) async {
+    PromoterDataService().resetProducerVerificationStateForNewAccount('Rafi');
+    String? nextPickedFileName;
     await tester.pumpWidget(
-      const MaterialApp(
-        home: ProducerVerificationFlow(),
+      MaterialApp(
+        home: ProducerVerificationFlow(
+          filePicker: (accept) async {
+            final fileName = nextPickedFileName;
+            nextPickedFileName = null;
+            return fileName;
+          },
+        ),
       ),
     );
 
-    // Step 1: Isi data diri Produser
+    // Step 1: Isi data diri Produser + rekening
     expect(find.text('Isi data diri Produser'), findsOneWidget);
     expect(
       find.text('Langkah 1 dari 3: Informasi dasar penanggung jawab'),
@@ -103,6 +122,42 @@ void main() {
     await tester.tap(nextStep1Btn);
     await tester.pumpAndSettle();
 
+    // Belum diisi: tetap di langkah 1 dengan pesan validasi
+    expect(find.text('Isi data diri Produser'), findsOneWidget);
+    expect(find.text('Nama lengkap penanggung jawab wajib diisi.'),
+        findsOneWidget);
+
+    await tester.enterText(
+        find.byType(TextField).at(0), 'Rafi Firmansyah');
+    await tester.tap(nextStep1Btn);
+    await tester.pumpAndSettle();
+    expect(find.text('Tanggal lahir wajib dipilih.'), findsOneWidget);
+
+    await tester.tap(find.byType(TextField).at(1));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(nextStep1Btn);
+    await tester.pumpAndSettle();
+    expect(find.text('Nama bank wajib diisi.'), findsOneWidget);
+
+    await tester.enterText(
+        find.byKey(const Key('verification_bank_name_field')), 'BCA');
+    await tester.enterText(
+        find.byKey(const Key('verification_bank_account_number_field')),
+        '123');
+    await tester.tap(nextStep1Btn);
+    await tester.pumpAndSettle();
+    expect(find.text('Nomor rekening harus 8 sampai 20 digit angka.'),
+        findsOneWidget);
+
+    await tester.enterText(
+        find.byKey(const Key('verification_bank_account_number_field')),
+        '8820192831');
+    await tester.tap(nextStep1Btn);
+    await tester.pumpAndSettle();
+
     // Step 2: Unggah Dokumen KTP + Lembar Penanggung Jawab
     expect(find.text('Unggah Dokumen KTP'), findsOneWidget);
     expect(find.text('Dokumen yang dibutuhkan'), findsOneWidget);
@@ -112,38 +167,115 @@ void main() {
       findsOneWidget,
     );
 
-    // 1. Upload KTP
+    // Cancellation returns null and leaves the picker sheet open without upload.
     await tester.tap(find.text('Pilih Dokumen KTP'));
     await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Unggah Dokumen KTP'));
-    await tester.pump(const Duration(seconds: 4));
+    await tester.tap(
+      find.widgetWithText(
+        OutlinedButton,
+        'Pilih File dari Perangkat / Explorer',
+      ),
+    );
     await tester.pumpAndSettle();
+    expect(find.text('Pilih File dari Perangkat / Explorer'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.close).last);
+    await tester.pumpAndSettle();
+    expect(find.text('Pilih Dokumen KTP'), findsOneWidget);
 
+    // Unsupported extensions cannot complete an upload.
+    await tester.tap(find.text('Pilih Dokumen KTP'));
+    await tester.pumpAndSettle();
+    nextPickedFileName = 'ktp_rafi.txt';
+    await tester.tap(
+      find.widgetWithText(
+        OutlinedButton,
+        'Pilih File dari Perangkat / Explorer',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Pilih File dari Perangkat / Explorer'), findsNothing);
+    expect(find.text('Pilih Dokumen KTP'), findsOneWidget);
+    expect(
+      find.text('Format dokumen KTP harus .jpg, .jpeg, .png, atau .pdf.'),
+      findsOneWidget,
+    );
+
+    // A valid KTP filename completes the first required upload.
+    await tester.tap(find.text('Pilih Dokumen KTP'));
+    await tester.pumpAndSettle();
+    nextPickedFileName = 'ktp_rafi_firmansyah.JPG';
+    await tester.tap(
+      find.widgetWithText(
+        OutlinedButton,
+        'Pilih File dari Perangkat / Explorer',
+      ),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Ganti Dokumen KTP'), findsOneWidget);
+    expect(find.textContaining('ktp_rafi_firmansyah.JPG'), findsOneWidget);
 
-    // Clear SnackBar
-    final scaffoldMessenger =
-        tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first);
+    // KTP alone is insufficient to advance to PIN; the required letter picker opens.
+    final scaffoldMessenger = tester.state<ScaffoldMessengerState>(
+      find.byType(ScaffoldMessenger).first,
+    );
+    final nextPinBtn = find.text('Lanjut Buat PIN');
     scaffoldMessenger.clearSnackBars();
     await tester.pumpAndSettle();
+    await tester.ensureVisible(nextPinBtn);
+    await tester.tap(nextPinBtn);
+    await tester.pumpAndSettle();
+    expect(find.text('Buat PIN Keamanan'), findsNothing);
+    expect(find.text('Pilih File Word / PDF dari Perangkat'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.close).last);
+    await tester.pumpAndSettle();
 
-    // 2. Upload Lembar Penanggung Jawab
-    final letterBtn = find.text('Unggah Lembar Penanggung Jawab');
+    // Cancellation of the responsibility-letter picker also leaves state unchanged.
+    final letterBtn = find.text('Unggah Lembar Penanggung Jawab').first;
     await tester.ensureVisible(letterBtn);
     await tester.tap(letterBtn);
     await tester.pumpAndSettle();
-
     await tester.tap(
-      find.widgetWithText(ElevatedButton, 'Unggah Lembar Penanggung Jawab'),
+      find.widgetWithText(
+        OutlinedButton,
+        'Pilih File Word / PDF dari Perangkat',
+      ),
     );
-    await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
+    expect(find.text('Pilih File Word / PDF dari Perangkat'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.close).last);
+    await tester.pumpAndSettle();
+
+    // Reject a non-document extension, then accept the valid letter selection.
+    await tester.tap(find.text('Unggah Lembar Penanggung Jawab').first);
+    await tester.pumpAndSettle();
+    nextPickedFileName = 'surat.txt';
+    await tester.tap(
+      find.widgetWithText(
+        OutlinedButton,
+        'Pilih File Word / PDF dari Perangkat',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Pilih File Word / PDF dari Perangkat'), findsNothing);
+    expect(
+      find.text('Format lembar penanggung jawab harus .doc, .docx, atau .pdf.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Unggah Lembar Penanggung Jawab').first);
+    await tester.pumpAndSettle();
+    nextPickedFileName = 'Lembar_Penanggung_Jawab.docx';
+    await tester.tap(
+      find.widgetWithText(
+        OutlinedButton,
+        'Pilih File Word / PDF dari Perangkat',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Lembar_Penanggung_Jawab.docx'), findsOneWidget);
 
     scaffoldMessenger.clearSnackBars();
     await tester.pumpAndSettle();
-
-    final nextPinBtn = find.text('Ajukan Approval Verifikasi');
     await tester.ensureVisible(nextPinBtn);
     await tester.tap(nextPinBtn);
     await tester.pumpAndSettle();
@@ -156,25 +288,27 @@ void main() {
     await tester.enterText(pinFields.at(1), '123456');
     await tester.pump();
 
-    final submitPinBtn = find.text('Simpan PIN & Ajukan Verifikasi ke Admin');
+    final submitPinBtn = find.text('Simpan PIN & Selesaikan Verifikasi');
     await tester.ensureVisible(submitPinBtn);
     await tester.tap(submitPinBtn);
     await tester.pumpAndSettle();
 
-    // Step 4: Status Akun Anda (Approval Menunggu)
-    expect(find.text('Status Akun Anda'), findsOneWidget);
-    expect(find.text('Progres Pendaftaran'), findsOneWidget);
-    expect(find.text('Sedang Ditinjau Admin'), findsOneWidget);
-    expect(find.text('Cek Status Akun'), findsOneWidget);
+    // Setelah verifikasi: lanjut ke halaman PIN, lalu Beranda Produser
+    final service = PromoterDataService();
+    expect(service.verificationStatusNotifier.value, 'approved');
+    expect(service.bankNameNotifier.value, 'BCA');
+    expect(service.bankAccountNumberNotifier.value, '8820192831');
+    expect(find.byType(PromoterPinLockScreen), findsOneWidget);
+  });
 
-    await tester.tap(find.text('Cek Status Akun'));
-    await tester.pumpAndSettle();
+  test('Produser terverifikasi langsung diarahkan ke halaman PIN, belum verifikasi ke alur verifikasi',
+      () {
+    final service = PromoterDataService();
+    service.verificationStatusNotifier.value = 'unverified';
+    expect(resolveProducerEntryScreen(), isA<ProducerVerificationFlow>());
 
-    // Step 5: Status Verifikasi (Approval Ditolak)
-    expect(find.text('Status Verifikasi'), findsOneWidget);
-    expect(find.text('Alasan Penolakan'), findsOneWidget);
-    expect(find.textContaining('Hari'), findsOneWidget);
-    expect(find.text('Ajukan Ulang Verifikasi (Terkunci)'), findsOneWidget);
-    expect(find.text('Hubungi Admin Kami'), findsOneWidget);
+    service.verificationStatusNotifier.value = 'approved';
+    service.isPinUnlockedThisSession = false;
+    expect(resolveProducerEntryScreen(), isA<PromoterPinLockScreen>());
   });
 }

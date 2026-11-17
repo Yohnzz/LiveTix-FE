@@ -118,6 +118,12 @@ class _AgreementDialogState extends State<AgreementDialog> {
                       ),
                       SizedBox(height: 14),
                       _SectionItem(
+                        title: 'NIK sebagai identitas tiket',
+                        body:
+                            'Nomor Induk Kependudukan (NIK) yang kamu masukkan digunakan sebagai pembeda unik antar tiket dan sebagai bentuk pertanggungjawaban apabila terdapat kesalahan atau indikasi kecurangan pada tiket yang diterbitkan atas namamu. NIK tidak akan dibagikan kepada pihak lain di luar keperluan verifikasi.',
+                      ),
+                      SizedBox(height: 14),
+                      _SectionItem(
                         title: 'Komitmen kami',
                         body:
                             'Kamu bisa menarik persetujuan dan menghapus akunmu kapan saja lewat menu Pengaturan.',

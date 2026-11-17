@@ -565,15 +565,22 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
                       const SizedBox(height: 10),
 
                       // Bank Account Information
-                      _buildMenuItem(
-                        icon: Icons.account_balance_outlined,
-                        title: 'Rekening Bank Penerima',
-                        subtitle: 'Bank BCA - 8820 1928 31 a/n $promoterName',
-                        cardBg: cardBg,
-                        cardBorder: cardBorder,
-                        textColor: textColor,
-                        subtextColor: subtextColor,
-                        onTap: () => _showBankAccountDialog(context),
+                      ListenableBuilder(
+                        listenable: Listenable.merge([
+                          PromoterDataService().bankNameNotifier,
+                          PromoterDataService().bankAccountNumberNotifier,
+                          PromoterDataService().bankAccountHolderNotifier,
+                        ]),
+                        builder: (context, _) => _buildMenuItem(
+                          icon: Icons.account_balance_outlined,
+                          title: 'Rekening Bank Penerima',
+                          subtitle: PromoterDataService().bankAccountSummary,
+                          cardBg: cardBg,
+                          cardBorder: cardBorder,
+                          textColor: textColor,
+                          subtextColor: subtextColor,
+                          onTap: () => _showBankAccountDialog(context),
+                        ),
                       ),
 
                       const SizedBox(height: 10),
@@ -1093,68 +1100,56 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Rekening bank ini telah divalidasi dan digunakan untuk menerima pencairan hasil penjualan tiket konser:',
-              style: TextStyle(
-                  fontSize: 12.5, color: Color(0xFF667085), height: 1.4),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF9FAFB),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE4E7EC)),
+        content: Builder(builder: (_) {
+          final svc = PromoterDataService();
+          final hasBank = svc.hasBankAccount;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                hasBank
+                    ? 'Pencairan hasil penjualan tiket konser akan dikirim ke rekening berikut:'
+                    : 'Rekening penerima dana belum diisi. Lengkapi saat verifikasi data Produser.',
+                style: const TextStyle(
+                    fontSize: 12.5, color: Color(0xFF475467), height: 1.4),
               ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Bank Tujuan: Bank Central Asia (BCA)',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF0F172A))),
-                  SizedBox(height: 4),
-                  Text('Nomor Rekening: 8820 1928 31',
-                      style: TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF1B2A8C),
-                          fontWeight: FontWeight.w700)),
-                  SizedBox(height: 4),
-                  Text('Pemilik Rekening: PT Harmoni Java Promosindo',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF667085))),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8FDF0),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.verified_user_outlined,
-                      size: 16, color: Color(0xFF039855)),
-                  SizedBox(width: 6),
-                  Text(
-                    'Status Rekening: Terverifikasi Escrow',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF039855),
-                    ),
+              if (hasBank) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE4E7EC)),
                   ),
-                ],
-              ),
-            ),
-          ],
-        ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Bank Tujuan: ${svc.bankNameNotifier.value}',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A))),
+                      const SizedBox(height: 4),
+                      Text('Nomor Rekening: ${svc.bankAccountNumberNotifier.value}',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF1B2A8C),
+                              fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text(
+                          'Pemilik Rekening: ${svc.bankAccountHolderNotifier.value.isEmpty ? svc.promoterName : svc.bankAccountHolderNotifier.value}',
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF475467))),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          );
+        }),
         actions: [
           ElevatedButton(
             style: ElevatedButton.styleFrom(

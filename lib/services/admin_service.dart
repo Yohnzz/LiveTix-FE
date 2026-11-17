@@ -1456,6 +1456,15 @@ class AdminService {
         if (editPayload['venue_address'] != null) {
           updateMap['venue_address'] = editPayload['venue_address'];
         }
+        if (editPayload['venue_latitude'] != null) {
+          updateMap['venue_latitude'] = editPayload['venue_latitude'];
+        }
+        if (editPayload['venue_longitude'] != null) {
+          updateMap['venue_longitude'] = editPayload['venue_longitude'];
+        }
+        if (editPayload['venue_place_id'] != null) {
+          updateMap['venue_place_id'] = editPayload['venue_place_id'];
+        }
         if (editPayload['description'] != null) {
           updateMap['description'] = editPayload['description'];
         }
@@ -1525,6 +1534,14 @@ class AdminService {
         title: newTitle,
         dateAndVenue: newSubtitle,
         venueName: newVenue,
+        venueAddress: (editPayload?['venue_address'] ??
+                pList[pIdx].venueAddress)
+            .toString(),
+        venueLatitude:
+            (editPayload?['venue_latitude'] as num?)?.toDouble(),
+        venueLongitude:
+            (editPayload?['venue_longitude'] as num?)?.toDouble(),
+        venuePlaceId: editPayload?['venue_place_id']?.toString(),
         status: ConcertStatus.disetujui,
       );
       promoterService.concertsNotifier.value = pList;

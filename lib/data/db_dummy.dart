@@ -22,6 +22,8 @@ class DbDummy {
       ticketsBought: 12,
       concertsAttended: 9,
       reviewsCount: 4,
+      nik: '3573011205950001',
+      isVerified: true,
     ),
     const UserModel(
       id: '100001',
@@ -30,6 +32,7 @@ class DbDummy {
       phone: '081200000000',
       password: 'password123',
       role: 'Admin',
+      isVerified: true,
     ),
     const UserModel(
       id: '200000',
@@ -38,6 +41,7 @@ class DbDummy {
       phone: '081234567890',
       password: 'password123',
       role: 'Produser',
+      isVerified: true,
     ),
     const UserModel(
       id: '400000',
@@ -46,6 +50,7 @@ class DbDummy {
       phone: '081377889900',
       password: 'password123',
       role: 'Gatecrew',
+      isVerified: true,
     ),
     const UserModel(
       id: '400001',
@@ -54,6 +59,7 @@ class DbDummy {
       phone: '081388990011',
       password: 'gatecrew123',
       role: 'Gatecrew',
+      isVerified: true,
     ),
     const UserModel(
       id: '300000',
@@ -62,6 +68,8 @@ class DbDummy {
       phone: '081298765432',
       password: 'password123',
       role: 'User',
+      nik: '3573011205950002',
+      isVerified: true,
     ),
     const UserModel(
       id: '200001',
@@ -70,6 +78,7 @@ class DbDummy {
       phone: '081399998888',
       password: 'producer123',
       role: 'Produser',
+      isVerified: true,
     ),
     const UserModel(
       id: '100002',
@@ -78,6 +87,7 @@ class DbDummy {
       phone: '081122334455',
       password: 'admin123',
       role: 'Admin',
+      isVerified: true,
     ),
     const UserModel(
       id: '100003',
@@ -86,6 +96,7 @@ class DbDummy {
       phone: '081122334455',
       password: 'admin123',
       role: 'Admin',
+      isVerified: true,
     ),
     const UserModel(
       id: '200002',
@@ -94,6 +105,7 @@ class DbDummy {
       phone: '081234567890',
       password: 'producer123',
       role: 'Produser',
+      isVerified: true,
     ),
   ];
 

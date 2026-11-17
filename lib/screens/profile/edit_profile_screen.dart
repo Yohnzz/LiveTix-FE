@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../models/user_model.dart';
 import '../../services/data_service.dart';
+import '../../services/supabase_service.dart';
 import '../../utils/photo_picker.dart';
 import '../../widgets/user_avatar.dart';
 import '../auth/forgot_password_screen.dart';
@@ -158,6 +160,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   void _showChangePhotoSheet(UserModel user) {
+    // State lokal untuk preview foto sebelum disimpan (tetap terus rebuild sheet)
+    Uint8List? previewBytes;
+    bool isSaving = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -209,45 +215,165 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       style: TextStyle(fontSize: 13, color: _subtitleColor),
                     ),
                     const SizedBox(height: 18),
-                    if (PhotoPicker.canPickFromDevice) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            final bytes = await PhotoPicker.pickImageBytes();
-                            if (!ctx.mounted) return;
-                            if (bytes != null && bytes.isNotEmpty) {
-                              Navigator.pop(ctx);
-                              await _dataService.updateProfile(
-                                profileImageBytes: bytes,
-                              );
-                              if (!mounted) return;
-                              _showSuccessFeedback(
-                                'Foto profil berhasil diperbarui',
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.photo_library_outlined, size: 18),
-                          label: const Text(
-                            'Pilih Foto dari Perangkat',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                    ],
+
+                    StatefulBuilder(
+                      builder: (ctx, setSheetState) {
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (previewBytes != null ||
+                                user.profileImageBytes != null ||
+                                user.avatarUrl != null) ...[
+                              Center(
+                                child: UserAvatar(
+                                  initials: user.initials,
+                                  imageBytes:
+                                      previewBytes ?? user.profileImageBytes,
+                                  avatarUrl: previewBytes != null
+                                      ? null
+                                      : user.avatarUrl,
+                                  colorIndex: user.avatarColorIndex,
+                                  size: 84,
+                                  fontSize: 26,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                            if (PhotoPicker.canPickFromDevice) ...[
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: ElevatedButton.icon(
+                                  onPressed: isSaving
+                                      ? null
+                                      : () async {
+                                          final bytes =
+                                              await PhotoPicker.pickImageBytes();
+                                          if (!ctx.mounted) return;
+                                          if (bytes != null &&
+                                              bytes.isNotEmpty) {
+                                            setSheetState(() {
+                                              previewBytes = bytes;
+                                            });
+                                          }
+                                        },
+                                  icon: const Icon(
+                                      Icons.photo_library_outlined, size: 18),
+                                  label: const Text(
+                                    'Pilih Foto dari Perangkat',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            if (previewBytes != null) ...[
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: ElevatedButton.icon(
+                                  onPressed: isSaving
+                                      ? null
+                                      : () async {
+                                          setSheetState(() {
+                                            isSaving = true;
+                                          });
+                                          try {
+                                            final filePath =
+                                                'user_${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                                            await SupabaseService.client
+                                                .storage
+                                                .from('avatars')
+                                                .uploadBinary(
+                                              filePath,
+                                              previewBytes!,
+                                              fileOptions: const FileOptions(
+                                                contentType: 'image/jpeg',
+                                                upsert: true,
+                                              ),
+                                            );
+                                            final publicUrl =
+                                                SupabaseService.client.storage
+                                                    .from('avatars')
+                                                    .getPublicUrl(filePath);
+                                            if (publicUrl.isNotEmpty) {
+                                              await _dataService
+                                                  .updateProfile(
+                                                avatarUrl: publicUrl,
+                                              );
+                                              if (!mounted) return;
+                                              if (!ctx.mounted) return;
+                                              Navigator.pop(ctx);
+                                              _showSuccessFeedback(
+                                                'Foto profil berhasil diperbarui',
+                                              );
+                                            } else {
+                                              setSheetState(() {
+                                                isSaving = false;
+                                              });
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                      'Gagal mengambil URL foto'),
+                                                  backgroundColor:
+                                                      Color(0xFFB91C1C),
+                                                ),
+                                              );
+                                            }
+                                          } catch (e) {
+                                            setSheetState(() {
+                                              isSaving = false;
+                                            });
+                                            if (!mounted) return;
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content:
+                                                    Text('Gagal mengunggah foto: $e'),
+                                                backgroundColor:
+                                                    const Color(0xFFB91C1C),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                  icon: const Icon(Icons.save_rounded, size: 18),
+                                  label: Text(
+                                    isSaving ? 'Menyimpan...' : 'Simpan',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                            ],
+                          ],
+                        );
+                      },
+                    ),
                     Text(
                       'Tema Warna Avatar Inisial',
                       style: TextStyle(

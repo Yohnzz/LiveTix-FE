@@ -17,6 +17,9 @@ supabase/.temp/
 !.env.example
 *.local
 
+# Kredensial lokal Android
+android/local.properties
+
 # AI Assistants, Agent configurations, and Anti-Slop files
 .agents/
 .claude/

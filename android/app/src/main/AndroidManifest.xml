@@ -1,5 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Wajib untuk mengakses Supabase (REST & Auth) pada semua build mode,
+         bukan hanya debug. Tanpa izin ini, request gagal dengan
+         "ClientException: Failed to fetch". -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Izin lokasi untuk tombol "Gunakan Lokasi Saat Ini" pada Step 2.
+         Aplikasi tetap berjalan bila izin ditolak; pengguna bisa memilih
+         venue lewat pencarian atau peta. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />

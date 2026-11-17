@@ -4,13 +4,14 @@ import '../../core/app_colors.dart';
 import '../../services/data_service.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_header.dart';
+import '../../widgets/offline_banner.dart';
 import '../../widgets/primary_button.dart';
 import '../admin/admin_shell.dart';
-import '../home/home_screen.dart';
 import '../promoter/promoter_pin_lock_screen.dart';
 import '../gate_crew/gate_crew_main_screen.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
+import 'user_verification_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -94,15 +95,11 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Navigasi ke Home User (Logged-in state)
+      // User: verifikasi NIK + Nama Lengkap dulu bila belum, lalu Beranda
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (_) => HomeScreen(
-            isGuest: false,
-            userName: user.name,
-            userInitials: user.initials,
-          ),
+          builder: (_) => resolveUserEntryScreen(user),
         ),
         (route) => false,
       );
@@ -176,11 +173,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+              const OfflineBanner(),
               AppTextField(
                 label: 'Email',
                 icon: Icons.mail_outline,
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
+                forceLight: true,
                 validator: (v) =>
                     (v == null || !v.contains('@')) ? 'Email tidak valid' : null,
               ),
@@ -190,6 +189,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 icon: Icons.lock_outline,
                 controller: _password,
                 isPassword: true,
+                forceLight: true,
                 validator: (v) =>
                     (v == null || v.length < 6) ? 'Minimal 6 karakter' : null,
               ),

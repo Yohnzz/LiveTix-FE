@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/promoter_models.dart';
 import '../../../services/gate_crew_service.dart';
 import '../../../services/promoter_data_service.dart';
+import '../../../services/supabase_service.dart';
 import '../../../utils/image_picker_helper.dart';
 import '../../../utils/uuid_utils.dart';
 import '../concert_status_detail_screen.dart';
@@ -44,6 +45,9 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
   late String _venueName;
   late String _venueAddress;
   late String _venueSearchQuery;
+  late double? _venueLatitude;
+  late double? _venueLongitude;
+  late String? _venuePlaceId;
 
   // Step 3 State
   late List<PromoterTicketTier> _ticketTiers;
@@ -76,6 +80,9 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       _venueName = editing.venueName;
       _venueAddress = editing.venueAddress;
       _venueSearchQuery = editing.venueName;
+      _venueLatitude = editing.venueLatitude;
+      _venueLongitude = editing.venueLongitude;
+      _venuePlaceId = editing.venuePlaceId;
       _ticketTiers = List<PromoterTicketTier>.from(editing.tiers);
     } else {
       _nameController = TextEditingController();
@@ -90,6 +97,9 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       _venueName = '';
       _venueAddress = '';
       _venueSearchQuery = '';
+      _venueLatitude = null;
+      _venueLongitude = null;
+      _venuePlaceId = null;
       _ticketTiers = [];
     }
   }
@@ -162,6 +172,18 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
     if (_currentStep == 2) {
       if (_venueName.trim().isEmpty) {
         _showWarning('Silakan pilih lokasi konser di peta atau ketik nama tempat.');
+        return;
+      }
+      final lat = _venueLatitude;
+      final lng = _venueLongitude;
+      if (lat == null ||
+          lng == null ||
+          lat.isNaN ||
+          lng.isNaN ||
+          (lat == 0 && lng == 0)) {
+        _showWarning(
+          'Lokasi venue belum memiliki koordinat. Pilih lewat pencarian, ketuk peta, geser pin, atau gunakan GPS.',
+        );
         return;
       }
     }
@@ -357,7 +379,11 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
     return confirmed == true;
   }
 
+  bool _isSubmitting = false;
+
   void _submitConcert([Map<String, String>? invitedCrew]) async {
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
     final service = PromoterDataService();
 
     if (_isEditMode) {
@@ -382,6 +408,10 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
         venueAddress: _venueAddress.trim().isNotEmpty
             ? _venueAddress.trim()
             : original.venueAddress,
+        venueLatitude: _venueLatitude ?? original.venueLatitude,
+        venueLongitude: _venueLongitude ?? original.venueLongitude,
+        venuePlaceId: _venuePlaceId ?? original.venuePlaceId,
+        clearVenuePlaceId: _venuePlaceId == null,
         description: _descriptionController.text.trim(),
         posterFileName: _posterFileName.isNotEmpty
             ? _posterFileName
@@ -398,7 +428,24 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
         tiers: _ticketTiers.isNotEmpty ? _ticketTiers : original.tiers,
       );
 
-      service.updateConcert(updatedConcert, requiresAdminApproval: true);
+      final updateResult = await service.updateConcert(
+        updatedConcert,
+        requiresAdminApproval: true,
+      );
+      if (!updateResult.success) {
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                updateResult.errorMessage ?? 'Gagal menyimpan perubahan konser.',
+              ),
+              backgroundColor: Colors.red.shade700,
+            ),
+          );
+        }
+        return;
+      }
 
       if (invitedCrew != null && invitedCrew.isNotEmpty) {
         for (final entry in invitedCrew.entries) {
@@ -412,7 +459,12 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
         }
       }
 
+      if (SupabaseService.isInitialized) {
+        await service.fetchPromoterConcertsFromSupabase();
+      }
+
       if (!mounted) return;
+      setState(() => _isSubmitting = false);
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -426,6 +478,9 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
     }
 
     if (service.quotaRemainingNotifier.value <= 0) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Kuota pengajuan harian Anda telah habis.'),
@@ -458,6 +513,9 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       date: resolvedDate,
       venueName: resolvedVenue,
       venueAddress: _venueAddress.trim(),
+      venueLatitude: _venueLatitude,
+      venueLongitude: _venueLongitude,
+      venuePlaceId: _venuePlaceId,
       description: _descriptionController.text.trim(),
       posterFileName:
           _posterFileName.isNotEmpty ? _posterFileName : 'poster_konser.png',
@@ -473,8 +531,22 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       gates: assignedGates,
     );
 
-    final success = service.addConcert(newConcert);
-    if (!success) return;
+    final saveResult = await service.addConcert(newConcert);
+    if (!saveResult.success) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              saveResult.errorMessage ??
+                  'Gagal menyimpan konser ke database Supabase.',
+            ),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+      return;
+    }
 
     if (invitedCrew != null && invitedCrew.isNotEmpty) {
       for (final entry in invitedCrew.entries) {
@@ -488,7 +560,12 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       }
     }
 
+    if (SupabaseService.isInitialized) {
+      await service.fetchPromoterConcertsFromSupabase();
+    }
+
     if (!mounted) return;
+    setState(() => _isSubmitting = false);
 
     Navigator.pushReplacement(
       context,
@@ -534,12 +611,23 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
           venueName: _venueName,
           venueAddress: _venueAddress,
           venueSearchQuery: _venueSearchQuery,
+          initialLatitude: _venueLatitude,
+          initialLongitude: _venueLongitude,
           onVenueChanged: (name, address, query) {
             setState(() {
               _venueName = name;
               _venueAddress = address;
               _venueSearchQuery = query;
             });
+          },
+          onCoordinatesChanged: (latitude, longitude) {
+            setState(() {
+              _venueLatitude = latitude;
+              _venueLongitude = longitude;
+            });
+          },
+          onPlaceIdChanged: (placeId) {
+            setState(() => _venuePlaceId = placeId);
           },
           onNext: _onNext,
           onBack: _onBack,
@@ -582,6 +670,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
           onSubmit: _submitConcert,
           onBack: _onBack,
           isEditMode: _isEditMode,
+          isSubmitting: _isSubmitting,
         );
         break;
     }

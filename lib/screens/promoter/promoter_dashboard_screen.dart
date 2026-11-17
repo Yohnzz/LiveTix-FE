@@ -481,7 +481,10 @@ class PromoterDashboardScreen extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 14),
-                              SalesTrendBarChart(isDarkMode: isDarkMode),
+                              SalesTrendBarChart(
+                                isDarkMode: isDarkMode,
+                                salesData: service.weeklySales,
+                              ),
                             ],
                           ),
                         ),
@@ -547,8 +550,11 @@ class PromoterDashboardScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    // Mobile Bar Chart exactly matching user reference image
-                    SalesTrendBarChart(isDarkMode: isDarkMode),
+                    // Mobile Bar Chart: data nyata dari database (datar di 0 jika belum ada penjualan)
+                    SalesTrendBarChart(
+                      isDarkMode: isDarkMode,
+                      salesData: service.weeklySales,
+                    ),
                     const SizedBox(height: 12),
 
                   // Realtime Ticket Stock Monitor Card

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../services/promoter_data_service.dart';
 import '../widgets/promoter_step_indicator.dart';
 
@@ -7,6 +8,11 @@ class Step1ProducerProfileScreen extends StatelessWidget {
   final TextEditingController birthDateController;
   final TextEditingController phoneController;
   final TextEditingController addressController;
+  final TextEditingController bankNameController;
+  final TextEditingController bankAccountNumberController;
+  final TextEditingController bankAccountHolderController;
+  final String? errorMessage;
+  final VoidCallback onPickBirthDate;
   final VoidCallback onNext;
   final VoidCallback onBack;
 
@@ -16,6 +22,11 @@ class Step1ProducerProfileScreen extends StatelessWidget {
     required this.birthDateController,
     required this.phoneController,
     required this.addressController,
+    required this.bankNameController,
+    required this.bankAccountNumberController,
+    required this.bankAccountHolderController,
+    this.errorMessage,
+    required this.onPickBirthDate,
     required this.onNext,
     required this.onBack,
   });
@@ -27,14 +38,12 @@ class Step1ProducerProfileScreen extends StatelessWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: service.isDarkModeNotifier,
       builder: (context, isDarkMode, _) {
-        final textColor =
-            isDarkMode ? Colors.white : const Color(0xFF101828);
+        final textColor = isDarkMode ? Colors.white : const Color(0xFF101828);
         final subtextColor =
             isDarkMode ? Colors.white70 : const Color(0xFF667085);
         final labelColor =
             isDarkMode ? Colors.white70 : const Color(0xFF667085);
-        final fieldBg =
-            isDarkMode ? const Color(0xFF1B2232) : Colors.white;
+        final fieldBg = isDarkMode ? const Color(0xFF1B2232) : Colors.white;
         final fieldBorder =
             isDarkMode ? Colors.white12 : const Color(0xFFE4E7EC);
         final inputTextColor =
@@ -139,8 +148,10 @@ class Step1ProducerProfileScreen extends StatelessWidget {
                       fieldBorder: fieldBorder,
                       icon: Icons.calendar_today_outlined,
                       controller: birthDateController,
-                      hintText: '28 Oktober 1995',
+                      hintText: 'Pilih tanggal lahir',
                       textColor: inputTextColor,
+                      readOnly: true,
+                      onTap: onPickBirthDate,
                     ),
 
                     const SizedBox(height: 16),
@@ -171,6 +182,107 @@ class Step1ProducerProfileScreen extends StatelessWidget {
                       hintText: 'Jl. Kayutangan No. 45, Malang',
                       textColor: inputTextColor,
                     ),
+
+                    const SizedBox(height: 22),
+
+                    // Rekening bank penerima dana penjualan tiket
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.account_balance_outlined,
+                          size: 18,
+                          color: textColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Rekening Penerima Dana',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Hasil penjualan tiket akan dicairkan ke rekening ini.',
+                      style: TextStyle(fontSize: 12, color: subtextColor),
+                    ),
+                    const SizedBox(height: 14),
+
+                    _buildFieldLabel('NAMA BANK', labelColor),
+                    const SizedBox(height: 8),
+                    _buildInputContainer(
+                      fieldBg: fieldBg,
+                      fieldBorder: fieldBorder,
+                      icon: Icons.account_balance_outlined,
+                      controller: bankNameController,
+                      hintText: 'BCA, Mandiri, BNI, BRI',
+                      textColor: inputTextColor,
+                      fieldKey: const Key('verification_bank_name_field'),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    _buildFieldLabel('NOMOR REKENING', labelColor),
+                    const SizedBox(height: 8),
+                    _buildInputContainer(
+                      fieldBg: fieldBg,
+                      fieldBorder: fieldBorder,
+                      icon: Icons.numbers_rounded,
+                      controller: bankAccountNumberController,
+                      hintText: '1234567890',
+                      keyboardType: TextInputType.number,
+                      textColor: inputTextColor,
+                      digitsOnly: true,
+                      fieldKey:
+                          const Key('verification_bank_account_number_field'),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    _buildFieldLabel('NAMA PEMILIK REKENING', labelColor),
+                    const SizedBox(height: 8),
+                    _buildInputContainer(
+                      fieldBg: fieldBg,
+                      fieldBorder: fieldBorder,
+                      icon: Icons.badge_outlined,
+                      controller: bankAccountHolderController,
+                      hintText: 'Sesuai buku tabungan',
+                      textColor: inputTextColor,
+                      fieldKey:
+                          const Key('verification_bank_account_holder_field'),
+                    ),
+
+                    if (errorMessage != null) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isDarkMode
+                              ? const Color(0xFF450A0A)
+                              : const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isDarkMode
+                                ? const Color(0xFF991B1B)
+                                : const Color(0xFFFECACA),
+                          ),
+                        ),
+                        child: Text(
+                          errorMessage!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDarkMode
+                                ? const Color(0xFFFCA5A5)
+                                : const Color(0xFFB91C1C),
+                          ),
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 22),
 
@@ -238,6 +350,10 @@ class Step1ProducerProfileScreen extends StatelessWidget {
     required String hintText,
     required Color textColor,
     TextInputType keyboardType = TextInputType.text,
+    bool digitsOnly = false,
+    bool readOnly = false,
+    VoidCallback? onTap,
+    Key? fieldKey,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -256,8 +372,13 @@ class Step1ProducerProfileScreen extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
+              key: fieldKey,
               controller: controller,
               keyboardType: keyboardType,
+              readOnly: readOnly,
+              onTap: onTap,
+              inputFormatters:
+                  digitsOnly ? [FilteringTextInputFormatter.digitsOnly] : null,
               style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w400,
@@ -270,6 +391,8 @@ class Step1ProducerProfileScreen extends StatelessWidget {
                   fontSize: 13.5,
                   color: Color(0xFF98A2B3),
                 ),
+                suffixIcon:
+                    readOnly ? const Icon(Icons.arrow_drop_down_rounded) : null,
               ),
             ),
           ),
