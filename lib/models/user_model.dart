@@ -15,6 +15,17 @@ class UserModel {
   final String? avatarUrl;
   final int avatarColorIndex;
   final bool hasAcceptedAgreement;
+  final String nik;
+  final bool isVerified;
+
+  bool get isIdentityVerified {
+    final normalizedRole = role.trim().toLowerCase();
+    if (normalizedRole == 'user') {
+      final cleanNik = nik.replaceAll(RegExp(r'[^0-9]'), '');
+      return isVerified && cleanNik.length >= 16 && name.trim().isNotEmpty;
+    }
+    return isVerified;
+  }
 
   const UserModel({
     this.id = '123456',
@@ -30,6 +41,8 @@ class UserModel {
     this.avatarUrl,
     this.avatarColorIndex = -1,
     this.hasAcceptedAgreement = true,
+    this.nik = '',
+    this.isVerified = false,
   });
 
   /// Menjamin ID pengguna selalu tepat 6 karakter alfanumerik/angka.
@@ -69,6 +82,8 @@ class UserModel {
     bool clearProfileImage = false,
     int? avatarColorIndex,
     bool? hasAcceptedAgreement,
+    String? nik,
+    bool? isVerified,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -85,6 +100,8 @@ class UserModel {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       avatarColorIndex: avatarColorIndex ?? this.avatarColorIndex,
       hasAcceptedAgreement: hasAcceptedAgreement ?? this.hasAcceptedAgreement,
+      nik: nik ?? this.nik,
+      isVerified: isVerified ?? this.isVerified,
     );
   }
 
@@ -115,6 +132,9 @@ class UserModel {
       'concertsAttended': concertsAttended,
       'reviewsCount': reviewsCount,
       'hasAcceptedAgreement': hasAcceptedAgreement,
+      'nik': nik,
+      'isVerified': isVerified,
+      'is_verified': isVerified,
     };
   }
 
@@ -130,13 +150,29 @@ class UserModel {
       } catch (_) {}
     }
 
+    final roleStr = (json['role'] as String?) ?? 'User';
+    final rawNik = (json['nik'] as String?) ?? '';
+    final cleanNik = rawNik.replaceAll(RegExp(r'[^0-9]'), '');
+    final rawVerified = (json['is_verified'] as bool?) ??
+        (json['isVerified'] as bool?) ??
+        false;
+    final statusStr =
+        (json['verification_status'] ?? json['approval_status'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+    final isUserRole = roleStr.trim().toLowerCase() == 'user';
+    final resolvedVerified = isUserRole
+        ? ((rawVerified || statusStr == 'approved') && cleanNik.length >= 16)
+        : (rawVerified || statusStr == 'approved');
+
     return UserModel(
       id: (json['id'] as String?) ?? '123456',
       name: (json['name'] as String?) ?? (json['full_name'] as String?) ?? '',
       email: (json['email'] as String?) ?? '',
       phone: (json['phone'] as String?) ?? '',
       password: '',
-      role: (json['role'] as String?) ?? 'User',
+      role: roleStr,
       avatarUrl: avatar,
       profileImageBytes: bytes,
       ticketsBought: (json['ticketsBought'] as num?)?.toInt() ?? 0,
@@ -144,6 +180,8 @@ class UserModel {
       reviewsCount: (json['reviewsCount'] as num?)?.toInt() ?? 0,
       avatarColorIndex: (json['avatarColorIndex'] as num?)?.toInt() ?? -1,
       hasAcceptedAgreement: (json['hasAcceptedAgreement'] as bool?) ?? true,
+      nik: rawNik,
+      isVerified: resolvedVerified,
     );
   }
 }

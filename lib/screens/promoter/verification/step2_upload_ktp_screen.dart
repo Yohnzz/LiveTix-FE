@@ -116,7 +116,7 @@ class Step2UploadKtpScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Langkah 2 dari 3: Upload KTP & Lembar Penanggung Jawab untuk diperiksa Admin',
+                      'Langkah 2 dari 3: Upload KTP & Lembar Penanggung Jawab',
                       style: TextStyle(
                         fontSize: 12.5,
                         color: subtextColor,
@@ -585,7 +585,7 @@ class Step2UploadKtpScreen extends StatelessWidget {
                     ),
                   ),
                   child: const Text(
-                    'Ajukan Approval Verifikasi',
+                    'Lanjut Buat PIN',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,

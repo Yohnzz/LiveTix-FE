@@ -6,11 +6,13 @@ import '../widgets/promoter_step_indicator.dart';
 class Step3CreatePinScreen extends StatefulWidget {
   final void Function(String pinCode) onSubmitPin;
   final VoidCallback onBack;
+  final bool isSubmitting;
 
   const Step3CreatePinScreen({
     super.key,
     required this.onSubmitPin,
     required this.onBack,
+    this.isSubmitting = false,
   });
 
   @override
@@ -183,7 +185,7 @@ class _Step3CreatePinScreenState extends State<Step3CreatePinScreen> {
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
-                                  'Setelah akun disetujui Admin, Anda wajib memasukkan PIN 6 digit ini setiap kali login.',
+                                  'Anda wajib memasukkan PIN 6 digit ini setiap kali login sebagai Produser.',
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     color: subtextColor,
@@ -361,22 +363,33 @@ class _Step3CreatePinScreenState extends State<Step3CreatePinScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _validateAndSubmit,
+                  onPressed: widget.isSubmitting ? null : _validateAndSubmit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1B2A8C),
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFF475467),
+                    disabledForegroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
-                    'Simpan PIN & Ajukan Verifikasi ke Admin',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  child: widget.isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Simpan PIN & Selesaikan Verifikasi',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                 ),
               ),
             ),

@@ -80,27 +80,8 @@ class GateCrewService {
       loadTeam();
       return;
     }
-    // Fallback minimal untuk lingkungan unit test & offline saat belum terkoneksi Supabase
-    if (teamCrewNotifier.value.isEmpty) {
-      teamCrewNotifier.value = [
-        GateCrewMemberModel(
-          id: '400000',
-          name: 'Petugas Gate A',
-          email: 'gatecrew@livetix.com',
-          phone: '081377889900',
-          approvalStatus: 'approved',
-          defaultPassword: defaultSystemCrewPassword,
-          activeAssignment: GateCrewAssignmentModel(
-            id: 'cgc-001',
-            concertId: 'c1',
-            concertTitle: 'Konser LiveTix',
-            venue: 'Stadion Utama',
-            gateName: 'Gate A',
-            assignedAt: DateTime.now(),
-          ),
-        ),
-      ];
-    }
+    // Tanpa data dummy: daftar tim murni dari Supabase (atau cache penyimpanan).
+    // Jika kosong, halaman Team menampilkan empty state.
   }
 
   /// Mengekstrak daftar email dari isi file CSV / Excel (.csv / .tsv / teks tabel)

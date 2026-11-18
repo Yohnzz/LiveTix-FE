@@ -7,6 +7,7 @@ import 'screens/admin/admin_shell.dart';
 import 'screens/gate_crew/gate_crew_main_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/data_service.dart';
+import 'services/network_status_service.dart';
 import 'services/supabase_service.dart';
 import 'utils/local_storage.dart';
 
@@ -25,6 +26,9 @@ void main() async {
 
   // Inisialisasi Supabase Backend
   await SupabaseService.init();
+
+  // Pantau koneksi ke server agar UI dapat menampilkan status offline
+  NetworkStatusService().startMonitoring();
 
   // Pulihkan sesi aktif jika pengguna sebelumnya sudah login
   try {

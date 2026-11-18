@@ -26,7 +26,7 @@ class DataService {
   // Reactive State Notifiers
   final ValueNotifier<UserModel?> currentUserNotifier = ValueNotifier<UserModel?>(null);
   final ValueNotifier<List<UserTicketModel>> userTicketsNotifier = ValueNotifier<List<UserTicketModel>>([]);
-  final ValueNotifier<bool> isDarkModeNotifier = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> isDarkModeNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<Set<String>> favoriteConcertIdsNotifier = ValueNotifier<Set<String>>(<String>{});
 
   // Rekening khusus penerimaan refund dengan masa cooldown 1 minggu (7 hari) demi keamanan akun
@@ -85,13 +85,28 @@ class DataService {
 
   bool _isTransientNetworkError(Object error) {
     final msg = error.toString().toLowerCase();
+    // Di platform web (Chrome), "failed to fetch" dan ClientException umumnya
+    // disebabkan CORS prelight atau koneksi yang sudah ditutup browser — tidak
+    // aman untuk langsung retry karena justru menambah jumlah request duplikat
+    // yang terlihat di DevTools. Hanya retry pada error yang bisa pulih sendiri.
+    return msg.contains('socketexception') ||
+        msg.contains('timeoutexception') ||
+        msg.contains('connection reset') ||
+        msg.contains('connection closed');
+  }
+
+  bool _isNetworkOrOfflineError(Object error) {
+    final msg = error.toString().toLowerCase();
     return msg.contains('failed to fetch') ||
         msg.contains('clientexception') ||
         msg.contains('socketexception') ||
         msg.contains('timeoutexception') ||
         msg.contains('xmlhttprequest error') ||
         msg.contains('connection reset') ||
-        msg.contains('connection closed');
+        msg.contains('connection closed') ||
+        msg.contains('networkerror') ||
+        msg.contains('authretryablefetchexception') ||
+        msg.contains('offline');
   }
 
   Future<T> _withTransientRetry<T>(
@@ -120,7 +135,9 @@ class DataService {
         ? _readCachedConcertsFromLocalStorage()
         : List.from(DbDummy.concerts);
     _cities = List.from(DbDummy.cities);
-    _users = List.from(DbDummy.users);
+    _users = SupabaseService.isInitialized
+        ? <UserModel>[]
+        : List.from(DbDummy.users);
     // Pulihkan tiket tersimpan dari cache lokal jika ada (filter tiket dummy lawas)
     final savedTicketsRaw = LocalStorage.getString('livetix_saved_user_tickets');
     if (savedTicketsRaw != null && savedTicketsRaw.isNotEmpty) {
@@ -161,11 +178,12 @@ class DataService {
       } catch (_) {}
     }
 
-    // Tema tampilan: default Dark pada data dummy sesuai permintaan pengguna
+    // Tema tampilan: default Light (putih). Preferensi pengguna tetap dihormati
+    // melalui switch "Mode tampilan" dan tersimpan di penyimpanan lokal.
     if (LocalStorage.containsKey(LocalStorage.darkModeKey)) {
       isDarkModeNotifier.value = LocalStorage.getBool(LocalStorage.darkModeKey);
     } else {
-      isDarkModeNotifier.value = true;
+      isDarkModeNotifier.value = false;
     }
 
     // Data konser disukai (Favorit / Love) - murni dari penyimpanan pengguna
@@ -217,6 +235,7 @@ class DataService {
   DateTime? _lastExpiredCleanup;
   Future<void>? _ongoingLikesFetch;
   Future<void>? _ongoingTicketFetch;
+  DateTime? _lastTicketFetchAt;
   Future<void>? _ongoingRestoreSession;
   DateTime? _lastSessionRestoreAt;
   bool _pendingConcertForceRefresh = false;
@@ -266,6 +285,19 @@ class DataService {
     }
   }
 
+  Timer? _realtimeRefreshDebounceTimer;
+
+  void _debouncedRealtimeRefresh() {
+    _realtimeRefreshDebounceTimer?.cancel();
+    _realtimeRefreshDebounceTimer = Timer(const Duration(milliseconds: 1500), () async {
+      await fetchConcertsFromSupabase(forceRefresh: true);
+      final role = currentUser?.role.toLowerCase();
+      if (role == 'produser' || role == 'promoter') {
+        await PromoterDataService().fetchPromoterConcertsFromSupabase();
+      }
+    });
+  }
+
   /// Mendengarkan perubahan realtime pada ticket_tiers & concerts via Supabase Realtime
   void startRealtimeSubscriptions() {
     if (!SupabaseService.isInitialized) return;
@@ -276,10 +308,7 @@ class DataService {
             event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'ticket_tiers',
-            callback: (payload) async {
-              await fetchConcertsFromSupabase(forceRefresh: true);
-              await PromoterDataService().fetchPromoterConcertsFromSupabase();
-            },
+            callback: (payload) => _debouncedRealtimeRefresh(),
           )
           .subscribe();
       _concertsRealtimeChannel ??= SupabaseService.client
@@ -288,9 +317,7 @@ class DataService {
             event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'concerts',
-            callback: (payload) async {
-              await fetchConcertsFromSupabase(forceRefresh: true);
-            },
+            callback: (payload) => _debouncedRealtimeRefresh(),
           )
           .subscribe();
     } catch (e) {
@@ -357,16 +384,6 @@ class DataService {
               .match({'concert_id': concertId, 'user_id': activeUid});
           _serverLikedConcertIds.remove(concertId);
         }
-
-        // Hitung ulang total like secara akurat dari database & simpan ke concerts
-        final countRes = await SupabaseService.client
-            .from('concert_likes')
-            .select('id')
-            .eq('concert_id', concertId);
-        final exactCount = countRes.length;
-        await SupabaseService.client
-            .from('concerts')
-            .update({'likes_count': exactCount}).eq('id', concertId);
       } catch (e) {
         debugPrint('Error sync concert_likes ke Supabase: $e');
       }
@@ -781,8 +798,12 @@ class DataService {
       phone: '08123456789',
       password: password,
       role: resolvedRole,
+      isVerified: resolvedRole == 'Admin' || resolvedRole == 'Gatecrew',
     );
     _users.add(fallback);
+    if (resolvedRole == 'Produser') {
+      PromoterDataService().resetProducerVerificationStateForNewAccount(displayName);
+    }
     currentUserNotifier.value = fallback;
     if (SupabaseService.isInitialized) {
       fetchUserTicketsFromSupabase();
@@ -826,6 +847,39 @@ class DataService {
     }
   }
 
+  ({String nik, bool isVerified}) _resolveIdentityFields({
+    required String role,
+    required String name,
+    required Map<String, dynamic> meta,
+    Map<String, dynamic>? profileRes,
+  }) {
+    final rawNik =
+        (profileRes?['nik'] ?? meta['nik'] ?? '').toString().trim();
+    final cleanNik = rawNik.replaceAll(RegExp(r'[^0-9]'), '');
+    if (role == 'Admin' || role == 'Gatecrew') {
+      return (nik: cleanNik, isVerified: true);
+    }
+
+    final statusStr = (profileRes?['verification_status'] ??
+            profileRes?['approval_status'] ??
+            meta['verification_status'] ??
+            '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final bool flagVerified = (profileRes?['is_verified'] as bool?) ??
+        (meta['is_verified'] as bool?) ??
+        (statusStr == 'approved');
+
+    if (role == 'User') {
+      final verified =
+          flagVerified && cleanNik.length >= 16 && name.trim().isNotEmpty;
+      return (nik: cleanNik, isVerified: verified);
+    }
+
+    return (nik: cleanNik, isVerified: flagVerified);
+  }
+
   Future<void> _doRestoreSupabaseSession() async {
     // 1. Cek penyimpanan lokal disk terlebih dahulu agar instan saat cold/hot start
     final cached = LocalStorage.getString(LocalStorage.savedUserKey);
@@ -857,6 +911,7 @@ class DataService {
       String resolvedPhone = (meta['phone'] as String?) ?? '';
       String? resolvedAvatarUrl =
           (meta['url_foto'] as String?) ?? (meta['avatar_url'] as String?);
+      Map<String, dynamic>? fetchedProfile;
 
       try {
         final profileRes = await _withTransientRetry(
@@ -866,6 +921,7 @@ class DataService {
               .eq('id', authUser.id)
               .maybeSingle(),
         );
+        fetchedProfile = profileRes;
 
         if (profileRes != null) {
           resolvedRole = normalizeRole(profileRes['role'] as String?);
@@ -897,6 +953,13 @@ class DataService {
         }
       } catch (_) {}
 
+      final identity = _resolveIdentityFields(
+        role: resolvedRole,
+        name: resolvedName,
+        meta: meta,
+        profileRes: fetchedProfile,
+      );
+
       final user = UserModel(
         id: authUser.id,
         name: resolvedName,
@@ -905,6 +968,8 @@ class DataService {
         password: currentUserNotifier.value?.password ?? '',
         role: resolvedRole,
         avatarUrl: resolvedAvatarUrl,
+        nik: identity.nik,
+        isVerified: identity.isVerified,
       );
 
       currentUserNotifier.value = user;
@@ -915,7 +980,7 @@ class DataService {
       await fetchUserLikesFromSupabase();
       startRealtimeSubscriptions();
       if (user.role == 'Produser') {
-        await PromoterDataService().loadProducerProfileFromSupabase();
+        await PromoterDataService().loadProducerProfileFromSupabase(user.id);
       }
     } catch (_) {}
   }
@@ -939,6 +1004,7 @@ class DataService {
       String resolvedPhone = (meta['phone'] as String?) ?? '';
       String? resolvedAvatarUrl =
           (meta['url_foto'] as String?) ?? (meta['avatar_url'] as String?);
+      Map<String, dynamic>? fetchedProfile;
 
       try {
         final profileRes = await _withTransientRetry(
@@ -948,6 +1014,7 @@ class DataService {
               .eq('id', authUser.id)
               .maybeSingle(),
         );
+        fetchedProfile = profileRes;
 
         if (profileRes != null) {
           resolvedRole = normalizeRole(profileRes['role'] as String?);
@@ -979,6 +1046,13 @@ class DataService {
         }
       } catch (_) {}
 
+      final identity = _resolveIdentityFields(
+        role: resolvedRole,
+        name: resolvedName,
+        meta: meta,
+        profileRes: fetchedProfile,
+      );
+
       final user = UserModel(
         id: authUser.id,
         name: resolvedName,
@@ -987,6 +1061,8 @@ class DataService {
         password: password.trim(),
         role: resolvedRole,
         avatarUrl: resolvedAvatarUrl,
+        nik: identity.nik,
+        isVerified: identity.isVerified,
       );
 
       currentUserNotifier.value = user;
@@ -996,7 +1072,7 @@ class DataService {
       );
       if (user.role == 'Produser') {
         PromoterDataService().isPinUnlockedThisSession = false;
-        await PromoterDataService().loadProducerProfileFromSupabase();
+        await PromoterDataService().loadProducerProfileFromSupabase(user.id);
       }
       if (SupabaseService.isInitialized) {
         await fetchUserTicketsFromSupabase();
@@ -1075,6 +1151,7 @@ class DataService {
         ? _users[existingIndex].displayId
         : UserModel.generateSixCharId(normalizedEmail);
     final normalizedRole = normalizeRole(role);
+    final autoVerified = normalizedRole == 'Admin' || normalizedRole == 'Gatecrew';
     final newUser = UserModel(
       id: resolvedId,
       name: name.trim(),
@@ -1082,6 +1159,8 @@ class DataService {
       phone: phone.trim(),
       password: password,
       role: normalizedRole,
+      nik: '',
+      isVerified: autoVerified,
     );
     if (existingIndex != -1) {
       _users[existingIndex] = newUser;
@@ -1089,9 +1168,7 @@ class DataService {
       _users.add(newUser);
     }
     if (normalizedRole == 'Produser') {
-      PromoterDataService().promoterNameNotifier.value = name.trim();
-      PromoterDataService().verificationStatusNotifier.value = 'unverified';
-      PromoterDataService().isPinUnlockedThisSession = false;
+      PromoterDataService().resetProducerVerificationStateForNewAccount(name.trim());
     }
     currentUserNotifier.value = newUser;
     return newUser;
@@ -1106,6 +1183,7 @@ class DataService {
     String role = 'User',
   }) async {
     final normalizedRole = normalizeRole(role);
+    final autoVerified = normalizedRole == 'Admin' || normalizedRole == 'Gatecrew';
     if (SupabaseService.isInitialized) {
       final response = await SupabaseService.client.auth.signUp(
         email: email.trim(),
@@ -1115,6 +1193,9 @@ class DataService {
           'full_name': name.trim(),
           'phone': phone.trim(),
           'role': normalizedRole,
+          'nik': '',
+          'is_verified': autoVerified,
+          'verification_status': autoVerified ? 'approved' : 'unverified',
         },
       );
 
@@ -1132,26 +1213,29 @@ class DataService {
           'email': email.trim(),
           'phone': phone.trim(),
           'role': normalizedRole,
-          'verification_status':
-              normalizedRole == 'Produser' ? 'unverified' : 'approved',
-          'approval_status':
-              normalizedRole == 'Produser' ? 'unverified' : 'approved',
+          'nik': '',
+          'is_verified': autoVerified,
+          'verification_status': autoVerified ? 'approved' : 'unverified',
+          'approval_status': autoVerified ? 'approved' : 'unverified',
         });
 
         if (normalizedRole == 'Produser') {
           await SupabaseService.client.from('promoter_profiles').upsert({
-            'id': 'promoter-$userId',
+            'id': userId,
             'user_id': userId,
+            'full_name': name.trim(),
             'company_name': name.trim(),
+            'phone': phone.trim(),
             'is_verified': false,
+            'verification_status': 'unverified',
             'approval_status': 'unverified',
             'submitted_at': DateTime.now().toIso8601String(),
           });
-          PromoterDataService().promoterNameNotifier.value = name.trim();
-          PromoterDataService().verificationStatusNotifier.value = 'unverified';
-          PromoterDataService().isPinUnlockedThisSession = false;
+          PromoterDataService().resetProducerVerificationStateForNewAccount(name.trim());
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('register profiles/promoter_profiles upsert error: $e');
+      }
 
       final user = UserModel(
         id: userId,
@@ -1160,6 +1244,8 @@ class DataService {
         phone: phone.trim(),
         password: password.trim(),
         role: normalizedRole,
+        nik: '',
+        isVerified: autoVerified,
       );
 
       currentUserNotifier.value = user;
@@ -1314,6 +1400,143 @@ class DataService {
     }
 
     return updated;
+  }
+
+  /// Menyimpan verifikasi data diri User (NIK 16 digit & Nama Lengkap) ke Supabase
+  Future<({bool success, String? errorMessage})> verifyUserIdentity({
+    required String nik,
+    required String fullName,
+  }) async {
+    final active = currentUserNotifier.value;
+    if (active == null) {
+      return (
+        success: false,
+        errorMessage: 'Sesi login tidak ditemukan. Silakan masuk kembali.',
+      );
+    }
+
+    final cleanNik = nik.replaceAll(RegExp(r'[^0-9]'), '');
+    final trimmedName = fullName.trim();
+    if (cleanNik.length != 16) {
+      return (
+        success: false,
+        errorMessage: 'NIK harus terdiri dari tepat 16 digit angka.',
+      );
+    }
+    if (trimmedName.length < 2) {
+      return (
+        success: false,
+        errorMessage: 'Nama lengkap minimal 2 karakter.',
+      );
+    }
+
+    final updated = active.copyWith(
+      name: trimmedName,
+      nik: cleanNik,
+      isVerified: true,
+    );
+
+    final uuidRegex = RegExp(
+        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+    final authUid = SupabaseService.isInitialized
+        ? SupabaseService.client.auth.currentUser?.id.trim()
+        : null;
+    final targetId =
+        (authUid != null && authUid.isNotEmpty) ? authUid : active.id;
+    final isRealSupabaseUser = SupabaseService.isInitialized &&
+        authUid != null &&
+        authUid.isNotEmpty &&
+        uuidRegex.hasMatch(targetId);
+
+    if (isRealSupabaseUser) {
+      bool profileSaved = false;
+      String? dbError;
+
+      final payload = <String, dynamic>{
+        'id': targetId,
+        'email': active.email,
+        'name': trimmedName,
+        'full_name': trimmedName,
+        'phone': active.phone,
+        'role': active.role,
+        'nik': cleanNik,
+        'is_verified': true,
+        'verification_status': 'approved',
+        'approval_status': 'approved',
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      try {
+        // Coba update baris profil pengguna terlebih dahulu (tanpa .select() agar tidak memicu fetch representasi yang rentan CORS di Web)
+        final updatePayload = Map<String, dynamic>.from(payload)..remove('id');
+        await SupabaseService.client
+            .from('profiles')
+            .update(updatePayload)
+            .eq('id', targetId);
+        profileSaved = true;
+      } catch (updateErr) {
+        debugPrint('verifyUserIdentity profiles update error: $updateErr');
+        // Jika update gagal (misal baris profil belum dibuat), lakukan upsert tanpa .select()
+        try {
+          await SupabaseService.client.from('profiles').upsert(payload);
+          profileSaved = true;
+        } catch (upsertErr) {
+          debugPrint('verifyUserIdentity profiles upsert error: $upsertErr');
+          dbError = upsertErr.toString();
+        }
+      }
+
+      bool metadataSaved = false;
+      try {
+        await SupabaseService.client.auth.updateUser(
+          UserAttributes(data: {
+            'name': trimmedName,
+            'full_name': trimmedName,
+            'nik': cleanNik,
+            'is_verified': true,
+            'verification_status': 'approved',
+          }),
+        );
+        metadataSaved = true;
+      } catch (err) {
+        debugPrint('verifyUserIdentity auth metadata error: $err');
+      }
+
+      // Jika gagal karena masalah jaringan / browser web sementara (seperti ClientException Failed to fetch),
+      // tetap izinkan penyimpanan lokal agar pengguna tidak terkunci di halaman verifikasi saat offline.
+      if (!profileSaved && !metadataSaved) {
+        final isNetworkIssue = dbError != null &&
+            _isNetworkOrOfflineError(dbError);
+        if (!isNetworkIssue) {
+          return (
+            success: false,
+            errorMessage:
+                'Gagal menyimpan verifikasi data diri ke database: ${dbError ?? "error tidak diketahui"}',
+          );
+        } else {
+          debugPrint('verifyUserIdentity: Masalah jaringan terdeteksi, verifikasi disimpan ke penyimpanan lokal.');
+        }
+      }
+    }
+
+    final idx = _users.indexWhere(
+      (u) => u.email.toLowerCase() == active.email.toLowerCase(),
+    );
+    if (idx != -1) {
+      _users[idx] = updated;
+    } else {
+      _users.add(updated);
+    }
+    currentUserNotifier.value = updated;
+
+    try {
+      LocalStorage.setString(
+        LocalStorage.savedUserKey,
+        jsonEncode(updated.toJson()),
+      );
+    } catch (_) {}
+
+    return (success: true, errorMessage: null);
   }
 
   /// Mengganti kata sandi menggunakan verifikasi kata sandi lama secara asynchronous via Supabase Auth
@@ -1784,10 +2007,17 @@ class DataService {
   Future<void> fetchUserTicketsFromSupabase() async {
     if (!SupabaseService.isInitialized) return;
     if (_ongoingTicketFetch != null) return _ongoingTicketFetch!;
+    // Throttle: tidak fetch ulang jika baru saja berhasil dalam 5 detik terakhir
+    if (_lastTicketFetchAt != null &&
+        DateTime.now().difference(_lastTicketFetchAt!) <
+            const Duration(seconds: 5)) {
+      return;
+    }
     final future = _doFetchUserTicketsFromSupabase();
     _ongoingTicketFetch = future;
     try {
       await future;
+      _lastTicketFetchAt = DateTime.now();
     } finally {
       if (identical(_ongoingTicketFetch, future)) {
         _ongoingTicketFetch = null;

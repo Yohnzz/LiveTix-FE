@@ -5,8 +5,8 @@ import '../../widgets/app_text_field.dart';
 import '../../widgets/custom_checkbox.dart';
 import '../../widgets/primary_button.dart';
 import '../../services/data_service.dart';
-import '../home/home_screen.dart';
 import '../promoter/verification/producer_verification_flow.dart';
+import 'user_verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -72,15 +72,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         return;
       }
 
-      // Registrasi penonton biasa berhasil -> langsung masuk ke Home User
+      // Registrasi penonton: wajib verifikasi NIK + Nama Lengkap sebelum Beranda
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (_) => HomeScreen(
-            isGuest: false,
-            userName: user.name,
-            userInitials: user.initials,
-          ),
+          builder: (_) => resolveUserEntryScreen(user),
         ),
         (route) => false,
       );
@@ -157,6 +153,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   label: 'Nama lengkap',
                   icon: Icons.person_outline,
                   controller: _name,
+                  forceLight: true,
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Nama wajib diisi' : null,
                 ),
                 const SizedBox(height: 14),
@@ -167,6 +164,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   icon: Icons.mail_outline,
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
+                  forceLight: true,
                   validator: (v) => (v == null || !v.contains('@')) ? 'Email tidak valid' : null,
                 ),
                 const SizedBox(height: 14),
@@ -177,6 +175,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   icon: Icons.phone_android_outlined,
                   controller: _phone,
                   keyboardType: TextInputType.phone,
+                  forceLight: true,
                   validator: (v) => (v == null || v.length < 9) ? 'Nomor HP tidak valid' : null,
                 ),
                 const SizedBox(height: 14),
@@ -187,39 +186,73 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   icon: Icons.lock_outline,
                   controller: _password,
                   isPassword: true,
+                  forceLight: true,
                   validator: (v) => (v == null || v.length < 6) ? 'Minimal 6 karakter' : null,
                 ),
                 const SizedBox(height: 14),
 
                 // Role Dropdown dengan style Figma (Star icon & circular dropdown arrow)
-                DropdownButtonFormField<String>(
-                  initialValue: _role,
-                  items: _roles.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-                  onChanged: (v) => setState(() => _role = v!),
-                  icon: const Icon(
-                    Icons.arrow_drop_down_circle_outlined,
-                    size: 20,
-                    color: AppColors.textGrey,
-                  ),
-                  style: const TextStyle(fontSize: 13, color: AppColors.textDark),
-                  decoration: InputDecoration(
-                    labelText: 'Role',
-                    labelStyle: const TextStyle(fontSize: 12, color: AppColors.textGrey),
-                    prefixIcon: const Icon(
-                      Icons.stars_rounded,
-                      size: 20,
-                      color: AppColors.textGrey,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    enabledBorder: OutlineInputBorder(
+                // Warna menu mengikuti tema: tema putih -> menu putih teks hitam,
+                // tema hitam -> menu hitam teks putih agar tetap terbaca.
+                Builder(
+                  builder: (context) {
+                    final isDark = AppColors.isDark(context);
+                    final menuBg = isDark ? AppColors.darkSurface : Colors.white;
+                    final itemTextColor =
+                        isDark ? AppColors.darkText : AppColors.textDark;
+                    final fieldTextColor =
+                        isDark ? AppColors.darkText : AppColors.textDark;
+                    final labelColor =
+                        isDark ? AppColors.darkTextSecondary : AppColors.textGrey;
+                    final borderColor =
+                        isDark ? AppColors.darkBorder : AppColors.border;
+
+                    return DropdownButtonFormField<String>(
+                      initialValue: _role,
+                      isExpanded: true,
+                      dropdownColor: menuBg,
                       borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-                    ),
-                  ),
+                      items: _roles
+                          .map((r) => DropdownMenuItem(
+                                value: r,
+                                child: Text(
+                                  r,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: itemTextColor,
+                                  ),
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _role = v!),
+                      icon: Icon(
+                        Icons.arrow_drop_down_circle_outlined,
+                        size: 20,
+                        color: labelColor,
+                      ),
+                      style: TextStyle(fontSize: 13, color: fieldTextColor),
+                      decoration: InputDecoration(
+                        labelText: 'Role',
+                        labelStyle: TextStyle(fontSize: 12, color: labelColor),
+                        prefixIcon: Icon(
+                          Icons.stars_rounded,
+                          size: 20,
+                          color: labelColor,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 16),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                              color: AppColors.primary, width: 1.5),
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
 

@@ -23,12 +23,38 @@ class Step3TicketPricingScreen extends StatelessWidget {
     onTiersChanged(updated);
   }
 
-  void _showAddTierDialog(BuildContext context) {
-    final nameCtrl = TextEditingController();
-    final priceCtrl = TextEditingController();
-    final quotaCtrl = TextEditingController();
-    String quotaType = 'Kursi';
-    Color selectedColor = const Color(0xFFC2185B);
+  /// Bottom sheet untuk tambah / edit kategori tiket.
+  /// Jika [existing] diisi, form masuk mode edit.
+  void _showTierDialog(BuildContext context, {PromoterTicketTier? existing}) {
+    final isEdit = existing != null;
+    final nameCtrl = TextEditingController(text: existing?.name ?? '');
+    final priceCtrl = TextEditingController(
+        text: existing != null ? '${existing.price}' : '');
+    final quotaCtrl = TextEditingController(
+        text: existing != null ? '${existing.quota}' : '');
+    final String quotaType = existing?.quotaType ?? 'Tiket';
+    Color selectedColor = existing?.accentColor ?? const Color(0xFFC2185B);
+
+    const palette = <String, Color>{
+      'Merah': Color(0xFFEF4444),
+      'Kuning': Color(0xFFFACC15),
+      'Hijau': Color(0xFF22C55E),
+      'Biru': Color(0xFF3B82F6),
+      'Hitam': Color(0xFF111827),
+      'Magenta': Color(0xFFC2185B),
+      'Navy': Color(0xFF1B2A8C),
+    };
+
+    InputDecoration deco(String label) => InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Color(0xFF475569)),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        );
+
+    const fieldStyle = TextStyle(
+      color: Color(0xFF0F172A),
+      fontWeight: FontWeight.w600,
+    );
 
     showModalBottomSheet(
       context: context,
@@ -54,9 +80,9 @@ class Step3TicketPricingScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Tambah Kategori Tiket',
-                      style: TextStyle(
+                    Text(
+                      isEdit ? 'Edit Kategori Tiket' : 'Tambah Kategori Tiket',
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF0F172A),
@@ -72,83 +98,22 @@ class Step3TicketPricingScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 TextField(
                   controller: nameCtrl,
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w600,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Nama Kategori (misal: VIP / Presale)',
-                    labelStyle: const TextStyle(color: Color(0xFF475569)),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
+                  style: fieldStyle,
+                  decoration: deco('Nama Kategori (misal: VIP / Presale)'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: priceCtrl,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w600,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Harga (Rp)',
-                    labelStyle: const TextStyle(color: Color(0xFF475569)),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
+                  style: fieldStyle,
+                  decoration: deco('Harga (Rp)'),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: quotaCtrl,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(
-                          color: Color(0xFF0F172A),
-                          fontWeight: FontWeight.w600,
-                        ),
-                        decoration: InputDecoration(
-                          labelText: 'Jumlah Kuota',
-                          labelStyle:
-                              const TextStyle(color: Color(0xFF475569)),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    DropdownButton<String>(
-                      value: quotaType,
-                      dropdownColor: Colors.white,
-                      style: const TextStyle(
-                        color: Color(0xFF0F172A),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13.5,
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                            value: 'Kursi',
-                            child: Text('Kursi',
-                                style: TextStyle(color: Color(0xFF0F172A)))),
-                        DropdownMenuItem(
-                            value: 'Orang',
-                            child: Text('Orang',
-                                style: TextStyle(color: Color(0xFF0F172A)))),
-                        DropdownMenuItem(
-                            value: 'Tiket',
-                            child: Text('Tiket',
-                                style: TextStyle(color: Color(0xFF0F172A)))),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) setModalState(() => quotaType = val);
-                      },
-                    ),
-                  ],
+                TextField(
+                  controller: quotaCtrl,
+                  keyboardType: TextInputType.number,
+                  style: fieldStyle,
+                  decoration: deco('Jumlah Kuota'),
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -168,61 +133,16 @@ class Step3TicketPricingScreen extends StatelessWidget {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _buildColorChoice(
-                              color: const Color(0xFFEF4444), // Merah
-                              tooltip: 'Merah',
-                              selectedColor: selectedColor,
-                              onSelect: (c) =>
-                                  setModalState(() => selectedColor = c),
-                            ),
-                            const SizedBox(width: 8),
-                            _buildColorChoice(
-                              color: const Color(0xFFFACC15), // Kuning
-                              tooltip: 'Kuning',
-                              selectedColor: selectedColor,
-                              onSelect: (c) =>
-                                  setModalState(() => selectedColor = c),
-                            ),
-                            const SizedBox(width: 8),
-                            _buildColorChoice(
-                              color: const Color(0xFF22C55E), // Hijau
-                              tooltip: 'Hijau',
-                              selectedColor: selectedColor,
-                              onSelect: (c) =>
-                                  setModalState(() => selectedColor = c),
-                            ),
-                            const SizedBox(width: 8),
-                            _buildColorChoice(
-                              color: const Color(0xFF3B82F6), // Biru
-                              tooltip: 'Biru',
-                              selectedColor: selectedColor,
-                              onSelect: (c) =>
-                                  setModalState(() => selectedColor = c),
-                            ),
-                            const SizedBox(width: 8),
-                            _buildColorChoice(
-                              color: const Color(0xFF111827), // Hitam
-                              tooltip: 'Hitam',
-                              selectedColor: selectedColor,
-                              onSelect: (c) =>
-                                  setModalState(() => selectedColor = c),
-                            ),
-                            const SizedBox(width: 8),
-                            _buildColorChoice(
-                              color: const Color(0xFFC2185B), // Magenta
-                              tooltip: 'Magenta',
-                              selectedColor: selectedColor,
-                              onSelect: (c) =>
-                                  setModalState(() => selectedColor = c),
-                            ),
-                            const SizedBox(width: 8),
-                            _buildColorChoice(
-                              color: const Color(0xFF1B2A8C), // Navy
-                              tooltip: 'Navy',
-                              selectedColor: selectedColor,
-                              onSelect: (c) =>
-                                  setModalState(() => selectedColor = c),
-                            ),
+                            for (final e in palette.entries) ...[
+                              _buildColorChoice(
+                                color: e.value,
+                                tooltip: e.key,
+                                selectedColor: selectedColor,
+                                onSelect: (c) =>
+                                    setModalState(() => selectedColor = c),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
                           ],
                         ),
                       ),
@@ -247,19 +167,27 @@ class Step3TicketPricingScreen extends StatelessWidget {
                       if (name.isEmpty || price <= 0 || quota <= 0) return;
 
                       final newTier = PromoterTicketTier(
-                        id: UuidUtils.generateV4(),
+                        id: existing?.id ?? UuidUtils.generateV4(),
                         name: name,
                         price: price,
                         quota: quota,
                         quotaType: quotaType,
                         accentColor: selectedColor,
                       );
-                      onTiersChanged([...tiers, newTier]);
+
+                      if (isEdit) {
+                        final updated = tiers
+                            .map((t) => t.id == existing.id ? newTier : t)
+                            .toList();
+                        onTiersChanged(updated);
+                      } else {
+                        onTiersChanged([...tiers, newTier]);
+                      }
                       Navigator.pop(ctx);
                     },
-                    child: const Text(
-                      'Simpan Kategori',
-                      style: TextStyle(
+                    child: Text(
+                      isEdit ? 'Simpan Perubahan' : 'Simpan Kategori',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
                       ),
@@ -427,84 +355,99 @@ class Step3TicketPricingScreen extends StatelessWidget {
                       )
                     else
                       ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: tiers.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final tier = tiers[index];
-                        final isMagentaTier =
-                            tier.accentColor == const Color(0xFFC2185B);
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: tiers.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final tier = tiers[index];
+                          final isMagentaTier =
+                              tier.accentColor == const Color(0xFFC2185B);
 
-                        return Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: cardBg,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: cardBorder),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              // Vertical Color Stripe
-                              Container(
-                                width: 4,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: tier.accentColor,
-                                  borderRadius: BorderRadius.circular(2),
+                          return Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: cardBorder),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                // Vertical Color Stripe
+                                Container(
+                                  width: 4,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: tier.accentColor,
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 14),
-                              // Tier Information
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      tier.name,
-                                      style: TextStyle(
-                                        fontSize: 13.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: textColor,
+                                const SizedBox(width: 14),
+                                // Tier Information
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        tier.name,
+                                        style: TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: textColor,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      tier.formattedPrice,
-                                      style: TextStyle(
-                                        fontSize: 13.5,
-                                        fontWeight: FontWeight.w800,
-                                        color: isMagentaTier
-                                            ? const Color(0xFFC2185B)
-                                            : const Color(0xFF1B2A8C),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        tier.formattedPrice,
+                                        style: TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: isMagentaTier
+                                              ? const Color(0xFFC2185B)
+                                              : const Color(0xFF1B2A8C),
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      tier.formattedQuota,
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        color: subtextColor,
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        tier.formattedQuota,
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          color: subtextColor,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              // Trash Icon Button
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.delete_outline_rounded,
-                                  size: 20,
-                                  color: Color(0xFFC2185B), // Magenta
+                                // Edit Icon Button
+                                IconButton(
+                                  tooltip: 'Edit kategori',
+                                  visualDensity: VisualDensity.compact,
+                                  icon: Icon(
+                                    Icons.edit_outlined,
+                                    size: 20,
+                                    color: subtextColor,
+                                  ),
+                                  onPressed: () =>
+                                      _showTierDialog(context, existing: tier),
                                 ),
-                                onPressed: () => _removeTier(context, index),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                                // Trash Icon Button
+                                IconButton(
+                                  tooltip: 'Hapus kategori',
+                                  visualDensity: VisualDensity.compact,
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 20,
+                                    color: Color(0xFFC2185B), // Magenta
+                                  ),
+                                  onPressed: () => _removeTier(context, index),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
 
                     const SizedBox(height: 14),
 
@@ -513,7 +456,7 @@ class Step3TicketPricingScreen extends StatelessWidget {
                       width: double.infinity,
                       height: 46,
                       child: OutlinedButton(
-                        onPressed: () => _showAddTierDialog(context),
+                        onPressed: () => _showTierDialog(context),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF1B2A8C),
                           backgroundColor: cardBg,

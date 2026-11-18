@@ -43,8 +43,13 @@ class AppColors {
   );
 
   // Helper dinamis context-aware
+  // Prioritaskan isDarkModeNotifier agar ListenableBuilder bisa rebuild
+  // walaupun MaterialApp wrapper tidak terhubung ke ThemeMode.
   static bool isDark(BuildContext context) {
-    return DataService().isDarkModeNotifier.value;
+    final notifier = DataService().isDarkModeNotifier;
+    // Nilai notifier selalu up-to-date setelah toggle tema di Profil,
+    // sehingga semua widget yang memakai helper ini ikut ter-rebuild.
+    return notifier.value;
   }
 
   static Color bg(BuildContext context) =>

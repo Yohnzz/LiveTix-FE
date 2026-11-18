@@ -7,6 +7,7 @@ import '../screens/home/home_screen.dart';
 import '../screens/admin/admin_shell.dart';
 import '../screens/promoter/promoter_pin_lock_screen.dart';
 import '../screens/gate_crew/gate_crew_main_screen.dart';
+import '../screens/auth/user_verification_screen.dart';
 import '../services/data_service.dart';
 
 /// Layar pembuka (Splash Screen) LiveTix dengan desain modern, visual logo & tipografi menawan,
@@ -86,11 +87,7 @@ class _SplashScreenState extends State<SplashScreen>
         targetScreen = const GateCrewMainScreen();
         settings = const RouteSettings(name: GateCrewMainScreen.routeName);
       } else {
-        targetScreen = HomeScreen(
-          isGuest: false,
-          userName: user.name,
-          userInitials: user.initials,
-        );
+        targetScreen = resolveUserEntryScreen(user);
       }
     } else {
       targetScreen = const HomeScreen(isGuest: true);

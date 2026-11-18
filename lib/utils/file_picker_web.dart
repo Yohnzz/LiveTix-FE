@@ -10,21 +10,25 @@ Future<String?> pickNativeFile({String accept = '.jpg,.jpeg,.png,.pdf,image/*'})
   final completer = Completer<String?>();
   final uploadInput = html.FileUploadInputElement();
   uploadInput.accept = accept;
-  uploadInput.click();
 
   uploadInput.onChange.listen((event) {
     final files = uploadInput.files;
     if (files != null && files.isNotEmpty) {
-      final file = files.first;
-      if (!completer.isCompleted) {
-        completer.complete(file.name);
-      }
-    } else {
-      if (!completer.isCompleted) {
-        completer.complete(null);
-      }
+      if (!completer.isCompleted) completer.complete(files.first.name);
+    } else if (!completer.isCompleted) {
+      completer.complete(null);
     }
   });
+  // File inputs do not emit a change event when their dialog is dismissed.
+  // When focus returns, allow a selected file's change event time to arrive
+  // before treating the interaction as cancelled.
+  html.window.onFocus.first.then((_) {
+    Timer(const Duration(milliseconds: 100), () {
+      if (!completer.isCompleted) completer.complete(null);
+    });
+  });
+
+  uploadInput.click();
 
   return completer.future;
 }

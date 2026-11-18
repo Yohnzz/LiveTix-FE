@@ -27,19 +27,39 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
   final GateCrewService _gateCrewService = GateCrewService();
   late Map<String, String> _assignments;
 
-  final List<String> _gateOptions = [
-    'Gate A (Utama)',
-    'Gate B (Festival)',
-    'Gate C (Tribun)',
-  ];
+  // Daftar Pos Gate yang ditambahkan secara manual oleh Producer.
+  // Secara default daftar Gate harus kosong.
+  final List<String> _gateOptions = [];
 
   @override
   void initState() {
     super.initState();
     _assignments = Map<String, String>.from(widget.selectedCrewWithGate);
+    // Masukkan gate yang sudah ada dari assignments jika ada
+    for (final gate in _assignments.values) {
+      if (!_gateOptions.contains(gate)) {
+        _gateOptions.add(gate);
+      }
+    }
+  }
+
+  /// Kirim salinan map ke parent supaya state parent tidak berbagi
+  /// referensi dengan state lokal.
+  void _notify() {
+    widget.onCrewAssignmentsChanged(Map<String, String>.from(_assignments));
   }
 
   void _toggleCrew(String crewId, bool isSelected) {
+    if (isSelected && _gateOptions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Tambahkan minimal 1 Pos Gate terlebih dahulu sebelum memilih Crew Gate.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
     setState(() {
       if (isSelected) {
         _assignments[crewId] = _gateOptions.first;
@@ -47,137 +67,64 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
         _assignments.remove(crewId);
       }
     });
-    widget.onCrewAssignmentsChanged(_assignments);
+    _notify();
+  }
+
+  void _validateAndProceed() {
+    if (_gateOptions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Daftar Gate masih kosong. Producer wajib menambahkan Gate secara manual.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    // Setiap Gate wajib memiliki minimal 1 Crew Gate
+    for (final gate in _gateOptions) {
+      final hasCrew = _assignments.values.any((assignedGate) => assignedGate == gate);
+      if (!hasCrew) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Pos "$gate" belum memiliki Crew Gate! Setiap Gate wajib memiliki minimal 1 Crew Gate.'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+        return;
+      }
+    }
+
+    widget.onNext();
   }
 
   void _changeGate(String crewId, String gateName) {
     setState(() {
       _assignments[crewId] = gateName;
     });
-    widget.onCrewAssignmentsChanged(_assignments);
+    _notify();
   }
 
   void _showAddGateDialog(bool isDarkMode) {
     final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Tambah Pos Gate Baru',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: 'Contoh: Gate VIP, Gate Barat, dll',
-            border:
-                OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isNotEmpty && !_gateOptions.contains(text)) {
-                setState(() {
-                  _gateOptions.add(text);
-                });
-              }
-              Navigator.pop(ctx);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1B2A8C),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Tambah Gate'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showInviteCrewDialog(bool isDarkMode) {
-    final nameCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    String selectedGate = _gateOptions.first;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocalState) => AlertDialog(
+      builder: (ctx) => Theme(
+        data: ThemeData.light(),
+        child: AlertDialog(
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: const Text('Invite / Tambah Gate Crew',
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Tambah Pos Gate Baru',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Nama Lengkap Crew',
-                    style:
-                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: nameCtrl,
-                  decoration: InputDecoration(
-                    hintText: 'Contoh: Agus Pratama',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text('Email Crew',
-                    style:
-                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    hintText: 'crew@livetix.com',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text('Nomor HP (WhatsApp)',
-                    style:
-                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: phoneCtrl,
-                  keyboardType: TextInputType.phone,
-                  decoration: InputDecoration(
-                    hintText: '08123456789',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text('Pos Gate Penugasan',
-                    style:
-                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedGate,
-                  items: _gateOptions
-                      .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                      .toList(),
-                  onChanged: (val) {
-                    if (val != null) setLocalState(() => selectedGate = val);
-                  },
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ],
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Gate VIP, Gate Barat, dll',
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
           actions: [
@@ -186,53 +133,190 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
               child: const Text('Batal'),
             ),
             ElevatedButton(
-              onPressed: () async {
-                final email = emailCtrl.text.trim();
-                final name = nameCtrl.text.trim();
-                if (email.isEmpty) return;
-
-                final newMember =
-                    await _gateCrewService.inviteAndAssignCrewByProducer(
-                  concertId: 'draft-concert',
-                  concertTitle: 'Konser Baru',
-                  email: email,
-                  name: name.isNotEmpty ? name : 'Crew Gate',
-                  phone: phoneCtrl.text.trim(),
-                  gateName: selectedGate,
-                );
-
-                if (!mounted) return;
-                setState(() {
-                  _assignments[newMember.id] = selectedGate;
-                });
-                widget.onCrewAssignmentsChanged(_assignments);
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
+              onPressed: () {
+                final text = controller.text.trim();
+                final exists = _gateOptions
+                    .any((g) => g.toLowerCase() == text.toLowerCase());
+                if (text.isNotEmpty && !exists) {
+                  setState(() {
+                    _gateOptions.add(text);
+                  });
                 }
-
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                          'Gate Crew ${newMember.name} berhasil di-invite dan ditugaskan ke $selectedGate'),
-                      backgroundColor: const Color(0xFF16A34A),
-                    ),
-                  );
-                }
+                Navigator.pop(ctx);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1B2A8C),
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Simpan & Tugaskan'),
+              child: const Text('Tambah Gate'),
             ),
           ],
+        ),
+      ),
+    ).then((_) => controller.dispose());
+  }
+
+  /// Dialog "Invite Crewgate": produser memilih crew dari daftar crew yang
+  /// sudah ada di akunnya (dropdown), lalu memilih pos gate. Tidak ada input
+  /// manual nama / email / nomor HP lagi.
+  void _showInviteCrewDialog(
+    bool isDarkMode,
+    List<GateCrewMemberModel> allCrews,
+  ) {
+    // Hanya crew yang belum ditugaskan yang bisa dipilih.
+    final available =
+        allCrews.where((c) => !_assignments.containsKey(c.id)).toList();
+
+    if (_gateOptions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Tambahkan Pos Gate terlebih dahulu sebelum menugaskan Gate Crew.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    if (allCrews.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Belum ada Gate Crew di akun Anda. Tambahkan crew di menu Tim terlebih dahulu.'),
+        ),
+      );
+      return;
+    }
+    if (available.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Semua Gate Crew sudah dipilih dan ditugaskan.'),
+        ),
+      );
+      return;
+    }
+
+    String? selectedCrewId = available.first.id;
+    String selectedGate = _gateOptions.first;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Theme(
+        data: ThemeData.light(),
+        child: StatefulBuilder(
+          builder: (ctx, setLocalState) => AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            title: const Text('Tugaskan Gate Crew',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Pilih Gate Crew',
+                      style:
+                          TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCrewId,
+                    isExpanded: true,
+                    items: available
+                        .map(
+                          (c) => DropdownMenuItem<String>(
+                            value: c.id,
+                            child: Text(
+                              c.email.isNotEmpty
+                                  ? '${c.name} (${c.email})'
+                                  : c.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setLocalState(() => selectedCrewId = val);
+                      }
+                    },
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Pos Gate Penugasan',
+                      style:
+                          TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedGate,
+                    isExpanded: true,
+                    items: _gateOptions
+                        .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) setLocalState(() => selectedGate = val);
+                    },
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final crewId = selectedCrewId;
+                  if (crewId == null) return;
+
+                  final crew = available.firstWhere((c) => c.id == crewId);
+
+                  setState(() {
+                    _assignments[crewId] = selectedGate;
+                  });
+                  _notify();
+                  Navigator.pop(ctx);
+
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                            'Gate Crew ${crew.name} berhasil ditugaskan ke $selectedGate'),
+                        backgroundColor: const Color(0xFF16A34A),
+                      ),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1B2A8C),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Simpan & Tugaskan'),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   void _autoDistributeEvenly() {
+    if (_gateOptions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tambahkan Pos Gate terlebih dahulu.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
     if (_assignments.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -248,7 +332,7 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
         _assignments[crewIds[i]] = _gateOptions[i % _gateOptions.length];
       }
     });
-    widget.onCrewAssignmentsChanged(_assignments);
+    _notify();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -277,6 +361,10 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
           builder: (context, teamCrews, _) {
             final approvedCrews =
                 teamCrews.where((c) => c.isApproved).toList();
+            // Hitung hanya crew yang memang tampil di daftar.
+            final selectedCount = approvedCrews
+                .where((c) => _assignments.containsKey(c.id))
+                .length;
 
             return Column(
               children: [
@@ -376,20 +464,26 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.meeting_room_rounded,
-                                          size: 18, color: Color(0xFF1B2A8C)),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Pos Gate Tersedia (${_gateOptions.length})',
-                                        style: TextStyle(
-                                          fontSize: 13.5,
-                                          fontWeight: FontWeight.w800,
-                                          color: textColor,
+                                  Flexible(
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.meeting_room_rounded,
+                                            size: 18,
+                                            color: Color(0xFF1B2A8C)),
+                                        const SizedBox(width: 8),
+                                        Flexible(
+                                          child: Text(
+                                            'Pos Gate Tersedia (${_gateOptions.length})',
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: textColor,
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                   TextButton.icon(
                                     onPressed: () =>
@@ -408,54 +502,85 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: _gateOptions.map((gate) {
-                                  final canDelete = _gateOptions.length > 1;
-                                  return Chip(
-                                    label: Text(
-                                      gate,
-                                      style: const TextStyle(
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.w600),
-                                    ),
-                                    backgroundColor: isDarkMode
+                              if (_gateOptions.isEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12, horizontal: 14),
+                                  decoration: BoxDecoration(
+                                    color: isDarkMode
                                         ? const Color(0xFF0F172A)
-                                        : const Color(0xFFF1F5F9),
-                                    deleteIcon: canDelete
-                                        ? const Icon(Icons.close_rounded,
-                                            size: 14)
-                                        : null,
-                                    onDeleted: canDelete
-                                        ? () {
-                                            setState(() {
-                                              _gateOptions.remove(gate);
-                                              _assignments.removeWhere(
-                                                  (k, v) => v == gate);
-                                            });
-                                            widget.onCrewAssignmentsChanged(
-                                                _assignments);
-                                          }
-                                        : null,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(8),
-                                      side: BorderSide(
-                                          color: isDarkMode
-                                              ? Colors.white24
-                                              : const Color(0xFFE2E8F0)),
+                                        : const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: isDarkMode
+                                          ? Colors.white12
+                                          : const Color(0xFFE2E8F0),
                                     ),
-                                  );
-                                }).toList(),
-                              ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.info_outline_rounded,
+                                        size: 16,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Belum ada Pos Gate. Klik "+ Tambah Gate" untuk menambahkan gate.',
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            color: subtextColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: _gateOptions.map((gate) {
+                                    return Chip(
+                                      label: Text(
+                                        gate,
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: textColor,
+                                        ),
+                                      ),
+                                      backgroundColor: isDarkMode
+                                          ? const Color(0xFF0F172A)
+                                          : const Color(0xFFF1F5F9),
+                                      deleteIcon: Icon(Icons.close_rounded,
+                                          size: 14, color: textColor),
+                                      onDeleted: () {
+                                        setState(() {
+                                          _gateOptions.remove(gate);
+                                          _assignments.removeWhere(
+                                              (k, v) => v == gate);
+                                        });
+                                        _notify();
+                                      },
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        side: BorderSide(
+                                            color: isDarkMode
+                                                ? Colors.white24
+                                                : const Color(0xFFE2E8F0)),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
                               const SizedBox(height: 12),
                               Row(
                                 children: [
                                   Expanded(
                                     child: OutlinedButton.icon(
-                                      onPressed: () =>
-                                          _showInviteCrewDialog(isDarkMode),
+                                      onPressed: () => _showInviteCrewDialog(
+                                          isDarkMode, approvedCrews),
                                       icon: const Icon(
                                           Icons.person_add_alt_1_rounded,
                                           size: 16),
@@ -477,8 +602,7 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                                   Expanded(
                                     child: ElevatedButton.icon(
                                       onPressed: _autoDistributeEvenly,
-                                      icon: const Icon(
-                                          Icons.balance_rounded,
+                                      icon: const Icon(Icons.balance_rounded,
                                           size: 16),
                                       label: const Text('Bagi Merata'),
                                       style: ElevatedButton.styleFrom(
@@ -505,14 +629,18 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Daftar Gate Crew Terverifikasi',
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
-                                color: textColor,
+                            Flexible(
+                              child: Text(
+                                'Daftar Gate Crew Terverifikasi',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: textColor,
+                                ),
                               ),
                             ),
+                            const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 3),
@@ -522,11 +650,13 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                '${_assignments.length} Dipilih',
-                                style: const TextStyle(
+                                '$selectedCount Dipilih',
+                                style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
-                                  color: Color(0xFF1B2A8C),
+                                  color: isDarkMode
+                                      ? Colors.white
+                                      : const Color(0xFF1B2A8C),
                                 ),
                               ),
                             ),
@@ -580,7 +710,9 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                             final isAssigned =
                                 _assignments.containsKey(crew.id);
                             final currentGate = _assignments[crew.id] ??
-                                _gateOptions.first;
+                                (_gateOptions.isNotEmpty
+                                    ? _gateOptions.first
+                                    : '');
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
@@ -638,6 +770,7 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                                             ),
                                             Text(
                                               crew.email,
+                                              overflow: TextOverflow.ellipsis,
                                               style: TextStyle(
                                                 fontSize: 11.5,
                                                 color: subtextColor,
@@ -674,12 +807,16 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                                               borderRadius:
                                                   BorderRadius.circular(8),
                                               border: Border.all(
-                                                  color: const Color(0xFFD0D5DD)),
+                                                  color:
+                                                      const Color(0xFFD0D5DD)),
                                             ),
                                             child: DropdownButton<String>(
-                                              value: _gateOptions.contains(currentGate)
+                                              value: _gateOptions
+                                                      .contains(currentGate)
                                                   ? currentGate
-                                                  : _gateOptions.first,
+                                                  : (_gateOptions.isNotEmpty
+                                                      ? _gateOptions.first
+                                                      : null),
                                               isExpanded: true,
                                               underline: const SizedBox(),
                                               icon: const Icon(
@@ -690,7 +827,7 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                                               style: const TextStyle(
                                                 fontSize: 12.5,
                                                 fontWeight: FontWeight.w700,
-                                                color: Color(0xFF0F172A), // High contrast dark text!
+                                                color: Color(0xFF0F172A),
                                               ),
                                               items: _gateOptions.map((gate) {
                                                 return DropdownMenuItem<String>(
@@ -735,7 +872,7 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: widget.onNext,
+                      onPressed: _validateAndProceed,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1B2A8C), // Navy
                         foregroundColor: Colors.white,
@@ -762,4 +899,3 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
     );
   }
 }
-

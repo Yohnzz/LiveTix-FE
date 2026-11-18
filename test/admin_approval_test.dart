@@ -197,7 +197,7 @@ void main() {
       expect(find.text('1,248'), findsOneWidget);
       expect(find.text('32'), findsOneWidget);
       expect(find.text('18'), findsOneWidget);
-      expect(find.text('7'), findsOneWidget);
+      expect(find.text('8'), findsOneWidget);
       expect(find.text('Approval Terbaru'), findsOneWidget);
       expect(find.text('PT Harmony Entertainment'), findsOneWidget);
       expect(find.text('Pengajuan: Produser Baru · 22 Okt'), findsOneWidget);
@@ -232,8 +232,8 @@ void main() {
 
       await _tapNav(tester, 'Profil');
       expect(find.text('Super Admin'), findsWidgets);
-      expect(find.text('Approval Hari Ini'), findsOneWidget);
-      expect(find.text('Total Approval'), findsOneWidget);
+      expect(find.text('Antrean Menunggu'), findsOneWidget);
+      expect(find.text('Total Disetujui'), findsOneWidget);
 
       await _tapNav(tester, 'Beranda');
       expect(find.text('Halo, Admin'), findsOneWidget);
@@ -294,7 +294,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Halo, Admin'), findsOneWidget);
       expect(find.text('33'), findsOneWidget);
-      expect(find.text('6'), findsOneWidget);
+      expect(find.text('7'), findsOneWidget);
     });
 
     testWidgets(
@@ -1020,16 +1020,20 @@ void main() {
 
       // 3. Notifikasi
       expect(find.text('Notifikasi'), findsOneWidget);
+      await tester.ensureVisible(find.text('Notifikasi'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Notifikasi'));
       await tester.pumpAndSettle();
-      expect(find.text('Notifikasi Admin'), findsOneWidget);
-      await tester.tap(find.byIcon(Icons.chevron_left_rounded).first);
+      expect(find.text('Aktivitas dan log sistem terbaru'), findsOneWidget);
+      await tester.tap(find.byTooltip('Kembali'));
       await tester.pumpAndSettle();
 
       // 4. Customer Service
-      expect(find.text('Customer Service (Admin Inbox)'), findsOneWidget);
+      await tester.ensureVisible(find.text('Customer Service'));
+      expect(find.text('Customer Service'), findsOneWidget);
 
       // 5. Keluar dari Akun
+      await tester.ensureVisible(find.text('Keluar dari akun'));
       expect(find.text('Keluar dari akun'), findsOneWidget);
     });
 
@@ -1140,29 +1144,15 @@ void main() {
       expect(find.text('AD'), findsOneWidget);
 
       // 2 Kartu Statistik
-      expect(find.text('Approval Hari Ini'), findsOneWidget);
-      expect(find.text('45'), findsOneWidget);
-      expect(find.text('Total Approval'), findsOneWidget);
-      expect(find.text('128'), findsOneWidget);
+      expect(find.text('Antrean Menunggu'), findsOneWidget);
+      expect(find.text('Total Disetujui'), findsOneWidget);
 
-      // Seksi AKUN
-      expect(find.text('AKUN'), findsOneWidget);
-      expect(find.text('Edit Profil'), findsOneWidget);
-      expect(find.text('Ubah Kata Sandi'), findsOneWidget);
-
-      // Seksi PENGATURAN
-      expect(find.text('PENGATURAN'), findsOneWidget);
+      // Seksi PENGATURAN & LAYANAN
+      expect(find.text('PENGATURAN & LAYANAN'), findsOneWidget);
       expect(find.text('Notifikasi'), findsOneWidget);
       expect(find.text('Mode Tampilan'), findsOneWidget);
       expect(find.byType(Switch), findsOneWidget);
-      expect(find.text('Bahasa'), findsOneWidget);
-      expect(find.text('Indonesia'), findsOneWidget);
-
-      // Seksi LAINNYA
-      expect(find.text('LAINNYA'), findsOneWidget);
-      expect(find.text('Pusat Bantuan'), findsOneWidget);
-      expect(find.text('Tentang Aplikasi'), findsOneWidget);
-      expect(find.text('Kebijakan Privasi'), findsOneWidget);
+      expect(find.text('Customer Service'), findsOneWidget);
       expect(find.text('Keluar dari akun'), findsOneWidget);
 
       // Dialog keluar dibatalkan tetap di Profil

@@ -14,15 +14,11 @@ import 'widgets/responsive_promoter_wrapper.dart';
 /// - Disetujui ('approved') -> wajib memasukkan PIN 6 digit sebelum masuk ke Dasbor Produser
 Widget resolveProducerEntryScreen({String? name, String? phone}) {
   final service = PromoterDataService();
-  final status = service.verificationStatusNotifier.value.toLowerCase();
+  final status = service.verificationStatusNotifier.value.trim().toLowerCase();
 
-  if (status == 'unverified') {
-    return ProducerVerificationFlow(
-      initialStage: ProducerVerificationStage.lengkapiProfil,
-      initialName: name,
-      initialPhone: phone,
-    );
-  }
+  // Guard ketat: hanya status 'approved' yang boleh masuk ke fitur produser.
+  // 'pending' & 'rejected' tetap diblokir; status tak dikenal diperlakukan
+  // sebagai belum verifikasi (tidak ada bypass ke dasbor).
   if (status == 'pending') {
     return ProducerVerificationFlow(
       initialStage: ProducerVerificationStage.approvalMenunggu,
@@ -33,6 +29,13 @@ Widget resolveProducerEntryScreen({String? name, String? phone}) {
   if (status == 'rejected') {
     return ProducerVerificationFlow(
       initialStage: ProducerVerificationStage.approvalDitolak,
+      initialName: name,
+      initialPhone: phone,
+    );
+  }
+  if (status != 'approved') {
+    return ProducerVerificationFlow(
+      initialStage: ProducerVerificationStage.lengkapiProfil,
       initialName: name,
       initialPhone: phone,
     );

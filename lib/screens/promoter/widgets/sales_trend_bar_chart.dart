@@ -35,69 +35,61 @@ class SalesTrendBarChart extends StatefulWidget {
 class _SalesTrendBarChartState extends State<SalesTrendBarChart> {
   int? _selectedBarIndex;
 
-  // Default data matching the user's reference image:
-  // Mon: ~4.0k, Tues: ~2.2k, Wed: ~3.4k, Thurs: ~4.5k (Peak, Purple), Fri: ~2.5k, Sat: ~3.3k, Sun: ~2.1k
-  late final List<DailySalesData> _data;
+  late List<DailySalesData> _data;
 
   @override
   void initState() {
     super.initState();
-    _data = widget.salesData ??
-        const [
-          DailySalesData(
-            dayLabel: 'Mon',
-            fullDayName: 'Senin',
-            valueK: 4.0,
-            ticketsSold: 4000,
-            revenueAmount: 1200000000,
-          ),
-          DailySalesData(
-            dayLabel: 'Tues',
-            fullDayName: 'Selasa',
-            valueK: 2.2,
-            ticketsSold: 2200,
-            revenueAmount: 660000000,
-          ),
-          DailySalesData(
-            dayLabel: 'Wed',
-            fullDayName: 'Rabu',
-            valueK: 3.4,
-            ticketsSold: 3400,
-            revenueAmount: 1020000000,
-          ),
-          DailySalesData(
-            dayLabel: 'Thurs',
-            fullDayName: 'Kamis',
-            valueK: 4.5,
-            ticketsSold: 4500,
-            revenueAmount: 1350000000,
-            isPeak: true,
-          ),
-          DailySalesData(
-            dayLabel: 'Fri',
-            fullDayName: 'Jumat',
-            valueK: 2.5,
-            ticketsSold: 2500,
-            revenueAmount: 750000000,
-          ),
-          DailySalesData(
-            dayLabel: 'Sat',
-            fullDayName: 'Sabtu',
-            valueK: 3.3,
-            ticketsSold: 3300,
-            revenueAmount: 990000000,
-          ),
-          DailySalesData(
-            dayLabel: 'Sun',
-            fullDayName: 'Minggu',
-            valueK: 2.1,
-            ticketsSold: 2100,
-            revenueAmount: 630000000,
-          ),
-        ];
+    _syncData();
+  }
 
-    // Default select peak day (Thursday) to showcase stats
-    _selectedBarIndex = 3;
+  @override
+  void didUpdateWidget(covariant SalesTrendBarChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.salesData != widget.salesData) {
+      _syncData();
+    }
+  }
+
+  /// Data 7 hari terakhir: pakai data nyata dari database bila ada.
+  /// Jika kosong, tampilkan 7 hari bernilai 0 (grafik datar di 0, tanpa dummy).
+  void _syncData() {
+    final incoming = widget.salesData;
+    if (incoming != null && incoming.isNotEmpty) {
+      _data = List<DailySalesData>.from(incoming);
+    } else {
+      const shortNames = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+      const fullNames = [
+        'Senin',
+        'Selasa',
+        'Rabu',
+        'Kamis',
+        'Jumat',
+        'Sabtu',
+        'Minggu',
+      ];
+      final now = DateTime.now();
+      _data = List<DailySalesData>.generate(7, (i) {
+        final d = now.subtract(Duration(days: 6 - i));
+        final wd = d.weekday - 1;
+        return DailySalesData(
+          dayLabel: shortNames[wd],
+          fullDayName: fullNames[wd],
+          valueK: 0,
+          ticketsSold: 0,
+          revenueAmount: 0,
+        );
+      });
+    }
+    double maxV = 0;
+    int peak = -1;
+    for (var i = 0; i < _data.length; i++) {
+      if (_data[i].valueK > maxV) {
+        maxV = _data[i].valueK;
+        peak = i;
+      }
+    }
+    _selectedBarIndex = maxV > 0 ? peak : null;
   }
 
   @override
@@ -113,8 +105,21 @@ class _SalesTrendBarChartState extends State<SalesTrendBarChart> {
         ? Colors.white.withValues(alpha: 0.08)
         : const Color(0xFFEAECF0);
 
-    const double chartMaxK = 5.0; // scale from 0 to 5.0k so 4k is top grid line
-    const yGridValues = [4.0, 3.0, 2.0, 1.0, 0.0];
+    // Skala dinamis mengikuti data nyata (tanpa hardcode angka).
+    double maxValueK = 0;
+    for (var i = 0; i < _data.length; i++) {
+      if (_data[i].valueK > maxValueK) {
+        maxValueK = _data[i].valueK;
+      }
+    }
+    final double chartMaxK = maxValueK <= 0 ? 1.0 : maxValueK * 1.15;
+    final List<double> yGridValues = [
+      chartMaxK,
+      chartMaxK * 0.75,
+      chartMaxK * 0.5,
+      chartMaxK * 0.25,
+      0.0,
+    ];
 
     final selected =
         _selectedBarIndex != null ? _data[_selectedBarIndex!] : null;

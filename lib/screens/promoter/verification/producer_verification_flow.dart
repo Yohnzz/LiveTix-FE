@@ -23,12 +23,14 @@ class ProducerVerificationFlow extends StatefulWidget {
   final ProducerVerificationStage initialStage;
   final String? initialName;
   final String? initialPhone;
+  final Future<String?> Function(String accept)? filePicker;
 
   const ProducerVerificationFlow({
     super.key,
     this.initialStage = ProducerVerificationStage.lengkapiProfil,
     this.initialName,
     this.initialPhone,
+    this.filePicker,
   });
 
   @override
@@ -43,12 +45,15 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
   late final TextEditingController _birthDateController;
   late final TextEditingController _phoneController;
   late final TextEditingController _addressController;
-
-  String _ktpFileName = 'ktp_rafi_firmansyah.jpg';
+  late final TextEditingController _bankNameController;
+  late final TextEditingController _bankAccountNumberController;
+  late final TextEditingController _bankAccountHolderController;
+  String? _profileError;
+  bool _isSubmittingVerification = false;
+  String _ktpFileName = '';
   bool _isKtpUploaded = false;
 
-  String _responsibilityLetterFileName =
-      'Lembar_Penanggung_Jawab_Produser.doc';
+  String _responsibilityLetterFileName = '';
   bool _isResponsibilityLetterUploaded = false;
 
   static const String responsibilityWordTemplateDoc = '''
@@ -97,6 +102,9 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
       text: widget.initialPhone?.trim() ?? '',
     );
     _addressController = TextEditingController();
+    _bankNameController = TextEditingController();
+    _bankAccountNumberController = TextEditingController();
+    _bankAccountHolderController = TextEditingController();
   }
 
   @override
@@ -105,49 +113,109 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
     _birthDateController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
+    _bankNameController.dispose();
+    _bankAccountNumberController.dispose();
+    _bankAccountHolderController.dispose();
     super.dispose();
   }
 
-  String get _defaultKtpName {
-    final rawName = _fullNameController.text.trim().isNotEmpty
-        ? _fullNameController.text
-            .trim()
-            .toLowerCase()
-            .replaceAll(RegExp(r'\s+'), '_')
-        : 'rafi_firmansyah';
-    return 'ktp_$rawName.jpg';
+  static const List<String> _monthNames = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
+
+  String _formatBirthDate(DateTime date) =>
+      '${date.day} ${_monthNames[date.month - 1]} ${date.year}';
+
+  DateTime? _parseBirthDate(String value) {
+    final parts = value.trim().split(RegExp(r'\s+'));
+    if (parts.length != 3) return null;
+    final day = int.tryParse(parts[0]);
+    final month = _monthNames.indexOf(parts[1]) + 1;
+    final year = int.tryParse(parts[2]);
+    if (day == null || month == 0 || year == null) return null;
+    return DateTime(year, month, day);
   }
 
-  String get _defaultResponsibilityDocName {
-    final rawName = _fullNameController.text.trim().isNotEmpty
-        ? _fullNameController.text
-            .trim()
-            .toLowerCase()
-            .replaceAll(RegExp(r'\s+'), '_')
-        : 'produser';
-    return 'lembar_penanggung_jawab_$rawName.doc';
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final current = _parseBirthDate(_birthDateController.text);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime(now.year - 20, now.month, now.day),
+      firstDate: DateTime(1940),
+      lastDate: now,
+      helpText: 'Pilih tanggal lahir',
+    );
+    if (picked == null) return;
+    setState(() {
+      _birthDateController.text = _formatBirthDate(picked);
+    });
+  }
+
+  void _onProceedFromProfileToDocuments() {
+    final name = _fullNameController.text.trim();
+    final birthDate = _birthDateController.text.trim();
+    final bank = _bankNameController.text.trim();
+    final accNo =
+        _bankAccountNumberController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    String? error;
+    if (name.length < 2) {
+      error = 'Nama lengkap penanggung jawab wajib diisi.';
+    } else if (_parseBirthDate(birthDate) == null) {
+      error = 'Tanggal lahir wajib dipilih.';
+    } else if (bank.isEmpty) {
+      error = 'Nama bank wajib diisi.';
+    } else if (accNo.length < 8 || accNo.length > 20) {
+      error = 'Nomor rekening harus 8 sampai 20 digit angka.';
+    }
+    if (error != null) {
+      setState(() => _profileError = error);
+      return;
+    }
+    setState(() {
+      _profileError = null;
+      _currentStage = ProducerVerificationStage.unggahDokumen;
+    });
+  }
+
+  Future<String?> _pickVerificationFile(String accept) {
+    final picker = widget.filePicker;
+    return picker == null
+        ? pickNativeFile(accept: accept)
+        : picker(accept);
   }
 
   Future<void> _downloadResponsibilityTemplate() async {
-    await downloadTemplateFile(
+    final saved = await downloadTemplateFile(
       fileName: 'Template_Lembar_Penanggung_Jawab_Produser_LiveTix.doc',
       content: responsibilityWordTemplateDoc,
       mimeType: 'application/msword',
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-            'Template Word (.doc) Lembar Penanggung Jawab berhasil diunduh. Silakan isi lalu unggah ke kolom di bawah.'),
-        backgroundColor: Color(0xFF1B2A8C),
-        duration: Duration(seconds: 3),
+      SnackBar(
+        content: Text(saved
+            ? 'Template Word berhasil disimpan.'
+            : 'Template tidak berhasil disimpan.'),
+        backgroundColor:
+            saved ? const Color(0xFF1B2A8C) : const Color(0xFFB91C1C),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
 
   Future<void> _showUploadKtpSheet() async {
-    final fileNameCtrl = TextEditingController(text: _defaultKtpName);
-
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -188,7 +256,7 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Pilih file foto/scan KTP dari perangkat Anda (.jpg, .png, .pdf) atau konfirmasi nama file dokumen:',
+                'Pilih file foto/scan KTP dari perangkat Anda (.jpg, .jpeg, .png, .pdf):',
                 style: TextStyle(
                   fontSize: 12.5,
                   color: Color(0xFF667085),
@@ -203,24 +271,41 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
                 height: 46,
                 child: OutlinedButton.icon(
                   onPressed: () async {
-                    final pickedName = await pickNativeFile();
-                    if (pickedName != null && pickedName.trim().isNotEmpty) {
-                      if (!ctx.mounted) return;
-                      Navigator.pop(ctx);
-                      setState(() {
-                        _ktpFileName = pickedName.trim();
-                        _isKtpUploaded = true;
-                      });
+                    final pickedName = await _pickVerificationFile(
+                      '.jpg,.jpeg,.png,.pdf',
+                    );
+                    final fileName = pickedName?.trim() ?? '';
+                    if (fileName.isEmpty) return;
+                    final extension = fileName.contains('.')
+                        ? fileName.split('.').last.toLowerCase()
+                        : '';
+                    if (!ctx.mounted) return;
+                    Navigator.pop(ctx);
+                    if (!const {'jpg', 'jpeg', 'png', 'pdf'}
+                        .contains(extension)) {
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content:
-                              Text('Dokumen $_ktpFileName berhasil diunggah'),
-                          backgroundColor: const Color(0xFFC2185B),
-                          duration: const Duration(seconds: 2),
+                        const SnackBar(
+                          content: Text(
+                              'Format dokumen KTP harus .jpg, .jpeg, .png, atau .pdf.'),
+                          backgroundColor: Color(0xFFB91C1C),
+                          duration: Duration(seconds: 3),
                         ),
                       );
+                      return;
                     }
+                    setState(() {
+                      _ktpFileName = fileName;
+                      _isKtpUploaded = true;
+                    });
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Dokumen $_ktpFileName berhasil diunggah'),
+                        backgroundColor: const Color(0xFFC2185B),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
                   },
                   icon: const Icon(
                     Icons.folder_open_rounded,
@@ -245,68 +330,6 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
                   ),
                 ),
               ),
-
-              const SizedBox(height: 14),
-
-              TextField(
-                controller: fileNameCtrl,
-                style:
-                    const TextStyle(fontSize: 13.5, color: Color(0xFF101828)),
-                decoration: InputDecoration(
-                  labelText: 'Nama File KTP',
-                  hintText: 'Contoh: ktp_rafi_firmansyah.jpg',
-                  prefixIcon: const Icon(
-                    Icons.description_outlined,
-                    size: 19,
-                    color: Color(0xFF667085),
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B2A8C),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () {
-                    final chosen = fileNameCtrl.text.trim().isNotEmpty
-                        ? fileNameCtrl.text.trim()
-                        : _defaultKtpName;
-                    Navigator.pop(ctx);
-                    setState(() {
-                      _ktpFileName = chosen;
-                      _isKtpUploaded = true;
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content:
-                            Text('Dokumen $_ktpFileName berhasil diunggah'),
-                        backgroundColor: const Color(0xFFC2185B),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.cloud_upload_outlined, size: 19),
-                  label: const Text(
-                    'Unggah Dokumen KTP',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -315,9 +338,6 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
   }
 
   Future<void> _showUploadResponsibilitySheet() async {
-    final fileNameCtrl =
-        TextEditingController(text: _defaultResponsibilityDocName);
-
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -371,24 +391,41 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
                 height: 46,
                 child: OutlinedButton.icon(
                   onPressed: () async {
-                    final pickedName = await pickNativeFile();
-                    if (pickedName != null && pickedName.trim().isNotEmpty) {
+                    final pickedName = await _pickVerificationFile('.doc,.docx,.pdf');
+                    final fileName = pickedName?.trim() ?? '';
+                    if (fileName.isEmpty) return;
+                    final extension = fileName.contains('.')
+                        ? fileName.split('.').last.toLowerCase()
+                        : '';
+                    if (!const {'doc', 'docx', 'pdf'}.contains(extension)) {
                       if (!ctx.mounted) return;
                       Navigator.pop(ctx);
-                      setState(() {
-                        _responsibilityLetterFileName = pickedName.trim();
-                        _isResponsibilityLetterUploaded = true;
-                      });
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
+                        const SnackBar(
                           content: Text(
-                              'Lembar Penanggung Jawab $_responsibilityLetterFileName berhasil diunggah'),
-                          backgroundColor: const Color(0xFF1B2A8C),
-                          duration: const Duration(seconds: 2),
+                              'Format lembar penanggung jawab harus .doc, .docx, atau .pdf.'),
+                          backgroundColor: Color(0xFFB91C1C),
+                          duration: Duration(seconds: 3),
                         ),
                       );
+                      return;
                     }
+                    if (!ctx.mounted) return;
+                    Navigator.pop(ctx);
+                    setState(() {
+                      _responsibilityLetterFileName = fileName;
+                      _isResponsibilityLetterUploaded = true;
+                    });
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                            'Lembar Penanggung Jawab $_responsibilityLetterFileName berhasil diunggah'),
+                        backgroundColor: const Color(0xFF1B2A8C),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
                   },
                   icon: const Icon(
                     Icons.folder_open_rounded,
@@ -409,63 +446,6 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
                     backgroundColor: const Color(0xFFF0F4FF),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: fileNameCtrl,
-                style:
-                    const TextStyle(fontSize: 13.5, color: Color(0xFF101828)),
-                decoration: InputDecoration(
-                  labelText: 'Nama File Lembar Penanggung Jawab',
-                  prefixIcon: const Icon(
-                    Icons.article_outlined,
-                    size: 19,
-                    color: Color(0xFF667085),
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B2A8C),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () {
-                    final chosen = fileNameCtrl.text.trim().isNotEmpty
-                        ? fileNameCtrl.text.trim()
-                        : _defaultResponsibilityDocName;
-                    Navigator.pop(ctx);
-                    setState(() {
-                      _responsibilityLetterFileName = chosen;
-                      _isResponsibilityLetterUploaded = true;
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                            'Lembar Penanggung Jawab $_responsibilityLetterFileName berhasil diunggah'),
-                        backgroundColor: const Color(0xFF1B2A8C),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.cloud_upload_outlined, size: 19),
-                  label: const Text(
-                    'Unggah Lembar Penanggung Jawab',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -497,16 +477,22 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
   }
 
   void _onProceedFromDocumentsToPin() {
-    if (!_isKtpUploaded) {
+    if (!_isKtpUploaded || !_isResponsibilityLetterUploaded) {
+      final missingKtp = !_isKtpUploaded;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Silakan unggah dokumen KTP terlebih dahulu sebelum melanjutkan.'),
-          backgroundColor: Color(0xFFC2185B),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(missingKtp
+              ? 'Silakan unggah dokumen KTP terlebih dahulu sebelum melanjutkan.'
+              : 'Silakan unggah Lembar Penanggung Jawab terlebih dahulu sebelum melanjutkan.'),
+          backgroundColor: const Color(0xFFC2185B),
+          duration: const Duration(seconds: 2),
         ),
       );
-      _showUploadKtpSheet();
+      if (missingKtp) {
+        _showUploadKtpSheet();
+      } else {
+        _showUploadResponsibilitySheet();
+      }
       return;
     }
     setState(() {
@@ -515,11 +501,14 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
   }
 
   Future<void> _onCompletePinAndSubmitVerification(String pinCode) async {
+    if (_isSubmittingVerification) return;
+    setState(() => _isSubmittingVerification = true);
+
     final fullName = _fullNameController.text.trim().isNotEmpty
         ? _fullNameController.text.trim()
         : (DataService().currentUser?.name ?? 'Produser LiveTix');
 
-    await PromoterDataService().submitInitialVerification(
+    final result = await PromoterDataService().submitInitialVerification(
       fullName: fullName,
       birthDate: _birthDateController.text.trim(),
       phone: _phoneController.text.trim(),
@@ -527,12 +516,32 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
       ktpFileName: _ktpFileName,
       responsibilityLetterFileName: _responsibilityLetterFileName,
       pinCode: pinCode,
+      bankName: _bankNameController.text.trim(),
+      bankAccountNumber: _bankAccountNumberController.text,
+      bankAccountHolder: _bankAccountHolderController.text.trim(),
     );
 
     if (!mounted) return;
-    setState(() {
-      _currentStage = ProducerVerificationStage.approvalMenunggu;
-    });
+    setState(() => _isSubmittingVerification = false);
+
+    if (!result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.errorMessage ?? 'Gagal menyimpan verifikasi ke database.',
+          ),
+          backgroundColor: const Color(0xFFB91C1C),
+        ),
+      );
+      return;
+    }
+
+    // Verifikasi tersimpan: lanjut ke halaman PIN lalu Beranda Produser
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const PromoterPinLockScreen()),
+      (route) => false,
+    );
   }
 
   void _showContactAdminDialog() {
@@ -614,11 +623,12 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
           birthDateController: _birthDateController,
           phoneController: _phoneController,
           addressController: _addressController,
-          onNext: () {
-            setState(() {
-              _currentStage = ProducerVerificationStage.unggahDokumen;
-            });
-          },
+          bankNameController: _bankNameController,
+          bankAccountNumberController: _bankAccountNumberController,
+          bankAccountHolderController: _bankAccountHolderController,
+          errorMessage: _profileError,
+          onPickBirthDate: _pickBirthDate,
+          onNext: _onProceedFromProfileToDocuments,
           onBack: () {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
@@ -658,6 +668,7 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
       case ProducerVerificationStage.buatPin:
         activeScreen = Step3CreatePinScreen(
           onSubmitPin: _onCompletePinAndSubmitVerification,
+          isSubmitting: _isSubmittingVerification,
           onBack: () {
             setState(() {
               _currentStage = ProducerVerificationStage.unggahDokumen;
@@ -688,9 +699,11 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
                 _currentStage = ProducerVerificationStage.approvalDitolak;
               });
             } else {
-              setState(() {
-                _currentStage = ProducerVerificationStage.approvalDitolak;
-              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Pengajuan Anda masih ditinjau Admin.'),
+                ),
+              );
             }
           },
         );

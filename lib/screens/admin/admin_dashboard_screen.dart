@@ -30,8 +30,10 @@ class AdminDashboardScreen extends StatelessWidget {
           ]),
           builder: (context, _) {
             final user = DataService().currentUser;
-            final firstName =
-                (user?.name ?? 'Admin').trim().split(RegExp(r'\s+')).first;
+            final rawName = (user?.name ?? '').trim();
+            final firstName = rawName.isNotEmpty
+                ? rawName.split(RegExp(r'\s+')).first
+                : 'Admin';
             return Column(
               children: [
                 _DashboardHeader(

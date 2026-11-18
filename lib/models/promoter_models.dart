@@ -193,6 +193,9 @@ class PromoterConcertItem {
   final String time;
   final String venueName;
   final String venueAddress;
+  final double? venueLatitude;
+  final double? venueLongitude;
+  final String? venuePlaceId;
   final String description;
   final String posterFileName;
   final String squareLogoFileName;
@@ -231,6 +234,9 @@ class PromoterConcertItem {
     this.time = '19:00 WIB',
     required this.venueName,
     required this.venueAddress,
+    this.venueLatitude,
+    this.venueLongitude,
+    this.venuePlaceId,
     this.description = '',
     this.posterFileName = 'poster_harmoni_final.png',
     this.squareLogoFileName = 'logo_soundwave_square.png',
@@ -346,6 +352,10 @@ class PromoterConcertItem {
     String? time,
     String? venueName,
     String? venueAddress,
+    double? venueLatitude,
+    double? venueLongitude,
+    String? venuePlaceId,
+    bool clearVenuePlaceId = false,
     String? description,
     String? posterFileName,
     String? squareLogoFileName,
@@ -382,6 +392,10 @@ class PromoterConcertItem {
       time: time ?? this.time,
       venueName: venueName ?? this.venueName,
       venueAddress: venueAddress ?? this.venueAddress,
+      venueLatitude: venueLatitude ?? this.venueLatitude,
+      venueLongitude: venueLongitude ?? this.venueLongitude,
+      venuePlaceId:
+          clearVenuePlaceId ? null : (venuePlaceId ?? this.venuePlaceId),
       description: description ?? this.description,
       posterFileName: posterFileName ?? this.posterFileName,
       squareLogoFileName: squareLogoFileName ?? this.squareLogoFileName,
@@ -479,6 +493,9 @@ class PromoterConcertItem {
       venueName: json['venue']?.toString() ?? '',
       venueAddress: json['venue_address']?.toString() ??
           (json['venue']?.toString() ?? ''),
+      venueLatitude: (json['venue_latitude'] as num?)?.toDouble(),
+      venueLongitude: (json['venue_longitude'] as num?)?.toDouble(),
+      venuePlaceId: json['venue_place_id']?.toString(),
       description: json['description']?.toString() ?? '',
       posterFileName: json['banner_image_url']?.toString() ??
           json['banner_url']?.toString() ??
@@ -523,6 +540,16 @@ class PromoterConcertItem {
   }
 
   Map<String, dynamic> toJson({String? promoterId}) {
+    final map = toSupabaseMap(promoterId: promoterId);
+    map['ticket_tiers'] = tiers.map((t) => t.toJson(concertId: id)).toList();
+    return map;
+  }
+
+  /// Payload siap-simpan ke tabel `public.concerts` (tanpa relasi `ticket_tiers`).
+  Map<String, dynamic> toSupabaseMap({
+    String? promoterId,
+    String? producerName,
+  }) {
     String statusString;
     switch (status) {
       case ConcertStatus.disetujui:
@@ -541,8 +568,9 @@ class PromoterConcertItem {
     }
 
     final bool isValidUuid = promoterId != null &&
-        RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
-            .hasMatch(promoterId);
+        RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+        ).hasMatch(promoterId);
 
     final bannerValue = (posterDataUrl != null && posterDataUrl!.isNotEmpty)
         ? posterDataUrl!
@@ -555,16 +583,23 @@ class PromoterConcertItem {
     return {
       'id': id,
       if (isValidUuid) 'producer_id': promoterId,
+      if (producerName != null && producerName.trim().isNotEmpty)
+        'producer_name': producerName.trim(),
       'title': title,
       'subtitle': dateAndVenue,
       'date': date,
       'time': time,
       'venue': venueName,
       'venue_address': venueAddress,
+      if (venueLatitude != null) 'venue_latitude': venueLatitude,
+      if (venueLongitude != null) 'venue_longitude': venueLongitude,
+      if (venuePlaceId != null && venuePlaceId!.isNotEmpty)
+        'venue_place_id': venuePlaceId,
       'description': description,
       'banner_image_url': bannerValue,
       'logo_image_url': logoValue,
-      if (!logoValue.startsWith('data:image/')) 'square_logo_url': logoValue,
+      if (logoValue.isNotEmpty && !logoValue.startsWith('data:image/'))
+        'square_logo_url': logoValue,
       'highlights': highlights,
       'highlight_names': highlightNames,
       'status': statusString,
@@ -579,7 +614,6 @@ class PromoterConcertItem {
       'gross_revenue': resolvedGrossRevenue,
       if (rejectionReason != null) 'rejection_reason': rejectionReason,
       if (rejectedAt != null) 'rejected_at': rejectedAt!.toIso8601String(),
-      'ticket_tiers': tiers.map((t) => t.toJson(concertId: id)).toList(),
     };
   }
 }
@@ -590,6 +624,7 @@ class PromoterVenueLocation {
   final String city;
   final double latitude;
   final double longitude;
+  final String? placeId;
 
   const PromoterVenueLocation({
     required this.name,
@@ -597,6 +632,7 @@ class PromoterVenueLocation {
     required this.city,
     required this.latitude,
     required this.longitude,
+    this.placeId,
   });
 }
 
