@@ -341,7 +341,9 @@ class VenueLocationSearchService {
   /// Reverse geocode given coordinates to retrieve real address, city, province, and venue name.
   Future<PromoterVenueLocation?> reverseGeocode(double lat, double lon) async {
     // 1. Google Maps Geocoding API if key is provided in .env
-    final googleApiKey = dotenv.env['GOOGLE_MAPS_API_KEY']?.trim();
+    final googleApiKey = dotenv.isInitialized
+        ? dotenv.env['GOOGLE_MAPS_API_KEY']?.trim()
+        : null;
     if (googleApiKey != null && googleApiKey.isNotEmpty) {
       try {
         final url = Uri.parse(

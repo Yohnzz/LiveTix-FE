@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:livetix/models/gate_crew_models.dart';
 import 'package:livetix/screens/admin/admin_shell.dart';
 import 'package:livetix/screens/auth/login_screen.dart';
 import 'package:livetix/screens/gate_crew/gate_crew_main_screen.dart';
@@ -8,16 +9,24 @@ import 'package:livetix/screens/promoter/promoter_main_screen.dart';
 import 'package:livetix/screens/promoter/promoter_pin_lock_screen.dart';
 import 'package:livetix/services/admin_service.dart';
 import 'package:livetix/services/data_service.dart';
+import 'package:livetix/services/gate_crew_service.dart';
+import 'package:livetix/services/promoter_data_service.dart';
 
 void main() {
   setUp(() {
     DataService().logout();
+    PromoterDataService().verificationStatusNotifier.value = 'approved';
+    PromoterDataService().isPinUnlockedThisSession = false;
+    GateCrewService().teamCrewNotifier.value = [];
     AdminService().reset();
     AdminNavigation.reset();
   });
 
   tearDown(() {
     DataService().logout();
+    PromoterDataService().verificationStatusNotifier.value = 'approved';
+    PromoterDataService().isPinUnlockedThisSession = false;
+    GateCrewService().teamCrewNotifier.value = [];
     AdminService().reset();
     AdminNavigation.reset();
   });
@@ -105,6 +114,23 @@ void main() {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
+
+      GateCrewService().teamCrewNotifier.value = [
+        GateCrewMemberModel(
+          id: 'crew-active-1',
+          name: 'Gate Crew 1',
+          email: 'gatecrew@livetix.com',
+          phone: '081234567890',
+          activeAssignment: GateCrewAssignmentModel(
+            id: 'asg-1',
+            concertId: 'c-1',
+            concertTitle: 'Soundwave Fest 2026',
+            venue: 'Stadion Utama',
+            gateName: 'Gate A',
+            assignedAt: DateTime.now(),
+          ),
+        ),
+      ];
 
       await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
       await tester.pumpAndSettle();

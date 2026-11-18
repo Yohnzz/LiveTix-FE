@@ -200,7 +200,7 @@ void main() {
         ),
       );
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.text('Ajukan Perubahan Informasi Konser'), findsOneWidget);
       expect(find.text('Batalkan Konser'), findsOneWidget);
