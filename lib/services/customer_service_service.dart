@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide LocalStorage;
 import '../utils/local_storage.dart';
+import 'ai_customer_service.dart';
 import 'data_service.dart';
 import 'promoter_data_service.dart';
 import 'supabase_service.dart';
@@ -178,6 +180,21 @@ class CustomerServiceService extends ChangeNotifier {
   bool _initialized = false;
   RealtimeChannel? _csRealtimeChannel;
   bool _isRealtimeSubscribed = false;
+
+  /// Status apakah AI Customer Service aktif menjawab pesan pengguna/produser secara otomatis
+  bool _isAiAutoReplyEnabled = true;
+  bool get isAiAutoReplyEnabled => _isAiAutoReplyEnabled;
+  set isAiAutoReplyEnabled(bool value) {
+    if (_isAiAutoReplyEnabled != value) {
+      _isAiAutoReplyEnabled = value;
+      notifyListeners();
+    }
+  }
+
+  /// Kumpulan threadId yang saat ini sedang menunggu respons AI
+  final Set<String> _threadsWithAiResponding = {};
+  bool isAiRespondingForThread(String threadId) =>
+      _threadsWithAiResponding.contains(threadId);
 
   CustomerServiceService._internal() {
     _loadInitialThreads();
@@ -748,6 +765,10 @@ class CustomerServiceService extends ChangeNotifier {
     _persistThreads();
     notifyListeners();
 
+    if (!isFromAdmin && _isAiAutoReplyEnabled) {
+      unawaited(_triggerAiAutoReply(updatedThread, msg));
+    }
+
     if (SupabaseService.isInitialized) {
       startRealtimeSubscription();
       final corePayload = <String, dynamic>{
@@ -773,6 +794,97 @@ class CustomerServiceService extends ChangeNotifier {
         'thread_user_role': target.userRole,
       };
       await _upsertCsMessageWithFallback(richPayload, corePayload);
+    }
+  }
+
+  Future<void> _triggerAiAutoReply(
+    CsThreadModel thread,
+    CsMessageModel userMsg,
+  ) async {
+    _threadsWithAiResponding.add(thread.threadId);
+    notifyListeners();
+
+    try {
+      final history = <Map<String, String>>[];
+      for (final m in thread.messages) {
+        if (m.id == userMsg.id) continue;
+        history.add({
+          'role': m.isFromAdmin ? 'assistant' : 'user',
+          'text': m.message,
+        });
+      }
+      final trimmedHistory = history.length > 6
+          ? history.sublist(history.length - 6)
+          : history;
+
+      final reply = await AiCustomerService().generateCustomerServiceReply(
+        userMessage: userMsg.message,
+        role: thread.userRole,
+        chatHistory: trimmedHistory,
+        userName: thread.userName,
+      );
+
+      if (reply.trim().isEmpty) return;
+
+      final now = DateTime.now();
+      final aiMsg = CsMessageModel(
+        id: 'cs-ai-${now.microsecondsSinceEpoch}',
+        threadId: thread.threadId,
+        senderId: 'ai-assistant',
+        senderName: 'LiveTix AI Assistant ✨',
+        senderEmail: 'ai-support@livetix.com',
+        senderRole: 'AI Support',
+        receiverId: thread.userId,
+        receiverName: thread.userName,
+        receiverRole: thread.userRole,
+        isFromAdmin: true,
+        message: reply.trim(),
+        createdAt: now,
+      );
+
+      final currentIdx =
+          _threads.indexWhere((t) => t.threadId == thread.threadId);
+      if (currentIdx != -1) {
+        final currentThread = _threads[currentIdx];
+        final updatedThread = currentThread.copyWith(
+          messages: [...currentThread.messages, aiMsg],
+          updatedAt: now,
+        );
+        _threads[currentIdx] = updatedThread;
+        _persistThreads();
+        notifyListeners();
+
+        if (SupabaseService.isInitialized) {
+          final corePayload = <String, dynamic>{
+            'id': aiMsg.id,
+            'thread_id': aiMsg.threadId,
+            'sender_name': aiMsg.senderName,
+            'sender_email': aiMsg.senderEmail,
+            'sender_role': aiMsg.senderRole,
+            'message': aiMsg.message,
+            'is_admin_reply': true,
+            'created_at': aiMsg.createdAt.toIso8601String(),
+          };
+          final richPayload = <String, dynamic>{
+            ...corePayload,
+            'is_from_admin': true,
+            'sender_id': aiMsg.senderId,
+            'receiver_id': aiMsg.receiverId,
+            'receiver_name': aiMsg.receiverName,
+            'receiver_role': aiMsg.receiverRole,
+            'thread_user_id': updatedThread.userId,
+            'thread_user_name': updatedThread.userName,
+            'thread_user_email': updatedThread.userEmail,
+            'thread_user_role': updatedThread.userRole,
+          };
+          await _upsertCsMessageWithFallback(richPayload, corePayload);
+        }
+      }
+    } catch (e) {
+      debugPrint('CustomerServiceService._triggerAiAutoReply error: $e');
+    } finally {
+      _threadsWithAiResponding.remove(thread.threadId);
+      notifyListeners();
     }
   }
 

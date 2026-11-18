@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../services/ai_customer_service.dart';
 import '../../services/customer_service_service.dart';
 import '../../services/data_service.dart';
 import '../../services/promoter_data_service.dart';
@@ -34,22 +35,26 @@ class _ProducerCustomerServiceScreenState
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  // State khusus Admin Inbox
+  // State khusus Admin Inbox & AI Copilot
   String _selectedAdminRoleTab = 'Produser'; // 'Produser' | 'User'
   String? _activeThreadId;
+  bool _isLoadingAiDraft = false;
+  bool _isLoadingAiSummary = false;
 
   final List<String> _producerQuickQuestions = const [
     'Cek status verifikasi konser saya',
-    'Berapa lama proses pencairan dana?',
-    'Bagaimana cara mengubah dokumen legalitas?',
-    'Persetujuan Gate Crew belum aktif',
+    'Syarat dokumen KTP & Lembar Penanggung Jawab',
+    'Berapa lama proses pencairan dana & minimal saldo?',
+    'Ketentuan potongan fee platform 3%',
+    'Bagaimana cara menambah dan menugaskan Gate Crew?',
   ];
 
   final List<String> _userQuickQuestions = const [
-    'Bagaimana cara melihat QR E-Tiket saya?',
-    'Apakah tiket bisa dipindahtangankan?',
-    'Konser dibatalkan, bagaimana proses refund?',
+    'Bagaimana cara scan QR E-Tiket di pintu gate?',
+    'Metode pembayaran apa saja yang didukung?',
     'Pembayaran berhasil tapi tiket belum muncul',
+    'Konser dibatalkan, bagaimana proses refund 100%?',
+    'Apakah tiket konser bisa dipindahtangankan?',
   ];
 
   @override
@@ -126,6 +131,196 @@ class _ProducerCustomerServiceScreenState
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     return '$h:$m WIB';
+  }
+
+  Future<void> _generateAdminDraft(CsThreadModel thread) async {
+    if (_isLoadingAiDraft) return;
+    setState(() => _isLoadingAiDraft = true);
+
+    try {
+      final draft = await AiCustomerService().generateAdminDraftReply(
+        messages: thread.messages,
+        userRole: thread.userRole,
+        userName: thread.userName,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _messageController.text = draft;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Draf balasan AI berhasil disiapkan. Silakan sesuaikan lalu kirim.',
+            style: GoogleFonts.poppins(fontSize: 12),
+          ),
+          backgroundColor: const Color(0xFF4F46E5),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal membuat draf AI: $e',
+            style: GoogleFonts.poppins(fontSize: 12),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoadingAiDraft = false);
+    }
+  }
+
+  Future<void> _showAiSummaryDialog(CsThreadModel thread, bool isDark) async {
+    if (_isLoadingAiSummary) return;
+    setState(() => _isLoadingAiSummary = true);
+
+    String summary;
+    try {
+      summary = await AiCustomerService().summarizeThread(
+        messages: thread.messages,
+        userRole: thread.userRole,
+        userName: thread.userName,
+      );
+    } catch (e) {
+      summary = 'Gagal memuat ringkasan AI: $e';
+    } finally {
+      if (mounted) setState(() => _isLoadingAiSummary = false);
+    }
+
+    if (!mounted) return;
+
+    final sheetBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textSecondary =
+        isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: sheetBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white24 : Colors.black12,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          color: Color(0xFF8B5CF6),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Ringkasan AI Percakapan',
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: textPrimary,
+                              ),
+                            ),
+                            Text(
+                              '${thread.userName} (${thread.userRole})',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF0F172A)
+                          : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF334155)
+                            : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    child: Text(
+                      summary,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: textPrimary,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4F46E5),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.edit_note_rounded, size: 18),
+                      label: Text(
+                        'Buat Draf Balasan Otomatis',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _generateAdminDraft(thread);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -475,12 +670,51 @@ class _ProducerCustomerServiceScreenState
                                                   BorderRadius.circular(999),
                                             ),
                                             child: Text(
-                                              '${thread.unreadAdminCount} baru',
+                                              ' baru',
                                               style: GoogleFonts.poppins(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.w700,
                                                 color: Colors.white,
                                               ),
+                                            ),
+                                          )
+                                        else if (lastMsg != null &&
+                                            (lastMsg.senderRole == 'AI Support' ||
+                                                lastMsg.senderName.contains('AI')))
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF8B5CF6)
+                                                  .withValues(alpha: 0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                              border: Border.all(
+                                                color: const Color(0xFF8B5CF6)
+                                                    .withValues(alpha: 0.35),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(
+                                                  Icons.auto_awesome,
+                                                  size: 10,
+                                                  color: Color(0xFF7C3AED),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'Dibalas AI',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w700,
+                                                    color:
+                                                        const Color(0xFF7C3AED),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                       ],
@@ -684,6 +918,36 @@ class _ProducerCustomerServiceScreenState
           ],
         ),
         actions: [
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981).withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: const Color(0xFF10B981).withValues(alpha: 0.35),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.auto_awesome,
+                  color: Color(0xFF10B981),
+                  size: 13,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  widget.isAdminInbox ? 'AI Copilot' : 'AI 24/7',
+                  style: GoogleFonts.poppins(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF10B981),
+                  ),
+                ),
+              ],
+            ),
+          ),
           IconButton(
             tooltip: 'Muat ulang pesan',
             onPressed: () => _csService.fetchFromSupabase(),
@@ -765,14 +1029,91 @@ class _ProducerCustomerServiceScreenState
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.all(16),
-              itemCount: messages.length,
+              itemCount: messages.length +
+                  (_csService.isAiRespondingForThread(thread?.threadId ?? '')
+                      ? 1
+                      : 0),
               itemBuilder: (context, index) {
+                if (index == messages.length) {
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF2E1065).withValues(alpha: 0.4)
+                            : const Color(0xFFF5F3FF),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFF7C3AED).withValues(alpha: 0.4)
+                              : const Color(0xFFDDD6FE),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF7C3AED),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'LiveTix AI Assistant sedang mengetik...',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: isDark
+                                  ? const Color(0xFFDDD6FE)
+                                  : const Color(0xFF6D28D9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
                 final msg = messages[index];
+                final isAiMessage = msg.senderRole == 'AI Support' ||
+                    msg.senderName.toLowerCase().contains('ai');
                 // Di tampilan Admin: pesan dari Admin di kanan (isMine = true)
                 // Di tampilan User/Produser: pesan dari User/Produser di kanan (isMine = !isFromAdmin)
                 final isMine = widget.isAdminInbox
                     ? msg.isFromAdmin
                     : !msg.isFromAdmin;
+
+                Color bubbleBg;
+                Border? bubbleBorder;
+                if (isMine) {
+                  bubbleBg = widget.isAdminInbox
+                      ? (isAiMessage
+                          ? const Color(0xFF4338CA)
+                          : const Color(0xFF3730A3))
+                      : _csPink;
+                  bubbleBorder = null;
+                } else if (isAiMessage) {
+                  bubbleBg = isDark
+                      ? const Color(0xFF2E1065).withValues(alpha: 0.45)
+                      : const Color(0xFFF5F3FF);
+                  bubbleBorder = Border.all(
+                    color: isDark
+                        ? const Color(0xFF7C3AED).withValues(alpha: 0.5)
+                        : const Color(0xFFDDD6FE),
+                    width: 1.2,
+                  );
+                } else {
+                  bubbleBg = surfaceColor;
+                  bubbleBorder = Border.all(color: borderColor);
+                }
 
                 return Align(
                   alignment:
@@ -787,18 +1128,14 @@ class _ProducerCustomerServiceScreenState
                       vertical: 11,
                     ),
                     decoration: BoxDecoration(
-                      color: isMine
-                          ? (widget.isAdminInbox
-                              ? const Color(0xFF3730A3)
-                              : _csPink)
-                          : surfaceColor,
+                      color: bubbleBg,
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(16),
                         topRight: const Radius.circular(16),
                         bottomLeft: Radius.circular(isMine ? 16 : 4),
                         bottomRight: Radius.circular(isMine ? 4 : 16),
                       ),
-                      border: isMine ? null : Border.all(color: borderColor),
+                      border: bubbleBorder,
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.04),
@@ -810,7 +1147,49 @@ class _ProducerCustomerServiceScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (!isMine)
+                        if (isAiMessage)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isMine
+                                    ? Colors.white.withValues(alpha: 0.2)
+                                    : const Color(0xFF8B5CF6)
+                                        .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.auto_awesome,
+                                    size: 11,
+                                    color: isMine
+                                        ? Colors.white
+                                        : const Color(0xFF7C3AED),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    isMine
+                                        ? 'Balasan AI Otomatis'
+                                        : 'LiveTix AI Assistant ✨',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: isMine
+                                          ? Colors.white
+                                          : const Color(0xFF7C3AED),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else if (!isMine)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 4),
                             child: Text(
@@ -851,6 +1230,90 @@ class _ProducerCustomerServiceScreenState
               },
             ),
           ),
+
+          // Admin AI Copilot Actions Bar (khusus Admin Inbox)
+          if (widget.isAdminInbox && thread != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFF1F5F9),
+                border: Border(
+                  top: BorderSide(color: borderColor),
+                  bottom: BorderSide(color: borderColor),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF6366F1),
+                        side: const BorderSide(color: Color(0xFF6366F1)),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      icon: _isLoadingAiSummary
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF6366F1),
+                              ),
+                            )
+                          : const Icon(Icons.summarize_outlined, size: 16),
+                      label: Text(
+                        'Ringkas Isu AI',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      onPressed: _isLoadingAiSummary
+                          ? null
+                          : () => _showAiSummaryDialog(thread, isDark),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4F46E5),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      icon: _isLoadingAiDraft
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.auto_awesome, size: 16),
+                      label: Text(
+                        'Draf Balasan AI',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      onPressed: _isLoadingAiDraft
+                          ? null
+                          : () => _generateAdminDraft(thread),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // Input Bar
           Container(

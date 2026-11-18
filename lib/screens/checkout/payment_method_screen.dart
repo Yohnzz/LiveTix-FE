@@ -77,6 +77,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         userId: currentUser?.id,
         tierName: widget.order.tier.name,
         totalAmount: configuredOrder.totalAmount,
+        customerNik: currentUser?.nik,
       );
 
       if (!mounted) return;
@@ -106,6 +107,8 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         deeplinkUrl: chargeResult.deeplinkUrl,
         vaNumber: chargeResult.vaNumber,
         expiresAt: chargeResult.expiresAt,
+        snapToken: chargeResult.snapToken,
+        snapRedirectUrl: chargeResult.snapRedirectUrl,
       );
 
       // Simpan pesanan tiket berstatus pending ke menu Tiket Saya

@@ -498,12 +498,12 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
                             );
                           },
                           icon: const Icon(
-                            Icons.support_agent_rounded,
+                            Icons.auto_awesome,
                             size: 20,
                             color: Colors.white,
                           ),
                           label: const Text(
-                            'Customer Service Live Chat',
+                            'Customer Service AI Live Chat (24/7)',
                             style: TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w700,

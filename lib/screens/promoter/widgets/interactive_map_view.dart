@@ -285,7 +285,9 @@ class _InteractiveMapViewState extends State<InteractiveMapView>
   }
 
   String _getTileUrlTemplate() {
-    final apiKey = dotenv.env['GOOGLE_MAPS_API_KEY']?.trim();
+    final apiKey = dotenv.isInitialized
+        ? dotenv.env['GOOGLE_MAPS_API_KEY']?.trim()
+        : null;
 
     switch (_tileStyle) {
       case _MapTileStyle.satellite:

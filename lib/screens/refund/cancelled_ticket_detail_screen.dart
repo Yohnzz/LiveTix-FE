@@ -26,9 +26,7 @@ class CancelledTicketDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Menghitung rincian refund: tiket dasar + biaya layanan
-    final ticketBasePrice = ticket.totalPrice > 10000 ? ticket.totalPrice - 6500 : ticket.totalPrice;
-    const serviceFee = 6500;
+    final pricing = ticket.pricing;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -48,8 +46,8 @@ class CancelledTicketDetailScreen extends StatelessWidget {
                   _buildDisabledQrCard(),
                   const SizedBox(height: 16),
 
-                  // Kartu Rincian Refund
-                  _buildRefundDetailsCard(ticketBasePrice, serviceFee),
+                  // Kartu Rincian Refund Transparan
+                  _buildRefundDetailsCard(pricing),
                   const SizedBox(height: 14),
 
                   // Informasi Batas Waktu & Estimasi
@@ -194,7 +192,7 @@ class CancelledTicketDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRefundDetailsCard(int ticketBasePrice, int serviceFee) {
+  Widget _buildRefundDetailsCard(TransactionPricing pricing) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -207,7 +205,7 @@ class CancelledTicketDetailScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Rincian refund',
+            'Rincian pengembalian dana (Refund)',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -216,16 +214,16 @@ class CancelledTicketDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // Baris 1: Tiket
+          // 1. Harga Tiket (Dikembalikan)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Tiket ${ticket.category} x ${ticket.quantity}',
+                'Harga Tiket (${ticket.quantity}x ${ticket.category})',
                 style: const TextStyle(fontSize: 13, color: Color(0xFF475467)),
               ),
               Text(
-                _formatCurrency(ticketBasePrice),
+                _formatCurrency(pricing.ticketPrice),
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -236,20 +234,62 @@ class CancelledTicketDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
 
-          // Baris 2: Biaya Layanan
+          // 2. Pajak Hiburan 10% (Dikembalikan)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Biaya layanan',
+                'Pajak Hiburan (10%)',
                 style: TextStyle(fontSize: 13, color: Color(0xFF475467)),
               ),
               Text(
-                _formatCurrency(serviceFee),
+                _formatCurrency(pricing.entertainmentTax),
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // 3. Biaya Aplikasi 2% (Tidak Dikembalikan)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Biaya Aplikasi (2% - Tidak dikembalikan)',
+                style: TextStyle(fontSize: 12.5, color: Color(0xFF98A2B3)),
+              ),
+              Text(
+                _formatCurrency(pricing.applicationFee),
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF98A2B3),
+                  decoration: TextDecoration.lineThrough,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // 4. Pembulatan (Tidak Dikembalikan)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Pembulatan (Tidak dikembalikan)',
+                style: TextStyle(fontSize: 12.5, color: Color(0xFF98A2B3)),
+              ),
+              Text(
+                _formatCurrency(pricing.rounding),
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF98A2B3),
+                  decoration: TextDecoration.lineThrough,
                 ),
               ),
             ],
@@ -259,12 +299,12 @@ class CancelledTicketDetailScreen extends StatelessWidget {
             child: Divider(height: 1, color: AppColors.border),
           ),
 
-          // Baris Total Refund 100%
+          // 5. Total Dana Dikembalikan (Harga Tiket + Pajak Hiburan)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Total refund 100%',
+                'Total Dana Dikembalikan',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -272,7 +312,7 @@ class CancelledTicketDetailScreen extends StatelessWidget {
                 ),
               ),
               Text(
-                _formatCurrency(ticket.totalPrice),
+                _formatCurrency(pricing.producerShare),
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,

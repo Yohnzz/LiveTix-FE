@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../services/ai_backend_service.dart';
 import '../../../services/promoter_data_service.dart';
 import '../widgets/concert_image_widget.dart';
 import '../widgets/dashed_border_box.dart';
@@ -247,28 +248,14 @@ class Step1DetailPosterScreen extends StatelessWidget {
               // Form Field 3: DESKRIPSI ACARA
               _buildFieldLabel('DESKRIPSI ACARA *', labelColor),
               const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: fieldBg,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: fieldBorder),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                child: TextField(
-                  controller: descriptionController,
-                  maxLines: 3,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    color: textColor,
-                    height: 1.4,
-                  ),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    hintText:
-                        'Deskripsikan kemeriahan acara, guest star, dan pengalaman panggung...',
-                  ),
-                ),
+              _AiDescriptionField(
+                descriptionController: descriptionController,
+                nameController: nameController,
+                dateTimeController: dateTimeController,
+                isDarkMode: isDarkMode,
+                textColor: textColor,
+                fieldBg: fieldBg,
+                fieldBorder: fieldBorder,
               ),
 
               const SizedBox(height: 22),
@@ -950,3 +937,282 @@ class Step1DetailPosterScreen extends StatelessWidget {
 
   }
 }
+
+// ============================================================================
+// _AiDescriptionField — Fitur 3: Tombol [✨ AI Assistant] di field Deskripsi
+// ============================================================================
+/// Widget StatefulWidget yang membungkus field deskripsi beserta tombol AI Assistant.
+/// Produser bisa mengetik poin-poin singkat lalu menekan [✨ AI Assistant] untuk
+/// mendapatkan deskripsi 2-3 paragraf profesional dari AI, dengan opsi Undo.
+class _AiDescriptionField extends StatefulWidget {
+  final TextEditingController descriptionController;
+  final TextEditingController nameController;
+  final TextEditingController dateTimeController;
+  final bool isDarkMode;
+  final Color textColor;
+  final Color fieldBg;
+  final Color fieldBorder;
+
+  const _AiDescriptionField({
+    required this.descriptionController,
+    required this.nameController,
+    required this.dateTimeController,
+    required this.isDarkMode,
+    required this.textColor,
+    required this.fieldBg,
+    required this.fieldBorder,
+  });
+
+  @override
+  State<_AiDescriptionField> createState() => _AiDescriptionFieldState();
+}
+
+class _AiDescriptionFieldState extends State<_AiDescriptionField> {
+  final AiBackendService _aiService = AiBackendService();
+  bool _isLoading = false;
+  String? _previousText; // untuk Undo
+
+  Future<void> _runAiAssistant() async {
+    final draft = widget.descriptionController.text.trim();
+    if (draft.length < 10) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Tuliskan poin-poin atau instruksi deskripsi (minimal 10 karakter) terlebih dahulu.'),
+          backgroundColor: Color(0xFFD97706),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final saved = widget.descriptionController.text;
+    setState(() {
+      _isLoading = true;
+      _previousText = saved;
+    });
+
+    try {
+      final result = await _aiService.generateDescription(
+        draft: draft,
+        title: widget.nameController.text.trim(),
+        genre: null,
+        date: widget.dateTimeController.text.trim(),
+        venue: null,
+        artists: null,
+      );
+      if (!mounted) return;
+      widget.descriptionController.text = result;
+      setState(() => _isLoading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('✨ Deskripsi berhasil dibuat oleh AI!'),
+          backgroundColor: const Color(0xFF059669),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Undo',
+            textColor: Colors.white,
+            onPressed: () {
+              widget.descriptionController.text = saved;
+              if (mounted) setState(() => _previousText = null);
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      // Jika error, kembalikan teks lama (teks tidak boleh hilang)
+      widget.descriptionController.text = saved;
+      setState(() {
+        _isLoading = false;
+        _previousText = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('AI gagal: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _handleUndo() {
+    if (_previousText != null) {
+      widget.descriptionController.text = _previousText!;
+      setState(() => _previousText = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor =
+        _isLoading ? const Color(0xFF6366F1) : widget.fieldBorder;
+    final aiButtonBg = widget.isDarkMode
+        ? const Color(0xFF1E1B4B)
+        : const Color(0xFFEEF2FF);
+    final aiButtonTextColor = widget.isDarkMode
+        ? const Color(0xFFC7D2FE)
+        : const Color(0xFF4338CA);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Field deskripsi
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: widget.fieldBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: borderColor,
+              width: _isLoading ? 1.5 : 1.0,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: TextField(
+            controller: widget.descriptionController,
+            maxLines: 4,
+            enabled: !_isLoading,
+            style: TextStyle(
+              fontSize: 13.5,
+              color: widget.textColor,
+              height: 1.4,
+            ),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              hintText:
+                  'Tulis poin-poin konser, lalu tekan "✨ AI Assistant" untuk membuat deskripsi otomatis...',
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // Baris tombol AI Assistant + Undo
+        Row(
+          children: [
+            // Tombol AI Assistant
+            Expanded(
+              child: Material(
+                color: _isLoading ? const Color(0xFF6366F1) : aiButtonBg,
+                borderRadius: BorderRadius.circular(10),
+                child: InkWell(
+                  onTap: _isLoading ? null : _runAiAssistant,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    height: 40,
+                    alignment: Alignment.center,
+                    child: _isLoading
+                        ? const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 15,
+                                height: 15,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'AI sedang menulis...',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.auto_awesome_rounded,
+                                  size: 15, color: aiButtonTextColor),
+                              const SizedBox(width: 6),
+                              Text(
+                                '✨ AI Assistant',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: aiButtonTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Tombol Undo — hanya muncul setelah AI berhasil menulis
+            if (_previousText != null) ...[
+              const SizedBox(width: 8),
+              Material(
+                color: widget.isDarkMode
+                    ? const Color(0xFF1F2937)
+                    : const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(10),
+                child: InkWell(
+                  onTap: _handleUndo,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    alignment: Alignment.center,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.undo_rounded,
+                          size: 15,
+                          color: widget.isDarkMode
+                              ? Colors.white70
+                              : const Color(0xFF374151),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Undo',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: widget.isDarkMode
+                                ? Colors.white70
+                                : const Color(0xFF374151),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+
+        // Petunjuk kecil di bawah tombol
+        if (!_isLoading)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Ketik poin-poin konser lalu tekan tombol AI untuk membuat deskripsi otomatis. Gunakan Undo untuk kembali ke teks asli.',
+              style: TextStyle(
+                fontSize: 11,
+                color: widget.isDarkMode
+                    ? Colors.white38
+                    : const Color(0xFF9CA3AF),
+                height: 1.4,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+

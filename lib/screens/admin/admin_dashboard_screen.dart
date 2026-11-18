@@ -519,7 +519,7 @@ class _ReadyBody extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Customer Service Live',
+                            'Customer Service & AI Copilot',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
@@ -528,7 +528,7 @@ class _ReadyBody extends StatelessWidget {
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'Kelola chat bantuan User & Produser secara realtime',
+                            'Kelola chat bantuan User & Produser didukung asisten AI',
                             style: TextStyle(
                               fontSize: 12,
                               color: AdminColors.textGrey,

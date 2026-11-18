@@ -197,6 +197,26 @@ class DataService {
     }
   }
 
+  /// Hitung harga transaksi resmi dari server (RPC hitung_transaksi_json)
+  /// dengan fallback komputasi lokal integer Rupiah
+  Future<TransactionPricing> fetchTransactionPricing(int unitPrice, int quantity) async {
+    final qty = quantity.clamp(1, 4);
+    if (SupabaseService.isInitialized) {
+      try {
+        final res = await SupabaseService.client.rpc(
+          'hitung_transaksi_json',
+          params: {'p_harga_satuan': unitPrice, 'p_jumlah': qty},
+        );
+        if (res != null && res is Map<String, dynamic>) {
+          return TransactionPricing.fromJson(res);
+        }
+      } catch (e) {
+        debugPrint('fetchTransactionPricing fallback to local: $e');
+      }
+    }
+    return TransactionPricing.calculate(unitPrice, qty);
+  }
+
   UserModel? get currentUser => currentUserNotifier.value;
   bool get isGuest => currentUserNotifier.value == null;
   List<ConcertModel> get rawConcerts => List.unmodifiable(_concerts);
@@ -2130,7 +2150,9 @@ class DataService {
             iconBgColor: const Color(0xFFE0EAFF),
             iconColor: const Color(0xFF1B2A8C),
             qrCodeUrl: null,
-            qrData: tCode,
+            qrData: (r['qr_payload'] != null && r['qr_payload'].toString().isNotEmpty)
+                ? r['qr_payload'].toString()
+                : tCode,
             qrScanQuota: quota,
             paymentMethod: realPaymentMethod,
           ));

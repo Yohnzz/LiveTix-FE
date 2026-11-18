@@ -74,7 +74,8 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('Pilih Tempat Konser'), findsOneWidget);
       expect(
@@ -93,7 +94,8 @@ void main() {
           home: PromoterCancelConcertScreen(concert: sampleConcert),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('Batalkan Konser'), findsOneWidget);
       expect(find.text('Isi alasan pembatalan untuk diajukan ke admin'), findsOneWidget);
@@ -109,9 +111,11 @@ void main() {
 
       // Scroll into view & Tap Ajukan Pembatalan to open bottom sheet modal (Image 2)
       await tester.ensureVisible(find.text('Ajukan Pembatalan'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
       await tester.tap(find.text('Ajukan Pembatalan'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('Ajukan pembatalan konser?'), findsOneWidget);
       expect(find.text('4.200 tiket'), findsOneWidget);
@@ -129,7 +133,8 @@ void main() {
           home: PromoterCancellationStatusScreen(concert: sampleConcert),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('Status Pembatalan'), findsOneWidget);
       expect(find.text('Menunggu Persetujuan Admin'), findsOneWidget);
@@ -150,7 +155,8 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('Belum ada'), findsOneWidget);
       expect(find.text('0 / 5.000'), findsOneWidget);
@@ -165,7 +171,8 @@ void main() {
           home: PromoterCancellationApprovedScreen(concert: sampleConcert),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('Pembatalan Disetujui'), findsOneWidget);
       expect(find.text('Konser resmi dibatalkan'), findsOneWidget);
@@ -192,7 +199,8 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.text('Ajukan Perubahan Informasi Konser'), findsOneWidget);
       expect(find.text('Batalkan Konser'), findsOneWidget);
