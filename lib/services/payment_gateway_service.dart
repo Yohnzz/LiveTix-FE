@@ -22,6 +22,9 @@ class PaymentChargeResult {
   final String? billKey;
   final DateTime? expiresAt;
   final String? errorMessage;
+  // Snap Midtrans
+  final String? snapToken;
+  final String? snapRedirectUrl;
 
   const PaymentChargeResult({
     required this.isSuccess,
@@ -37,6 +40,8 @@ class PaymentChargeResult {
     this.billKey,
     this.expiresAt,
     this.errorMessage,
+    this.snapToken,
+    this.snapRedirectUrl,
   });
 }
 
@@ -45,24 +50,36 @@ class PromoterBalanceResult {
   final int availableBalance; // Saldo tersedia (konser sudah mulai & tidak dibatalkan)
   final int totalSales;
   final int totalWithdrawn;
+  final bool hasPendingWithdrawal;
 
   const PromoterBalanceResult({
     required this.pendingBalance,
     required this.availableBalance,
     required this.totalSales,
     required this.totalWithdrawn,
+    this.hasPendingWithdrawal = false,
   });
 }
 
 class AdminBalanceResult {
-  final int totalFeeCollected; // Total fee 3% terkumpul
-  final int availableFeeBalance; // Saldo fee tersedia untuk ditarik
-  final int totalFeeWithdrawn;
+  final int totalFeeCollected; // Total keseluruhan (biaya aplikasi + pembulatan)
+  final int availableFeeBalance; // Total saldo fee tersedia untuk ditarik
+  final int totalFeeWithdrawn; // Total yang sudah ditarik
+  final int totalBiayaAplikasi; // Total pendapatan biaya aplikasi (2%)
+  final int totalPembulatan; // Total pendapatan pembulatan
+  final int availableBiayaAplikasi; // Biaya aplikasi yang siap ditarik
+  final int availablePembulatan; // Pembulatan yang siap ditarik
+  final bool hasPendingWithdrawal; // Apakah ada withdraw pending
 
   const AdminBalanceResult({
     required this.totalFeeCollected,
     required this.availableFeeBalance,
     required this.totalFeeWithdrawn,
+    this.totalBiayaAplikasi = 0,
+    this.totalPembulatan = 0,
+    this.availableBiayaAplikasi = 0,
+    this.availablePembulatan = 0,
+    this.hasPendingWithdrawal = false,
   });
 }
 
@@ -71,7 +88,7 @@ class PaymentGatewayService {
   factory PaymentGatewayService() => _instance;
   PaymentGatewayService._internal();
 
-  /// 1. Create Payment Charge ke Backend (Midtrans Core API) + Atomic Stock Reservation
+  /// 1. Create Payment Charge ke Backend (Midtrans Snap Sandbox) + Atomic Stock Reservation
   /// Client Flutter TIDAK memegang Server Key. Seluruh charge diproses oleh backend/Edge Function.
   Future<PaymentChargeResult> createPaymentCharge({
     required String orderId,
@@ -84,6 +101,7 @@ class PaymentGatewayService {
     required String customerPhone,
     String? userId,
     String? tierName,
+    String? customerNik,
     int? totalAmount,
   }) async {
     // 1A. Validasi ketersediaan stok terlebih dahulu (Supabase / cache lokal)
@@ -158,6 +176,7 @@ class PaymentGatewayService {
             'customerName': customerName,
             'customerEmail': customerEmail,
             'customerPhone': customerPhone,
+            'customerNik': customerNik,
             'userId': userId,
           }),
         ).timeout(const Duration(seconds: 10));
@@ -168,12 +187,16 @@ class PaymentGatewayService {
           edgeResult = PaymentChargeResult(
             isSuccess: true,
             orderId: orderId,
-            grossAmount: (data['grossAmount'] as num?)?.toInt() ?? (totalAmount ?? 0),
+            grossAmount: (data['totalBayar'] as num?)?.toInt() ??
+                (data['grossAmount'] as num?)?.toInt() ??
+                (totalAmount ?? 0),
             paymentMethod: (data['paymentMethod'] ?? paymentMethod).toString(),
-            paymentType: (data['paymentType'] ?? 'qris').toString(),
+            paymentType: (data['paymentType'] ?? 'snap').toString(),
+            snapToken: data['snapToken'] as String?,
+            snapRedirectUrl: data['snapRedirectUrl'] as String?,
             qrString: data['qrString'] as String?,
             qrUrl: data['qrUrl'] as String?,
-            deeplinkUrl: data['deeplinkUrl'] as String?,
+            deeplinkUrl: data['deeplinkUrl'] ?? data['snapRedirectUrl'] as String?,
             vaNumber: data['vaNumber'] as String?,
             billerCode: data['billerCode'] as String?,
             billKey: data['billKey'] as String?,
@@ -323,6 +346,8 @@ class PaymentGatewayService {
       grossAmount: edgeResult.grossAmount,
       paymentMethod: edgeResult.paymentMethod,
       paymentType: edgeResult.paymentType,
+      snapToken: edgeResult.snapToken,
+      snapRedirectUrl: edgeResult.snapRedirectUrl,
       qrString: edgeResult.qrString,
       qrUrl: edgeResult.qrUrl,
       deeplinkUrl: edgeResult.deeplinkUrl,
@@ -437,28 +462,72 @@ class PaymentGatewayService {
   }
 
   /// 4. Simulasi Pembayaran Sukses Sandbox (Untuk Demo & Pengujian Cepat)
+  /// Memanggil midtrans-webhook Edge Function dengan signature="sandbox_simulation_key"
   Future<bool> simulateSandboxPaymentSuccess(String orderId) async {
     DataService().markOrderPaid(orderId);
 
+    // Coba trigger webhook simulation ke Edge Function (agar ledger ditulis)
     if (SupabaseService.isInitialized) {
       try {
-        await SupabaseService.client.rpc(
-          'confirm_ticket_payment',
-          params: {'p_order_id': orderId},
-        );
-        unawaited(DataService().fetchConcertsFromSupabase(forceRefresh: true));
-        return true;
-      } catch (e) {
-        debugPrint('Error confirm_ticket_payment RPC: $e');
+        // Ambil total_bayar dari order untuk gross_amount yang benar
+        final orderRow = await SupabaseService.client
+            .from('orders')
+            .select('total_bayar, total_amount, gross_amount')
+            .eq('id', orderId)
+            .maybeSingle();
+        final grossVal = (orderRow?['total_bayar'] as num?)?.toInt() ??
+            (orderRow?['total_amount'] as num?)?.toInt() ??
+            0;
+
+        // POST ke midtrans-webhook dengan sandbox simulation payload
+        final webhookUrl = '${SupabaseConfig.url}/functions/v1/midtrans-webhook';
         try {
-          await SupabaseService.client.from('orders').update({
-            'payment_status': 'PAID',
-            'paid_at': DateTime.now().toIso8601String(),
-          }).eq('id', orderId);
-          return true;
-        } catch (err) {
-          debugPrint('Error simulateSandboxPaymentSuccess Supabase: $err');
+          final resp = await http.post(
+            Uri.parse(webhookUrl),
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SupabaseConfig.anonKey,
+              'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
+            },
+            body: jsonEncode({
+              'order_id': orderId,
+              'transaction_status': 'settlement',
+              'status_code': '200',
+              'gross_amount': grossVal.toString(),
+              'fraud_status': 'accept',
+              'signature_key': 'sandbox_simulation_key',
+            }),
+          ).timeout(const Duration(seconds: 10));
+          if (resp.statusCode == 200) {
+            debugPrint('Webhook simulation sukses untuk order $orderId');
+            unawaited(DataService().fetchConcertsFromSupabase(forceRefresh: true));
+            return true;
+          }
+        } catch (webhookErr) {
+          debugPrint('Webhook simulation error: $webhookErr');
         }
+
+        // Fallback: panggil confirm_ticket_payment RPC langsung
+        try {
+          await SupabaseService.client.rpc(
+            'confirm_ticket_payment',
+            params: {'p_order_id': orderId},
+          );
+          unawaited(DataService().fetchConcertsFromSupabase(forceRefresh: true));
+          return true;
+        } catch (e) {
+          debugPrint('Error confirm_ticket_payment RPC: $e');
+          try {
+            await SupabaseService.client.from('orders').update({
+              'payment_status': 'PAID',
+              'paid_at': DateTime.now().toIso8601String(),
+            }).eq('id', orderId);
+          } catch (err) {
+            debugPrint('Error simulateSandboxPaymentSuccess Supabase: $err');
+          }
+        }
+      } catch (e) {
+        debugPrint('simulateSandboxPaymentSuccess error: $e');
       }
     }
     return true;
@@ -476,6 +545,7 @@ class PaymentGatewayService {
             availableBalance: (res['available_balance'] as num?)?.toInt() ?? 0,
             totalSales: (res['total_sales'] as num?)?.toInt() ?? 0,
             totalWithdrawn: (res['total_withdrawn'] as num?)?.toInt() ?? 0,
+            hasPendingWithdrawal: res['has_pending_withdrawal'] == true,
           );
         }
       } catch (e) {
@@ -489,10 +559,11 @@ class PaymentGatewayService {
       availableBalance: 8750000,
       totalSales: 33250000,
       totalWithdrawn: 12500000,
+      hasPendingWithdrawal: false,
     );
   }
 
-  /// 6. Ambil Saldo Fee Admin 3% dari Ledger
+  /// 6. Ambil Saldo Fee Admin (Biaya Aplikasi 2% & Pembulatan Terpisah) dari Ledger
   Future<AdminBalanceResult> getAdminBalance() async {
     if (SupabaseService.isInitialized) {
       try {
@@ -502,6 +573,11 @@ class PaymentGatewayService {
             totalFeeCollected: (res['total_fee_collected'] as num?)?.toInt() ?? 0,
             availableFeeBalance: (res['available_fee_balance'] as num?)?.toInt() ?? 0,
             totalFeeWithdrawn: (res['total_fee_withdrawn'] as num?)?.toInt() ?? 0,
+            totalBiayaAplikasi: (res['total_biaya_aplikasi'] as num?)?.toInt() ?? 0,
+            totalPembulatan: (res['total_pembulatan'] as num?)?.toInt() ?? 0,
+            availableBiayaAplikasi: (res['available_biaya_aplikasi'] as num?)?.toInt() ?? 0,
+            availablePembulatan: (res['available_pembulatan'] as num?)?.toInt() ?? 0,
+            hasPendingWithdrawal: (res['has_pending_withdrawal'] as bool?) ?? false,
           );
         }
       } catch (e) {
@@ -513,6 +589,11 @@ class PaymentGatewayService {
       totalFeeCollected: 4500000,
       availableFeeBalance: 3200000,
       totalFeeWithdrawn: 1300000,
+      totalBiayaAplikasi: 3600000,
+      totalPembulatan: 900000,
+      availableBiayaAplikasi: 2560000,
+      availablePembulatan: 640000,
+      hasPendingWithdrawal: false,
     );
   }
 
@@ -524,6 +605,7 @@ class PaymentGatewayService {
     required String accountNumber,
     required String accountName,
     String? concertId,
+    bool simulateFailure = false,
   }) async {
     if (amount < 50000) {
       return {'success': false, 'message': 'Nominal penarikan minimum adalah Rp 50.000'};
@@ -531,19 +613,57 @@ class PaymentGatewayService {
 
     if (SupabaseService.isInitialized) {
       try {
-        final res = await SupabaseService.client.rpc(
-          'request_producer_withdrawal_atomic',
-          params: {
-            'p_producer_id': producerId,
-            'p_amount': amount,
-            'p_bank_name': bankName,
-            'p_account_number': accountNumber,
-            'p_account_name': accountName,
-            'p_concert_id': concertId,
-          },
-        );
+        // Coba fungsi RPC baru request_producer_withdrawal
+        dynamic res;
+        try {
+          res = await SupabaseService.client.rpc(
+            'request_producer_withdrawal',
+            params: {
+              'p_producer_id': producerId,
+              'p_amount': amount,
+              'p_bank_name': bankName,
+              'p_account_number': accountNumber,
+              'p_account_name': accountName,
+              'p_concert_id': concertId,
+            },
+          );
+        } catch (_) {
+          // Fallback ke request_producer_withdrawal_atomic jika fungsi baru belum dideploy
+          res = await SupabaseService.client.rpc(
+            'request_producer_withdrawal_atomic',
+            params: {
+              'p_producer_id': producerId,
+              'p_amount': amount,
+              'p_bank_name': bankName,
+              'p_account_number': accountNumber,
+              'p_account_name': accountName,
+              'p_concert_id': concertId,
+            },
+          );
+        }
+
         if (res != null && res is Map) {
-          return Map<String, dynamic>.from(res);
+          final data = Map<String, dynamic>.from(res);
+          if (data['success'] == true) {
+            final refNo = data['reference_no']?.toString() ??
+                data['withdrawal_id']?.toString() ??
+                '';
+            // Trigger Edge Function payout-iris di background
+            if (refNo.isNotEmpty) {
+              _triggerPayoutEdgeFunction(
+                payoutType: 'WITHDRAWAL_PRODUCER',
+                referenceId: refNo,
+                amount: amount,
+                beneficiaryBank: bankName,
+                beneficiaryAccount: accountNumber,
+                beneficiaryName: accountName,
+                simulateFailure: simulateFailure,
+              ).catchError((err) {
+                debugPrint('Trigger payout background error: $err');
+              });
+            }
+          }
+          return data;
         }
       } catch (e) {
         debugPrint('Error requestProducerWithdrawal RPC: $e');
@@ -558,13 +678,67 @@ class PaymentGatewayService {
     };
   }
 
-  /// 8. Ajukan Penarikan Fee Admin 3%
+  /// Trigger eksekusi payout melalui Edge Function payout-iris
+  Future<void> _triggerPayoutEdgeFunction({
+    required String payoutType,
+    required String referenceId,
+    required int amount,
+    required String beneficiaryBank,
+    required String beneficiaryAccount,
+    required String beneficiaryName,
+    bool simulateFailure = false,
+  }) async {
+    try {
+      final uri = Uri.parse('${SupabaseConfig.url}/functions/v1/payout-iris');
+      await http
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SupabaseConfig.anonKey,
+              'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
+            },
+            body: jsonEncode({
+              'payoutType': payoutType,
+              'referenceId': referenceId,
+              'amount': amount,
+              'beneficiaryBank': beneficiaryBank,
+              'beneficiaryAccount': beneficiaryAccount,
+              'beneficiaryName': beneficiaryName,
+              'simulateFailure': simulateFailure,
+            }),
+          )
+          .timeout(const Duration(seconds: 12));
+    } catch (e) {
+      debugPrint('_triggerPayoutEdgeFunction error: $e');
+    }
+  }
+
+  /// Ambil daftar riwayat penarikan produser dari database
+  Future<List<Map<String, dynamic>>> fetchPromoterWithdrawalHistory(
+      String producerId) async {
+    if (!SupabaseService.isInitialized) return [];
+    try {
+      final rows = await SupabaseService.client
+          .from('withdrawals')
+          .select()
+          .or('producer_id.eq.$producerId,user_id.eq.$producerId')
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      debugPrint('Error fetchPromoterWithdrawalHistory: $e');
+      return [];
+    }
+  }
+
+  /// 8. Ajukan Penarikan Dana Fee Admin (Biaya Aplikasi & Pembulatan)
   Future<Map<String, dynamic>> requestAdminWithdrawal({
     required String adminId,
     required int amount,
     required String bankName,
     required String accountNumber,
     required String accountName,
+    bool simulateFailure = false,
   }) async {
     if (amount < 50000) {
       return {'success': false, 'message': 'Nominal penarikan minimum adalah Rp 50.000'};
@@ -572,18 +746,53 @@ class PaymentGatewayService {
 
     if (SupabaseService.isInitialized) {
       try {
-        final res = await SupabaseService.client.rpc(
-          'request_admin_withdrawal_atomic',
-          params: {
-            'p_admin_id': adminId,
-            'p_amount': amount,
-            'p_bank_name': bankName,
-            'p_account_number': accountNumber,
-            'p_account_name': accountName,
-          },
-        );
+        dynamic res;
+        try {
+          res = await SupabaseService.client.rpc(
+            'request_admin_withdrawal',
+            params: {
+              'p_admin_id': adminId,
+              'p_amount': amount,
+              'p_bank_name': bankName,
+              'p_account_number': accountNumber,
+              'p_account_name': accountName,
+            },
+          );
+        } catch (_) {
+          res = await SupabaseService.client.rpc(
+            'request_admin_withdrawal_atomic',
+            params: {
+              'p_admin_id': adminId,
+              'p_amount': amount,
+              'p_bank_name': bankName,
+              'p_account_number': accountNumber,
+              'p_account_name': accountName,
+            },
+          );
+        }
+
         if (res != null && res is Map) {
-          return Map<String, dynamic>.from(res);
+          final data = Map<String, dynamic>.from(res);
+          if (data['success'] == true) {
+            final refNo = data['reference_no']?.toString() ??
+                data['withdrawal_id']?.toString() ??
+                '';
+            // Trigger Edge Function payout-iris di background
+            if (refNo.isNotEmpty) {
+              _triggerPayoutEdgeFunction(
+                payoutType: 'WITHDRAWAL_ADMIN',
+                referenceId: refNo,
+                amount: amount,
+                beneficiaryBank: bankName,
+                beneficiaryAccount: accountNumber,
+                beneficiaryName: accountName,
+                simulateFailure: simulateFailure,
+              ).catchError((err) {
+                debugPrint('Trigger payout admin background error: $err');
+              });
+            }
+          }
+          return data;
         }
       } catch (e) {
         debugPrint('Error requestAdminWithdrawal RPC: $e');
@@ -596,6 +805,22 @@ class PaymentGatewayService {
       'message': 'Pengajuan penarikan fee admin Rp $amount berhasil diproses.',
       'reference_no': 'WD-ADM-${DateTime.now().millisecondsSinceEpoch}',
     };
+  }
+
+  /// Ambil daftar riwayat penarikan dana admin dari Supabase
+  Future<List<Map<String, dynamic>>> fetchAdminWithdrawalHistory() async {
+    if (!SupabaseService.isInitialized) return [];
+    try {
+      final rows = await SupabaseService.client
+          .from('withdrawals')
+          .select()
+          .eq('role', 'admin')
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      debugPrint('Error fetchAdminWithdrawalHistory: $e');
+      return [];
+    }
   }
 
   /// 9. Batalkan Konser & Kunci Saldo Produser untuk Pengalihan Refund
@@ -641,6 +866,7 @@ class PaymentGatewayService {
     required String destinationAccountNo,
     required String destinationAccountName,
     required String reason,
+    bool simulateFailure = false,
   }) async {
     if (destinationAccountNo.trim().isEmpty || destinationAccountName.trim().isEmpty) {
       return {'success': false, 'message': 'Nomor dan nama pemilik rekening/e-wallet wajib diisi.'};
@@ -661,7 +887,26 @@ class PaymentGatewayService {
           },
         );
         if (res != null && res is Map) {
-          return Map<String, dynamic>.from(res);
+          final data = Map<String, dynamic>.from(res);
+          if (data['success'] == true) {
+            final refId = data['refund_id']?.toString() ?? '';
+            final refAmount = (data['refund_amount'] as num?)?.toInt() ?? 0;
+            // Panggil background Edge Function payout-iris
+            if (refId.isNotEmpty && refAmount > 0) {
+              _triggerPayoutEdgeFunction(
+                payoutType: 'REFUND_USER',
+                referenceId: refId,
+                amount: refAmount,
+                beneficiaryBank: destinationProvider,
+                beneficiaryAccount: destinationAccountNo,
+                beneficiaryName: destinationAccountName,
+                simulateFailure: simulateFailure,
+              ).catchError((err) {
+                debugPrint('Trigger payout refund background error: $err');
+              });
+            }
+          }
+          return data;
         }
       } catch (e) {
         debugPrint('Error requestTicketRefund RPC: $e');
@@ -672,6 +917,40 @@ class PaymentGatewayService {
     return {
       'success': true,
       'message': 'Pengajuan refund 100% berhasil diproses ke $destinationProvider $destinationAccountNo.',
+      'refund_id': 'ref_${DateTime.now().millisecondsSinceEpoch}',
+      'refund_amount': 0,
     };
+  }
+
+  /// Ambil daftar riwayat refund untuk user
+  Future<List<Map<String, dynamic>>> fetchUserRefunds(String userId) async {
+    if (!SupabaseService.isInitialized) return [];
+    try {
+      final rows = await SupabaseService.client
+          .from('refunds')
+          .select()
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      debugPrint('Error fetchUserRefunds: $e');
+      return [];
+    }
+  }
+
+  /// Ambil daftar seluruh refund per konser (untuk monitoring admin/produser)
+  Future<List<Map<String, dynamic>>> fetchConcertRefunds(String concertId) async {
+    if (!SupabaseService.isInitialized) return [];
+    try {
+      final rows = await SupabaseService.client
+          .from('refunds')
+          .select()
+          .eq('concert_id', concertId)
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      debugPrint('Error fetchConcertRefunds: $e');
+      return [];
+    }
   }
 }

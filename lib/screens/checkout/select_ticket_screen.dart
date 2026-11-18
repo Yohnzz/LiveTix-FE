@@ -33,7 +33,6 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
   late List<TicketTierModel> _availableTiers;
   int _quantity = 1;
   final int _maxQuantity = 4;
-  final int _serviceFee = 15000;
 
   @override
   void initState() {
@@ -158,9 +157,10 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
       _selectedTier.isEffectivelySoldOut ||
       _quantity > _selectedTier.availableStock;
 
-  int get _subtotal => _selectedTier.price * _quantity;
-  int get _taxAndAdmin => (_subtotal * 0.1).round() + 6500; // Formula pajak & admin
-  int get _total => _subtotal + _serviceFee + _taxAndAdmin;
+  TransactionPricing get _pricing =>
+      TransactionPricing.calculate(_selectedTier.price, _quantity);
+
+  int get _total => _pricing.totalPay;
 
   String _formatCurrency(int amount) {
     final buffer = StringBuffer('Rp');
@@ -191,6 +191,7 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
     }
 
     final currentUser = DataService().currentUser;
+    final pricing = _pricing;
     final order = OrderModel(
       orderId: 'ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
       concert: widget.concert.copyWith(ticketTiers: _availableTiers),
@@ -198,10 +199,15 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
       quantity: _quantity,
       customerName: currentUser?.name ?? _nameController.text.trim(),
       customerEmail: currentUser?.email ?? _emailController.text.trim(),
-      ticketPrice: _selectedTier.price,
-      serviceFee: _serviceFee,
-      taxAndAdmin: _taxAndAdmin,
-      totalAmount: _subtotal + _serviceFee + _taxAndAdmin,
+      ticketPrice: pricing.ticketPrice,
+      serviceFee: pricing.applicationFee,
+      taxAndAdmin: pricing.entertainmentTax,
+      totalAmount: pricing.totalPay,
+      entertainmentTax: pricing.entertainmentTax,
+      applicationFee: pricing.applicationFee,
+      rounding: pricing.rounding,
+      producerShare: pricing.producerShare,
+      adminShare: pricing.adminShare,
     );
 
     Navigator.push(

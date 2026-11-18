@@ -25,31 +25,40 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
     totalFeeCollected: 0,
     availableFeeBalance: 0,
     totalFeeWithdrawn: 0,
+    totalBiayaAplikasi: 0,
+    totalPembulatan: 0,
+    availableBiayaAplikasi: 0,
+    availablePembulatan: 0,
+    hasPendingWithdrawal: false,
   );
 
   bool _isLoading = true;
   bool _isSubmitting = false;
+  List<Map<String, dynamic>> _withdrawalHistory = [];
 
   final List<Map<String, dynamic>> _feeHistory = [
     {
       'concert': 'Soundwave Fest 2026',
       'orderId': 'ORD-20261109-8891',
       'gross': 1500000,
-      'fee': 45000,
+      'appFee': 30000,
+      'rounding': 600,
       'date': 'Hari ini, 14:20 WIB',
     },
     {
       'concert': 'Harmoni Nusantara 2026',
       'orderId': 'ORD-20261109-7712',
       'gross': 2800000,
-      'fee': 84000,
+      'appFee': 56000,
+      'rounding': 800,
       'date': 'Hari ini, 11:05 WIB',
     },
     {
       'concert': 'Jazz Kota Lama 2026',
       'orderId': 'ORD-20261108-6623',
       'gross': 950000,
-      'fee': 28500,
+      'appFee': 19000,
+      'rounding': 400,
       'date': 'Kemarin, 19:40 WIB',
     },
   ];
@@ -57,7 +66,7 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
   @override
   void initState() {
     super.initState();
-    _loadBalance();
+    _loadData();
   }
 
   @override
@@ -68,14 +77,19 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
     super.dispose();
   }
 
-  Future<void> _loadBalance() async {
+  Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final res = await PaymentGatewayService().getAdminBalance();
+    final results = await Future.wait([
+      PaymentGatewayService().getAdminBalance(),
+      PaymentGatewayService().fetchAdminWithdrawalHistory(),
+    ]);
+
     if (mounted) {
       setState(() {
-        _balance = res;
+        _balance = results[0] as AdminBalanceResult;
+        _withdrawalHistory = results[1] as List<Map<String, dynamic>>;
         _isLoading = false;
-        if (_balance.availableFeeBalance > 0) {
+        if (_balance.availableFeeBalance > 0 && _amountController.text.isEmpty) {
           _amountController.text = _formatCurrencyRaw(_balance.availableFeeBalance);
         }
       });
@@ -106,6 +120,12 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
     return buffer.toString();
   }
 
+  void _setAmount(int amount) {
+    setState(() {
+      _amountController.text = _formatCurrencyRaw(amount);
+    });
+  }
+
   Future<void> _handleWithdrawSubmit() async {
     final clean = _amountController.text.replaceAll(RegExp(r'[^0-9]'), '');
     final amount = int.tryParse(clean) ?? 0;
@@ -126,6 +146,16 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
           content: Text(
               'Nominal melebihi saldo fee tersedia (${_formatCurrency(_balance.availableFeeBalance)})'),
           backgroundColor: const Color(0xFFEF4444),
+        ),
+      );
+      return;
+    }
+
+    if (_balance.hasPendingWithdrawal) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Masih ada permohonan penarikan admin yang sedang diproses.'),
+          backgroundColor: Color(0xFFF59E0B),
         ),
       );
       return;
@@ -171,7 +201,7 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
           ],
         ),
       );
-      _loadBalance();
+      _loadData();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -184,6 +214,9 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = DataService().currentUser;
+    final isAdmin = user?.role == 'admin' || user?.role == 'superadmin';
+
     return AdminScope(
       child: Builder(
         builder: (context) {
@@ -191,6 +224,43 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
           final textSec = AdminColors.textSecondaryOf(context);
           final surfaceAlt = AdminColors.surfaceAltOf(context);
           final border = AdminColors.borderOf(context);
+
+          if (!isAdmin) {
+            return Scaffold(
+              backgroundColor: AdminColors.bgOf(context),
+              appBar: AppBar(
+                title: const Text('Penarikan Dana Admin',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                backgroundColor: const Color(0xFF4C1D95),
+                foregroundColor: Colors.white,
+              ),
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.gpp_bad_rounded, size: 64, color: Color(0xFFEF4444)),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Akses Dibatasi',
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: textPri),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Halaman ini dilindungi dan hanya dapat diakses oleh akun resmi dengan role Admin / Superadmin.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 14, color: textSec),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
 
           return Scaffold(
             backgroundColor: AdminColors.bgOf(context),
@@ -206,46 +276,66 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
                     child: CircularProgressIndicator(
                         color: AdminColors.accentOf(context)))
                 : RefreshIndicator(
-                    onRefresh: _loadBalance,
+                    onRefresh: _loadData,
                     child: ListView(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 16),
                       children: [
-                        // 1. Hero Card: Saldo Fee Admin 3%
+                        // 1. Hero Card: Total Saldo Admin Siap Ditarik
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [Color(0xFF4C1D95), Color(0xFF6D28D9)],
+                              colors: [Color(0xFF3B0764), Color(0xFF6D28D9)],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF4C1D95)
-                                    .withValues(alpha: 0.3),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
+                                color: const Color(0xFF4C1D95).withValues(alpha: 0.35),
+                                blurRadius: 18,
+                                offset: const Offset(0, 8),
                               ),
                             ],
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Row(
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Icon(Icons.account_balance_wallet_rounded,
-                                      color: Colors.white70, size: 16),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'SALDO FEE ADMIN TERSEDIA (3%)',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white70,
-                                      letterSpacing: 0.6,
+                                  const Row(
+                                    children: [
+                                      Icon(Icons.account_balance_wallet_rounded,
+                                          color: Colors.white70, size: 16),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'TOTAL SALDO ADMIN SIAP DITARIK',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white70,
+                                          letterSpacing: 0.6,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Text(
+                                      'Kapan Saja',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -254,12 +344,127 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
                               Text(
                                 _formatCurrency(_balance.availableFeeBalance),
                                 style: const TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w800,
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.w900,
                                   color: Colors.white,
                                   letterSpacing: -0.5,
                                 ),
                               ),
+                              const SizedBox(height: 16),
+
+                              // Sub-Cards: Saldo Biaya Aplikasi & Pembulatan Terpisah
+                              Row(
+                                children: [
+                                  // Card 1: Biaya Aplikasi (2%)
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(alpha: 0.15),
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Row(
+                                            children: [
+                                              Icon(Icons.receipt_long_rounded,
+                                                  color: Colors.white70, size: 14),
+                                              SizedBox(width: 5),
+                                              Expanded(
+                                                child: Text(
+                                                  'Biaya Aplikasi (2%)',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Colors.white70,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            _formatCurrency(_balance.availableBiayaAplikasi),
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            'Total: ${_formatCurrency(_balance.totalBiayaAplikasi)}',
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              color: Colors.white.withValues(alpha: 0.65),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  // Card 2: Pembulatan
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(alpha: 0.15),
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Row(
+                                            children: [
+                                              Icon(Icons.arrow_upward_rounded,
+                                                  color: Colors.white70, size: 14),
+                                              SizedBox(width: 5),
+                                              Expanded(
+                                                child: Text(
+                                                  'Pembulatan Ribuan',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Colors.white70,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            _formatCurrency(_balance.availablePembulatan),
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            'Total: ${_formatCurrency(_balance.totalPembulatan)}',
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              color: Colors.white.withValues(alpha: 0.65),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
                               const SizedBox(height: 14),
                               const Divider(height: 1, color: Colors.white24),
                               const SizedBox(height: 12),
@@ -289,11 +494,44 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
                           ),
                         ),
 
+                        // Banner jika ada penarikan yang sedang pending
+                        if (_balance.hasPendingWithdrawal) ...[
+                          const SizedBox(height: 14),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.hourglass_top_rounded,
+                                    color: Color(0xFFF59E0B), size: 20),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Ada permohonan penarikan admin yang sedang diproses. Mohon tunggu proses selesai sebelum mengajukan kembali.',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: Color(0xFFD97706),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
                         const SizedBox(height: 24),
 
                         // 2. Form Penarikan Fee Admin
                         Text(
-                          'Form Pengajuan Penarikan Fee',
+                          'Form Pengajuan Penarikan Fee Admin',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
@@ -331,8 +569,8 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: AdminColors.purpleOf(context),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF7C3AED),
                                       width: 1.5,
                                     ),
                                   ),
@@ -340,6 +578,33 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
                                   fillColor: surfaceAlt,
                                 ),
                               ),
+                              const SizedBox(height: 8),
+
+                              // Quick amount buttons
+                              Wrap(
+                                spacing: 8,
+                                children: [
+                                  ActionChip(
+                                    label: const Text('Rp 50.000'),
+                                    onPressed: () => _setAmount(50000),
+                                  ),
+                                  ActionChip(
+                                    label: const Text('Rp 100.000'),
+                                    onPressed: () => _setAmount(100000),
+                                  ),
+                                  ActionChip(
+                                    label: const Text('Rp 500.000'),
+                                    onPressed: () => _setAmount(500000),
+                                  ),
+                                  ActionChip(
+                                    label: const Text('Tarik Semua'),
+                                    onPressed: _balance.availableFeeBalance > 0
+                                        ? () => _setAmount(_balance.availableFeeBalance)
+                                        : null,
+                                  ),
+                                ],
+                              ),
+
                               const SizedBox(height: 14),
                               Text('Bank Tujuan',
                                   style: TextStyle(
@@ -429,7 +694,9 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
                                 width: double.infinity,
                                 height: 48,
                                 child: ElevatedButton(
-                                  onPressed: _isSubmitting
+                                  onPressed: (_isSubmitting ||
+                                          _balance.hasPendingWithdrawal ||
+                                          _balance.availableFeeBalance < 50000)
                                       ? null
                                       : _handleWithdrawSubmit,
                                   style: ElevatedButton.styleFrom(
@@ -460,9 +727,144 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
 
                         const SizedBox(height: 24),
 
-                        // 3. Riwayat Mutasi Fee 3%
+                        // 3. Riwayat Penarikan Dana Admin (Tabel withdrawals)
                         Text(
-                          'Riwayat Fee Transaksi Konser (3%)',
+                          'Riwayat Penarikan Dana Admin',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: textPri,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        if (_withdrawalHistory.isEmpty)
+                          AdminCard(
+                            padding: const EdgeInsets.all(18),
+                            child: Center(
+                              child: Text(
+                                'Belum ada riwayat penarikan dana admin.',
+                                style: TextStyle(fontSize: 13, color: textSec),
+                              ),
+                            ),
+                          )
+                        else
+                          ..._withdrawalHistory.map((w) {
+                            final status = (w['status'] as String? ?? 'pending').toLowerCase();
+                            final amount = (w['amount'] as num?)?.toInt() ?? 0;
+                            final refNo = w['reference_no'] as String? ?? w['id'] as String? ?? '-';
+                            final bank = w['bank_name'] as String? ?? '-';
+                            final accNo = w['account_number'] as String? ?? '-';
+                            final createdAt = w['created_at']?.toString() ?? '-';
+
+                            Color statusColor;
+                            String statusLabel;
+                            if (status == 'success' || status == 'completed') {
+                              statusColor = const Color(0xFF10B981);
+                              statusLabel = 'BERHASIL';
+                            } else if (status == 'failed') {
+                              statusColor = const Color(0xFFEF4444);
+                              statusLabel = 'GAGAL';
+                            } else {
+                              statusColor = const Color(0xFFF59E0B);
+                              statusLabel = 'DIPROSES';
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: AdminCard(
+                                padding: const EdgeInsets.all(14),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: statusColor.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Icon(
+                                        status == 'success'
+                                            ? Icons.check_circle_outline_rounded
+                                            : (status == 'failed'
+                                                ? Icons.error_outline_rounded
+                                                : Icons.access_time_rounded),
+                                        color: statusColor,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            refNo,
+                                            style: TextStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: textPri,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '$bank · $accNo',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: textSec,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            createdAt,
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              color: textSec,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          _formatCurrency(amount),
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            color: textPri,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: statusColor.withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            statusLabel,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              color: statusColor,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+
+                        const SizedBox(height: 24),
+
+                        // 4. Riwayat Mutasi Fee Transaksi Konser
+                        Text(
+                          'Riwayat Fee Transaksi Konser',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
@@ -484,7 +886,7 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
                                         borderRadius:
                                             BorderRadius.circular(10),
                                       ),
-                                      child: Icon(Icons.percent_rounded,
+                                      child: Icon(Icons.receipt_long_rounded,
                                           color: AdminColors.successOf(context),
                                           size: 20),
                                     ),
@@ -510,6 +912,14 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
                                               color: textSec,
                                             ),
                                           ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            'Biaya Aplikasi: ${_formatCurrency(h['appFee'] as int)} · Pembulatan: ${_formatCurrency(h['rounding'] as int)}',
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              color: textSec,
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -518,7 +928,7 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
                                           CrossAxisAlignment.end,
                                       children: [
                                         Text(
-                                          '+${_formatCurrency(h['fee'] as int)}',
+                                          '+${_formatCurrency((h['appFee'] as int) + (h['rounding'] as int))}',
                                           style: TextStyle(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w800,

@@ -26,6 +26,17 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
   void initState() {
     super.initState();
     _recalculateAmount();
+    // Muat saldo realtime dari server (Saldo Tersedia vs Saldo Tertahan)
+    final user = DataService().currentUser;
+    if (user != null && user.id.isNotEmpty) {
+      PaymentGatewayService().getPromoterBalance(user.id).then((bal) {
+        if (mounted) {
+          final service = PromoterDataService();
+          service.activeBalanceNotifier.value = bal.availableBalance;
+          service.pendingBalanceNotifier.value = bal.pendingBalance;
+        }
+      });
+    }
   }
 
   @override
@@ -59,13 +70,13 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
 
     if (_parsedAmount < 50000) {
       setState(() =>
-          _errorMessage = 'Nominal penarikan minimum ke rekening/e-wallet adalah Rp 50.000.');
+          _errorMessage = 'Nominal penarikan minimum adalah Rp 50.000.');
       return;
     }
 
     if (_parsedAmount > currentBalance) {
       setState(
-          () => _errorMessage = 'Nominal melebihi saldo tersedia untuk ditarik.');
+          () => _errorMessage = 'Nominal melebihi saldo tersedia. Saldo konser yang belum dimulai berstatus tertahan.');
       return;
     }
 
@@ -279,22 +290,72 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
     );
   }
 
-  void _executeWithdrawal() {
+  Future<void> _executeWithdrawal() async {
     final service = PromoterDataService();
     final user = DataService().currentUser;
+    final producerId = user?.id ?? '';
+
+    // Tampilkan loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 14),
+                Text('Memproses penarikan dana...', style: TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final res = await PaymentGatewayService().requestProducerWithdrawal(
+      producerId: producerId.isNotEmpty ? producerId : 'b0000000-0000-0000-0000-000000000002',
+      amount: _parsedAmount,
+      bankName: 'BCA',
+      accountNumber: '880812345678',
+      accountName: service.promoterName,
+    );
+
+    if (!mounted) return;
+    Navigator.pop(context); // Tutup loading
+
+    if (res['success'] != true) {
+      final msg = res['message']?.toString() ?? 'Gagal memproses penarikan dana.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final refNo = res['reference_no']?.toString() ?? 'WD-PRD-${DateTime.now().millisecondsSinceEpoch}';
+
     service.withdrawBalance(
       amount: _parsedAmount,
       targetBank: 'BCA',
       targetAccount: '***9901',
     );
 
-    PaymentGatewayService().requestProducerWithdrawal(
-      producerId: user?.id ?? 'b0000000-0000-0000-0000-000000000002',
-      amount: _parsedAmount,
-      bankName: 'BCA',
-      accountNumber: '880812345678',
-      accountName: service.promoterName,
-    );
+    // Refresh saldo realtime dari server
+    if (producerId.isNotEmpty) {
+      PaymentGatewayService().getPromoterBalance(producerId).then((bal) {
+        if (mounted) {
+          service.activeBalanceNotifier.value = bal.availableBalance;
+          service.pendingBalanceNotifier.value = bal.pendingBalance;
+        }
+      });
+    }
 
     showDialog(
       context: context,
@@ -325,7 +386,7 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Pencairan dana sebesar Rp ${PromoterDataService.formatCurrency(_parsedAmount)} sedang diproses transfer ke rekening BCA Rafi Firmansyah (***9901).',
+              'Pencairan dana sebesar Rp ${PromoterDataService.formatCurrency(_parsedAmount)} sedang diproses transfer ke rekening BCA ${service.promoterName} (***9901).\nRef: $refNo',
               style: const TextStyle(
                 fontSize: 12.5,
                 color: Color(0xFF667085),
@@ -516,7 +577,7 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
                                           const SizedBox(width: 6),
                                           Expanded(
                                             child: Text(
-                                              'Saldo Tertahan: Rp${PromoterTicketTier.formatNumber(pending)} (Konser Belum Selesai)',
+                                              'Saldo Tertahan: Rp${PromoterTicketTier.formatNumber(pending)} (Konser Belum Dimulai)',
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.w600,

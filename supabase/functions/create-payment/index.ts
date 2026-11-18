@@ -18,229 +18,233 @@ serve(async (req) => {
       concertId,
       tierId,
       quantity,
-      paymentMethod, // 'QRIS', 'GOPAY', 'SHOPEEPAY', 'BCA_VA', 'BNI_VA', 'BRI_VA', 'MANDIRI_BILL', 'PERMATA_VA'
+      paymentMethod,
       customerName,
       customerEmail,
       customerPhone,
+      customerNik,
       userId,
     } = body;
 
+    if (!orderId) {
+      return new Response(JSON.stringify({ success: false, error: "orderId wajib diisi" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      });
+    }
+
     const serverKey = Deno.env.get("MIDTRANS_SERVER_KEY") ?? "";
-    const isProd = Deno.env.get("MIDTRANS_IS_PRODUCTION") === "true";
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "https://ljjnbovuihyymdmrikuq.supabase.co";
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-    console.log("create-payment called, supabaseUrl:", supabaseUrl, "hasServiceKey:", Boolean(supabaseServiceKey));
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 1. Ambil data harga resmi dari database backend (Mencegah manipulasi harga dari client)
+    // 1. Ambil data harga tiket resmi dari database Supabase (Pencegahan manipulasi harga client)
     let ticketPrice = 0;
     let tierName = "Reguler";
     let concertTitle = "Konser LiveTix";
     let validConcertId: string | null = null;
+    let producerId: string | null = null;
 
     if (tierId) {
       const { data: tier } = await supabase
         .from("ticket_tiers")
-        .select("name, price, quota, sold_count, concert_id")
+        .select("name, price, quota, sold_count, concert_id, concerts(id, title, producer_id)")
         .eq("id", tierId)
         .maybeSingle();
 
       if (tier) {
-        ticketPrice = Number(tier.price) || 0;
+        ticketPrice = Math.round(Number(tier.price) || 0);
         tierName = tier.name;
         if (tier.concert_id) validConcertId = tier.concert_id;
+        if (tier.concerts) {
+          concertTitle = (tier.concerts as any).title || concertTitle;
+          producerId = (tier.concerts as any).producer_id || null;
+        }
       }
     }
 
-    if (concertId) {
+    if (concertId && !validConcertId) {
       const { data: concert } = await supabase
         .from("concerts")
-        .select("id, title, price")
+        .select("id, title, price, producer_id")
         .eq("id", concertId)
         .maybeSingle();
 
       if (concert) {
         validConcertId = concert.id;
-        if (ticketPrice <= 0) {
-          ticketPrice = Number(concert.price) || 0;
-        }
+        if (ticketPrice <= 0) ticketPrice = Math.round(Number(concert.price) || 0);
         concertTitle = concert.title || concertTitle;
+        producerId = concert.producer_id || producerId;
       }
     }
 
-    // Fallback jika database belum ada data konser ini
     if (ticketPrice <= 0) {
-      ticketPrice = Number(body.ticketPrice) || 150000;
+      ticketPrice = Math.round(Number(body.ticketPrice) || 150000);
     }
 
-    const qty = Math.max(1, Number(quantity) || 1);
-    const subtotal = ticketPrice * qty;
-    const serviceFee = 5000;
-    const taxAndAdmin = Math.round(subtotal * 0.05); // 5% pajak & platform
-    const grossAmount = subtotal + serviceFee + taxAndAdmin;
+    // 2. Hitung Ulang Komponen Biaya di Server (Sumber Kebenaran Tunggal & Invarian Wajib)
+    const qty = Math.min(4, Math.max(1, Math.round(Number(quantity) || 1)));
 
-    // 2. Tentukan konfigurasi Midtrans Core API (/v2/charge)
-    const midtransUrl = isProd
-      ? "https://api.midtrans.com/v2/charge"
-      : "https://api.sandbox.midtrans.com/v2/charge";
+    // Ambil konfigurasi persentase dari app_config
+    let pajakPct = 10;
+    let biayaPct = 2;
+    try {
+      const { data: configs } = await supabase.from("app_config").select("key, value");
+      if (configs && Array.isArray(configs)) {
+        for (const c of configs) {
+          if (c.key === "pajak_hiburan_persen") pajakPct = Number(c.value) || 10;
+          if (c.key === "biaya_aplikasi_persen") biayaPct = Number(c.value) || 2;
+        }
+      }
+    } catch (_) {}
 
-    const authHeader = "Basic " + btoa(`${serverKey}:`);
+    const hargaTiket = ticketPrice * qty;
+    const pajakHiburan = Math.round(hargaTiket * (pajakPct / 100));
+    const biayaAplikasi = Math.round(hargaTiket * (biayaPct / 100)); // 1x per transaksi
+    const subtotal = hargaTiket + pajakHiburan + biayaAplikasi;
+    const totalBayar = Math.ceil(subtotal / 1000) * 1000; // Pembulatan ke atas kelipatan Rp 1.000
+    const pembulatan = totalBayar - subtotal;
+    const bagianProduser = hargaTiket + pajakHiburan;
+    const bagianAdmin = biayaAplikasi + pembulatan;
 
-    const midtransPayload: Record<string, any> = {
+    // Invarian Wajib: produser + admin == total_bayar
+    if (bagianProduser + bagianAdmin !== totalBayar) {
+      throw new Error(`Pelanggaran invarian: ${bagianProduser} + ${bagianAdmin} !== ${totalBayar}`);
+    }
+
+    // 3. Konfigurasi Item Details Midtrans Snap Sandbox
+    // Syarat Midtrans: Total harga item_details harus tepat sama dengan gross_amount (totalBayar)
+    const itemDetails: Array<{ id: string; price: number; quantity: number; name: string }> = [
+      {
+        id: (tierId || "TIER-01").substring(0, 50),
+        price: ticketPrice,
+        quantity: qty,
+        name: `${tierName} - ${concertTitle}`.substring(0, 50),
+      },
+      {
+        id: "PAJAK_HIBURAN",
+        price: pajakHiburan,
+        quantity: 1,
+        name: `Pajak Hiburan (${pajakPct}%)`.substring(0, 50),
+      },
+      {
+        id: "BIAYA_APLIKASI",
+        price: biayaAplikasi,
+        quantity: 1,
+        name: `Biaya Aplikasi (${biayaPct}%)`.substring(0, 50),
+      },
+    ];
+
+    if (pembulatan > 0) {
+      itemDetails.push({
+        id: "PEMBULATAN",
+        price: pembulatan,
+        quantity: 1,
+        name: "Pembulatan",
+      });
+    }
+
+    const snapPayload = {
       transaction_details: {
         order_id: orderId,
-        gross_amount: grossAmount,
+        gross_amount: totalBayar,
       },
+      item_details: itemDetails,
       customer_details: {
         first_name: customerName || "Penonton LiveTix",
         email: customerEmail || "user@livetix.com",
         phone: customerPhone || "081234567890",
       },
-      item_details: [
-        {
-          id: tierId || "TIER-01",
-          price: ticketPrice,
-          quantity: qty,
-          name: `${tierName} - ${concertTitle}`.substring(0, 50),
-        },
-        {
-          id: "FEE-SERVICE",
-          price: serviceFee,
-          quantity: 1,
-          name: "Biaya Layanan",
-        },
-        {
-          id: "TAX-ADMIN",
-          price: taxAndAdmin,
-          quantity: 1,
-          name: "Pajak & Penanganan",
-        },
-      ],
-      custom_expiry: {
-        expiry_duration: 60,
+      expiry: {
         unit: "minute",
+        duration: 60,
       },
     };
 
-    const methodUpper = (paymentMethod || "QRIS").toUpperCase();
+    // 4. Request Snap Token ke Midtrans Sandbox (https://app.sandbox.midtrans.com/snap/v1/transactions)
+    let snapToken = "";
+    let snapRedirectUrl = "";
+    let midtransResponse: any = null;
 
-    if (methodUpper.includes("QRIS")) {
-      midtransPayload.payment_type = "qris";
-      midtransPayload.qris = { acquirer: "gopay" };
-    } else if (methodUpper.includes("GOPAY")) {
-      midtransPayload.payment_type = "gopay";
-      midtransPayload.gopay = {
-        enable_callback: true,
-        callback_url: "livetix://payment/callback",
-      };
-    } else if (methodUpper.includes("SHOPEE")) {
-      midtransPayload.payment_type = "shopeepay";
-      midtransPayload.shopeepay = {
-        callback_url: "livetix://payment/callback",
-      };
-    } else if (methodUpper.includes("MANDIRI")) {
-      midtransPayload.payment_type = "echannel";
-      midtransPayload.echannel = {
-        bill_info1: "Pembayaran Tiket:",
-        bill_info2: "LiveTix Konser",
-      };
-    } else if (methodUpper.includes("PERMATA")) {
-      midtransPayload.payment_type = "permata";
-    } else if (methodUpper.includes("BCA")) {
-      midtransPayload.payment_type = "bank_transfer";
-      midtransPayload.bank_transfer = { bank: "bca" };
-    } else if (methodUpper.includes("BNI")) {
-      midtransPayload.payment_type = "bank_transfer";
-      midtransPayload.bank_transfer = { bank: "bni" };
-    } else if (methodUpper.includes("BRI")) {
-      midtransPayload.payment_type = "bank_transfer";
-      midtransPayload.bank_transfer = { bank: "bri" };
-    } else {
-      // Default Bank VA BCA
-      midtransPayload.payment_type = "bank_transfer";
-      midtransPayload.bank_transfer = { bank: "bca" };
+    if (serverKey && serverKey.trim().length > 5) {
+      try {
+        const snapResp = await fetch("https://app.sandbox.midtrans.com/snap/v1/transactions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Authorization: "Basic " + btoa(`${serverKey.trim()}:`),
+          },
+          body: JSON.stringify(snapPayload),
+        });
+
+        if (snapResp.ok) {
+          midtransResponse = await snapResp.json();
+          snapToken = midtransResponse.token || "";
+          snapRedirectUrl = midtransResponse.redirect_url || "";
+        } else {
+          const errText = await snapResp.text();
+          console.warn("Midtrans Snap sandbox error response:", errText);
+        }
+      } catch (snapErr) {
+        console.error("Gagal memanggil Snap API Midtrans:", snapErr);
+      }
     }
 
-    let midtransResponse: any = null;
-    let qrString = "";
-    let qrUrl = "";
-    let deeplinkUrl = "";
-    let vaNumber = "";
-    let billerCode = "";
-    let billKey = "";
+    // Fallback Simulation URL jika server key belum diset atau di environment offline
+    if (!snapToken) {
+      snapToken = `snap_sandbox_${orderId}`;
+      snapRedirectUrl = `https://app.sandbox.midtrans.com/snap/v2/vtweb/${snapToken}`;
+    }
 
-    // 3. Panggil API Midtrans jika serverKey tersedia
-    if (serverKey && serverKey.trim().length > 5) {
-      const resp = await fetch(midtransUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Authorization: authHeader,
-        },
-        body: JSON.stringify(midtransPayload),
+    // Direct QRIS Sandbox fallback string jika client membutuhkan barcode inline
+    const cleanOrderId = String(orderId).replace(/[^0-9]/g, "");
+    const sampleVa = cleanOrderId.length >= 8 ? cleanOrderId.substring(0, 8) : "12345678";
+    const qrString = `00020101021226590014ID.LINKAJA.WWW011893600911002230467702150000000000000000303UMI51440014ID.CO.QRIS.WWW0215ID10260088912040303UMI5204581253033605802ID5916LIVETIX OFFICIAL6006MALANG61056514162190715${orderId}6304`;
+    const vaNumber = `8808 1234 ${sampleVa}`;
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 60 menit
+
+    // 5. Simpan / Upsert Data ke Tabel transactions & orders
+    const uuidRegex =
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    const validUserId = userId && uuidRegex.test(userId) ? userId : null;
+    const nowIso = new Date().toISOString();
+
+    try {
+      // Tabel transactions (Pencatatan rincian resmi)
+      await supabase.from("transactions").upsert({
+        id: orderId,
+        order_id: orderId,
+        user_id: validUserId,
+        concert_id: validConcertId,
+        tier_id: tierId || null,
+        tier_name: tierName,
+        jumlah_tiket: qty,
+        harga_satuan: ticketPrice,
+        harga_tiket: hargaTiket,
+        pajak_hiburan: pajakHiburan,
+        biaya_aplikasi: biayaAplikasi,
+        subtotal: subtotal,
+        total_bayar: totalBayar,
+        pembulatan: pembulatan,
+        bagian_produser: bagianProduser,
+        bagian_admin: bagianAdmin,
+        status: "pending",
+        payment_method: (paymentMethod || "SNAP").toUpperCase(),
+        payment_type: "snap",
+        snap_token: snapToken,
+        snap_redirect_url: snapRedirectUrl,
+        customer_name: customerName,
+        customer_email: customerEmail,
+        customer_nik: customerNik || null,
+        expires_at: expiresAt,
+        created_at: nowIso,
+        updated_at: nowIso,
       });
 
-      midtransResponse = await resp.json();
-
-      // Ekstraksi response berdasarkan payment_type
-      if (midtransResponse.qr_string) {
-        qrString = midtransResponse.qr_string;
-      }
-      if (Array.isArray(midtransResponse.actions)) {
-        for (const action of midtransResponse.actions) {
-          if (action.name === "generate-qr-code" || action.name === "qr-code") {
-            qrUrl = action.url;
-          }
-          if (action.name === "deeplink-redirect") {
-            deeplinkUrl = action.url;
-          }
-        }
-      }
-      if (Array.isArray(midtransResponse.va_numbers) && midtransResponse.va_numbers.length > 0) {
-        vaNumber = midtransResponse.va_numbers[0].va_number;
-      } else if (midtransResponse.permata_va_number) {
-        vaNumber = midtransResponse.permata_va_number;
-      }
-      if (midtransResponse.biller_code) {
-        billerCode = midtransResponse.biller_code;
-        billKey = midtransResponse.bill_key;
-        vaNumber = `${billerCode} ${billKey}`;
-      }
-    } else {
-      // Sandbox Simulation Mode jika Server Key belum di-set di environment
-      const cleanOrderId = String(orderId).replace(/[^0-9]/g, "");
-      const sampleVa = cleanOrderId.length >= 8 ? cleanOrderId.substring(0, 8) : "12345678";
-
-      if (methodUpper.includes("QRIS")) {
-        qrString = `00020101021226590014ID.LINKAJA.WWW011893600911002230467702150000000000000000303UMI51440014ID.CO.QRIS.WWW0215ID10260088912040303UMI5204581253033605802ID5916LIVETIX OFFICIAL6006MALANG61056514162190715${orderId}6304`;
-      } else if (methodUpper.includes("GOPAY")) {
-        deeplinkUrl = `gojek://gopay/partnerweb/pay?order_id=${orderId}&amount=${grossAmount}`;
-      } else if (methodUpper.includes("SHOPEE")) {
-        deeplinkUrl = `shopeeid://shopeepay/payment?order_id=${orderId}&amount=${grossAmount}`;
-      } else if (methodUpper.includes("MANDIRI")) {
-        billerCode = "89022";
-        billKey = `0812${sampleVa}`;
-        vaNumber = `${billerCode} ${billKey}`;
-      } else if (methodUpper.includes("BNI")) {
-        vaNumber = `8808 1234 ${sampleVa}`;
-      } else if (methodUpper.includes("BRI")) {
-        vaNumber = `7788 9012 ${sampleVa}`;
-      } else {
-        vaNumber = `8808 1234 ${sampleVa}`;
-      }
-    }
-
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 Jam (60 Menit)
-
-    // 4. Simpan order ke tabel orders di Supabase
-    try {
-      const uuidRegex =
-        /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-      const validUserId = userId && uuidRegex.test(userId) ? userId : null;
-
-      const { error: upsertErr } = await supabase.from("orders").upsert({
+      // Tabel orders (Kompatibilitas aplikasi eksisting)
+      await supabase.from("orders").upsert({
         id: orderId,
         user_id: validUserId,
         concert_id: validConcertId,
@@ -248,53 +252,63 @@ serve(async (req) => {
         tier_name: tierName,
         quantity: qty,
         ticket_price: ticketPrice,
-        service_fee: serviceFee,
-        tax_admin_fee: taxAndAdmin,
-        payment_fee: 0,
-        total_amount: grossAmount,
-        gross_amount: grossAmount,
-        payment_method: methodUpper,
-        payment_type: midtransPayload.payment_type,
+        service_fee: biayaAplikasi,
+        tax_admin_fee: pajakHiburan,
+        harga_satuan: ticketPrice,
+        jumlah_tiket: qty,
+        harga_tiket: hargaTiket,
+        pajak_hiburan: pajakHiburan,
+        biaya_aplikasi: biayaAplikasi,
+        subtotal: subtotal,
+        total_bayar: totalBayar,
+        pembulatan: pembulatan,
+        bagian_produser: bagianProduser,
+        bagian_admin: bagianAdmin,
+        total_amount: totalBayar,
+        gross_amount: totalBayar,
+        payment_method: (paymentMethod || "SNAP").toUpperCase(),
+        payment_type: "snap",
         payment_status: "PENDING",
-        midtrans_transaction_id: midtransResponse?.transaction_id || null,
-        va_number: vaNumber || null,
-        biller_code: billerCode || null,
-        bill_key: billKey || null,
-        qr_string: qrString || null,
-        qr_url: qrUrl || null,
-        deeplink_url: deeplinkUrl || null,
-        expires_at: expiresAt,
         customer_name: customerName,
         customer_email: customerEmail,
         customer_phone: customerPhone,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        customer_nik: customerNik || null,
+        qr_string: qrString,
+        va_number: vaNumber,
+        deeplink_url: snapRedirectUrl,
+        expires_at: expiresAt,
+        created_at: nowIso,
+        updated_at: nowIso,
       });
-      if (upsertErr) {
-        console.error("Supabase upsert error:", JSON.stringify(upsertErr));
-      } else {
-        console.log("Supabase order upserted successfully:", orderId);
-      }
     } catch (dbErr) {
-      console.error("Error inserting order to Supabase:", dbErr);
+      console.error("Error upserting transaction/order in Supabase:", dbErr);
     }
 
+    // 6. Return response lengkap ke Flutter Client
     return new Response(
       JSON.stringify({
         success: true,
         orderId,
-        grossAmount,
-        ticketPrice,
-        serviceFee,
-        taxAndAdmin,
-        paymentMethod: methodUpper,
-        paymentType: midtransPayload.payment_type,
+        snapToken,
+        snapRedirectUrl,
+        grossAmount: totalBayar,
+        totalBayar,
+        pricing: {
+          hargaSatuan: ticketPrice,
+          jumlah: qty,
+          hargaTiket,
+          pajakHiburan,
+          biayaAplikasi,
+          subtotal,
+          totalBayar,
+          pembulatan,
+          bagianProduser,
+          bagianAdmin,
+        },
+        paymentMethod: (paymentMethod || "SNAP").toUpperCase(),
+        paymentType: "snap",
         qrString,
-        qrUrl,
-        deeplinkUrl,
         vaNumber,
-        billerCode,
-        billKey,
         expiresAt,
         midtransResponse,
       }),
@@ -304,6 +318,7 @@ serve(async (req) => {
       }
     );
   } catch (error: any) {
+    console.error("create-payment function error:", error);
     return new Response(JSON.stringify({ success: false, error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,
