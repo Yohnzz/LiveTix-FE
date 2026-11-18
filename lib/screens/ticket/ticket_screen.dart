@@ -3,6 +3,7 @@ import '../../core/app_colors.dart';
 import '../../models/concert_model.dart';
 import '../../models/ticket_order_model.dart';
 import '../../services/data_service.dart';
+import '../../services/ticket_validator_service.dart';
 import '../../widgets/qr_code_view.dart';
 import '../../widgets/share_gate_qr_sheet.dart';
 import '../auth/login_screen.dart';
@@ -77,15 +78,129 @@ class _TicketScreenState extends State<TicketScreen> {
           ),
         );
       }
+    } else if (_selectedTabIndex == 1 ||
+        ticket.isCompleted ||
+        ticket.status.toLowerCase() == 'selesai') {
+      // Tiket Riwayat / Selesai -> Tampilkan rincian transaksi tiket riwayat
+      _showHistoryTicketModal(ticket);
     } else {
       // Tiket Aktif normal -> Tampilkan modal E-Tiket Aktif
       _showActiveTicketModal(ticket);
     }
   }
 
+  String _formatCurrency(int amount) {
+    final buffer = StringBuffer('Rp');
+    final str = amount.toString();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(str[i]);
+    }
+    return buffer.toString();
+  }
+
+  Widget _buildPricingRow(String label, String value, {bool isDark = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white : AppColors.textDark,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTransparentPricingCard(
+    TransactionPricing pricing,
+    String tierName,
+    int quantity, {
+    bool isDark = false,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.receipt_long_rounded, size: 16, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Rincian Transaksi',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : AppColors.textDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _buildPricingRow('Harga Tiket (${quantity}x $tierName)', _formatCurrency(pricing.hargaTiket), isDark: isDark),
+          const SizedBox(height: 6),
+          _buildPricingRow('Pajak Hiburan (10%)', _formatCurrency(pricing.pajakHiburan), isDark: isDark),
+          const SizedBox(height: 6),
+          _buildPricingRow('Biaya Aplikasi (2%)', _formatCurrency(pricing.biayaAplikasi), isDark: isDark),
+          const SizedBox(height: 6),
+          _buildPricingRow('Pembulatan', _formatCurrency(pricing.pembulatan), isDark: isDark),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Divider(
+              height: 1,
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total Bayar',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? Colors.white : AppColors.textDark,
+                ),
+              ),
+              Text(
+                _formatCurrency(pricing.totalBayar),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   OrderModel _reconstructOrderFromTicket(UserTicketModel ticket) {
-    final price = ticket.totalPrice ~/ (ticket.quantity > 0 ? ticket.quantity : 1);
-    final tax = (ticket.totalPrice * 0.05).round();
+    final pricing = ticket.pricing;
+    final price = pricing.hargaSatuan;
 
     final tier = TicketTierModel(
       id: 'tier-${ticket.category}',
@@ -126,10 +241,15 @@ class _TicketScreenState extends State<TicketScreen> {
       tier: tier,
       quantity: ticket.quantity,
       ticketPrice: price,
-      serviceFee: 5000,
-      taxAndAdmin: tax,
+      serviceFee: pricing.biayaAplikasi,
+      taxAndAdmin: pricing.pajakHiburan,
       transactionFee: 0,
-      totalAmount: ticket.totalPrice,
+      totalAmount: pricing.totalBayar,
+      entertainmentTax: pricing.pajakHiburan,
+      applicationFee: pricing.biayaAplikasi,
+      rounding: pricing.pembulatan,
+      producerShare: pricing.produserShare,
+      adminShare: pricing.adminShare,
       customerName: DataService().currentUser?.name ?? 'Penonton LiveTix',
       customerEmail: DataService().currentUser?.email ?? 'user@livetix.com',
       paymentCategory: cat,
@@ -141,6 +261,204 @@ class _TicketScreenState extends State<TicketScreen> {
   }
 
   void _showActiveTicketModal(UserTicketModel ticket) {
+    String effectiveQr = (ticket.qrData != null && ticket.qrData!.isNotEmpty)
+        ? ticket.qrData!
+        : (ticket.bookingCode.isNotEmpty ? ticket.bookingCode : ticket.id);
+    bool hasFetched = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            // Jika QR belum berformat 3 segmen (ticket_id.kode_tiket.signature), coba ambil dari server
+            if (!hasFetched && (!effectiveQr.contains('.') || effectiveQr.split('.').length != 3)) {
+              hasFetched = true;
+              TicketValidatorService().fetchTicketQrPayload(ticket.id).then((payload) {
+                if (payload != null && payload.isNotEmpty && payload != effectiveQr) {
+                  if (context.mounted) {
+                    setModalState(() {
+                      effectiveQr = payload;
+                    });
+                  }
+                }
+              });
+            }
+
+            return SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD0D5DD),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFECFDF5),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'TIKET RESMI AKTIF',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF065F46),
+                            ),
+                          ),
+                        ),
+                        Text(
+                          ticket.bookingCode,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      ticket.concertTitle,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${ticket.date} · ${ticket.venue}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: Color(0xFF475467),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    AppQrCodeView(
+                      qrData: effectiveQr,
+                      qrCodeUrl: ticket.qrCodeUrl,
+                      qrCodeBytes: ticket.qrCodeBytes,
+                      size: 164,
+                      padding: 12,
+                      showWatermark: true,
+                      semanticLabel: 'Kode QR E-Tiket ${ticket.concertTitle}',
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFA7F3D0)),
+                      ),
+                      child: Text(
+                        '1 QR Berlaku ${ticket.qrScanQuota}x Scan di Gate (${ticket.quantity} Tiket · ${ticket.gate})',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF065F46),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      ticket.quantity > 1
+                          ? 'Satu QR Code ini dapat digunakan sebanyak ${ticket.qrScanQuota} kali sesuai jumlah tiket. Bagikan ke teman rombonganmu melalui tombol di bawah.'
+                          : 'Tunjukkan QR ini saat scan di gerbang masuk.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF475467),
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTransparentPricingCard(
+                      ticket.pricing,
+                      ticket.category,
+                      ticket.quantity,
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          ShareGateQrSheet.show(context, ticket);
+                        },
+                        icon: const Icon(Icons.share_rounded, size: 18),
+                        label: const Text(
+                          'Bagikan QR',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textDark,
+                          side: const BorderSide(color: AppColors.border),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          'Tutup',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showHistoryTicketModal(UserTicketModel ticket) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -174,15 +492,15 @@ class _TicketScreenState extends State<TicketScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFECFDF5),
+                        color: const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Text(
-                        'TIKET RESMI AKTIF',
+                        'RIWAYAT TRANSAKSI',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF065F46),
+                          color: Color(0xFF475569),
                         ),
                       ),
                     ),
@@ -215,78 +533,56 @@ class _TicketScreenState extends State<TicketScreen> {
                     color: Color(0xFF475467),
                   ),
                 ),
-                const SizedBox(height: 18),
-                AppQrCodeView(
-                  qrData: (ticket.qrData != null && ticket.qrData!.isNotEmpty)
-                      ? ticket.qrData
-                      : (ticket.bookingCode.isNotEmpty
-                          ? ticket.bookingCode
-                          : ticket.id),
-                  qrCodeUrl: ticket.qrCodeUrl,
-                  qrCodeBytes: ticket.qrCodeBytes,
-                  size: 164,
-                  padding: 12,
-                  showWatermark: true,
-                  semanticLabel: 'Kode QR E-Tiket ${ticket.concertTitle}',
-                ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFECFDF5),
+                    color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFA7F3D0)),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: Text(
-                    '1 QR Berlaku ${ticket.qrScanQuota}x Scan di Gate (${ticket.quantity} Tiket · ${ticket.gate})',
-                    textAlign: TextAlign.center,
+                    'Kategori: ${ticket.category} · ${ticket.quantity} Tiket (${ticket.gate})',
                     style: const TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF065F46),
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF475569),
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  ticket.quantity > 1
-                      ? 'Satu QR Code ini dapat digunakan sebanyak ${ticket.qrScanQuota} kali sesuai jumlah tiket. Bagikan ke teman rombonganmu melalui tombol di bawah.'
-                      : 'Tunjukkan QR ini saat scan di gerbang masuk.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF475467),
-                    height: 1.35,
+                const SizedBox(height: 16),
+                _buildTransparentPricingCard(
+                  ticket.pricing,
+                  ticket.category,
+                  ticket.quantity,
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFA7F3D0)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_rounded, size: 18, color: Color(0xFF059669)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Pembayaran lunas via ${ticket.paymentMethod.toUpperCase()}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF065F46),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      ShareGateQrSheet.show(context, ticket);
-                    },
-                    icon: const Icon(Icons.share_rounded, size: 18),
-                    label: const Text(
-                      'Bagikan QR',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
                   height: 46,

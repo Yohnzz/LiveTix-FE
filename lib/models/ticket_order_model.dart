@@ -253,6 +253,12 @@ class UserTicketModel {
   /// Data order saat masih dalam mode pembayaran pending
   final OrderModel? pendingOrder;
 
+  /// Rincian komponen harga transparan sesuai rumus server LiveTix
+  TransactionPricing get pricing {
+    final unit = quantity > 0 ? (totalPrice ~/ quantity) : totalPrice;
+    return TransactionPricing.calculate(unit, quantity);
+  }
+
   const UserTicketModel({
     required this.id,
     required this.bookingCode,
@@ -408,10 +414,95 @@ class UserTicketModel {
       daysLeft: (json['daysLeft'] as num?)?.toInt() ?? 14,
       hasStar: (json['hasStar'] as bool?) ?? false,
       qrCodeUrl: json['qrCodeUrl']?.toString(),
-      qrData: json['qrData']?.toString(),
+      qrData: json['qr_payload']?.toString() ?? json['qrData']?.toString(),
       qrScanQuota: (json['qrScanQuota'] as num?)?.toInt() ?? q,
       qrScansUsed: (json['qrScansUsed'] as num?)?.toInt() ?? 0,
       paymentMethod: json['paymentMethod']?.toString() ?? 'QRIS',
+    );
+  }
+}
+
+class TransactionPricing {
+  final int unitPrice;
+  final int quantity;
+  final int ticketPrice;
+  final int entertainmentTax;
+  final int applicationFee;
+  final int subtotal;
+  final int rounding;
+  final int totalPay;
+  final int producerShare;
+  final int adminShare;
+
+  const TransactionPricing({
+    required this.unitPrice,
+    required this.quantity,
+    required this.ticketPrice,
+    required this.entertainmentTax,
+    required this.applicationFee,
+    required this.subtotal,
+    required this.rounding,
+    required this.totalPay,
+    required this.producerShare,
+    required this.adminShare,
+  });
+
+  int get hargaSatuan => unitPrice;
+  int get jumlah => quantity;
+  int get hargaTiket => ticketPrice;
+  int get pajakHiburan => entertainmentTax;
+  int get biayaAplikasi => applicationFee;
+  int get pembulatan => rounding;
+  int get totalBayar => totalPay;
+  int get produserShare => producerShare;
+
+  /// Kalkulasi rumus resmi transaksi LiveTix (Semua nominal Integer Rupiah)
+  /// - harga_tiket = harga x jumlah (maks 4)
+  /// - pajak_hiburan = 10% x harga_tiket
+  /// - biaya_aplikasi = 2% x harga_tiket (1x per transaksi)
+  /// - subtotal = harga_tiket + pajak + biaya_aplikasi
+  /// - total_bayar = subtotal dibulatkan KE ATAS kelipatan Rp 1.000 (ratusan 000)
+  /// - pembulatan = total_bayar - subtotal
+  /// - produser = harga_tiket + pajak_hiburan
+  /// - admin = biaya_aplikasi + pembulatan
+  factory TransactionPricing.calculate(int unitPrice, int quantity) {
+    final qty = quantity.clamp(1, 4);
+    final price = unitPrice < 0 ? 0 : unitPrice;
+    final ticketPrice = price * qty;
+    final tax = (ticketPrice * 0.10).round();
+    final appFee = (ticketPrice * 0.02).round();
+    final subtotal = ticketPrice + tax + appFee;
+    final totalPay = ((subtotal + 999) ~/ 1000) * 1000;
+    final rounding = totalPay - subtotal;
+    final producer = ticketPrice + tax;
+    final admin = appFee + rounding;
+
+    return TransactionPricing(
+      unitPrice: price,
+      quantity: qty,
+      ticketPrice: ticketPrice,
+      entertainmentTax: tax,
+      applicationFee: appFee,
+      subtotal: subtotal,
+      rounding: rounding,
+      totalPay: totalPay,
+      producerShare: producer,
+      adminShare: admin,
+    );
+  }
+
+  factory TransactionPricing.fromJson(Map<String, dynamic> json) {
+    return TransactionPricing(
+      unitPrice: (json['harga_satuan'] as num?)?.toInt() ?? 0,
+      quantity: (json['jumlah'] as num?)?.toInt() ?? 1,
+      ticketPrice: (json['harga_tiket'] as num?)?.toInt() ?? 0,
+      entertainmentTax: (json['pajak_hiburan'] as num?)?.toInt() ?? 0,
+      applicationFee: (json['biaya_aplikasi'] as num?)?.toInt() ?? 0,
+      subtotal: (json['subtotal'] as num?)?.toInt() ?? 0,
+      rounding: (json['pembulatan'] as num?)?.toInt() ?? 0,
+      totalPay: (json['total_bayar'] as num?)?.toInt() ?? 0,
+      producerShare: (json['bagian_produser'] as num?)?.toInt() ?? 0,
+      adminShare: (json['bagian_admin'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -428,6 +519,14 @@ class OrderModel {
   final int taxAndAdmin;
   final int transactionFee;
   final int totalAmount;
+
+  // Komponen transparan resmi
+  final int entertainmentTax;
+  final int applicationFee;
+  final int rounding;
+  final int producerShare;
+  final int adminShare;
+
   final PaymentCategory paymentCategory;
   final String paymentProvider;
   final String paymentMethod;
@@ -444,8 +543,22 @@ class OrderModel {
   /// Deep link URL langsung ke aplikasi e-wallet (Gojek / Shopee) dari response Midtrans
   final String? deeplinkUrl;
 
+  /// Snap Token & Redirect URL dari Midtrans Snap Sandbox
+  final String? snapToken;
+  final String? snapRedirectUrl;
+
   /// Waktu kedaluwarsa pembayaran dari backend Midtrans
   final DateTime? expiresAt;
+
+  int get calculatedEntertainmentTax =>
+      entertainmentTax > 0 ? entertainmentTax : (ticketPrice * 0.10).round();
+  int get calculatedApplicationFee =>
+      applicationFee > 0 ? applicationFee : (ticketPrice * 0.02).round();
+  int get calculatedRounding {
+    if (rounding > 0) return rounding;
+    final sub = ticketPrice + calculatedEntertainmentTax + calculatedApplicationFee;
+    return totalAmount > sub ? (totalAmount - sub) : 0;
+  }
 
   const OrderModel({
     required this.orderId,
@@ -455,10 +568,15 @@ class OrderModel {
     required this.customerName,
     required this.customerEmail,
     required this.ticketPrice,
-    this.serviceFee = 15000,
-    required this.taxAndAdmin,
+    this.serviceFee = 0,
+    this.taxAndAdmin = 0,
     this.transactionFee = 0,
     required this.totalAmount,
+    this.entertainmentTax = 0,
+    this.applicationFee = 0,
+    this.rounding = 0,
+    this.producerShare = 0,
+    this.adminShare = 0,
     this.paymentCategory = PaymentCategory.bank,
     this.paymentProvider = 'BCA',
     this.paymentMethod = 'BCA Virtual Account',
@@ -468,6 +586,8 @@ class OrderModel {
     this.qrCodeBytes,
     this.qrString,
     this.deeplinkUrl,
+    this.snapToken,
+    this.snapRedirectUrl,
     this.expiresAt,
   });
 
@@ -479,13 +599,14 @@ class OrderModel {
     String? qrString,
     String? qrCodeUrl,
     String? deeplinkUrl,
+    String? snapToken,
+    String? snapRedirectUrl,
     String? vaNumber,
     DateTime? expiresAt,
   }) {
     final activeOrderId = orderId ?? this.orderId;
     final fee = transactionFee ?? this.transactionFee;
-    final subtotal = ticketPrice * quantity;
-    final calculatedTotal = subtotal + serviceFee + taxAndAdmin + fee;
+    final calculatedTotal = totalAmount + fee;
 
     switch (category) {
       case PaymentCategory.qris:
@@ -501,6 +622,11 @@ class OrderModel {
           taxAndAdmin: taxAndAdmin,
           transactionFee: fee,
           totalAmount: calculatedTotal,
+          entertainmentTax: calculatedEntertainmentTax,
+          applicationFee: calculatedApplicationFee,
+          rounding: calculatedRounding,
+          producerShare: producerShare,
+          adminShare: adminShare,
           paymentCategory: PaymentCategory.qris,
           paymentProvider: 'QRIS',
           paymentMethod: 'QRIS',
@@ -510,6 +636,8 @@ class OrderModel {
           qrCodeBytes: qrCodeBytes,
           qrString: qrString ?? this.qrString,
           deeplinkUrl: deeplinkUrl ?? this.deeplinkUrl,
+          snapToken: snapToken ?? this.snapToken,
+          snapRedirectUrl: snapRedirectUrl ?? this.snapRedirectUrl,
           expiresAt: expiresAt ?? this.expiresAt,
         );
       case PaymentCategory.ewallet:
@@ -526,6 +654,11 @@ class OrderModel {
           taxAndAdmin: taxAndAdmin,
           transactionFee: fee,
           totalAmount: calculatedTotal,
+          entertainmentTax: calculatedEntertainmentTax,
+          applicationFee: calculatedApplicationFee,
+          rounding: calculatedRounding,
+          producerShare: producerShare,
+          adminShare: adminShare,
           paymentCategory: PaymentCategory.ewallet,
           paymentProvider: rule.code,
           paymentMethod: 'E-Wallet (${rule.displayName})',
@@ -535,6 +668,8 @@ class OrderModel {
           qrCodeBytes: qrCodeBytes,
           qrString: qrString ?? this.qrString,
           deeplinkUrl: deeplinkUrl ?? this.deeplinkUrl,
+          snapToken: snapToken ?? this.snapToken,
+          snapRedirectUrl: snapRedirectUrl ?? this.snapRedirectUrl,
           expiresAt: expiresAt ?? this.expiresAt,
         );
       case PaymentCategory.bank:
@@ -551,6 +686,11 @@ class OrderModel {
           taxAndAdmin: taxAndAdmin,
           transactionFee: fee,
           totalAmount: calculatedTotal,
+          entertainmentTax: calculatedEntertainmentTax,
+          applicationFee: calculatedApplicationFee,
+          rounding: calculatedRounding,
+          producerShare: producerShare,
+          adminShare: adminShare,
           paymentCategory: PaymentCategory.bank,
           paymentProvider: bankRule.code,
           paymentMethod: bankRule.displayName,
@@ -563,6 +703,8 @@ class OrderModel {
           qrCodeBytes: qrCodeBytes,
           qrString: qrString ?? this.qrString,
           deeplinkUrl: deeplinkUrl ?? this.deeplinkUrl,
+          snapToken: snapToken ?? this.snapToken,
+          snapRedirectUrl: snapRedirectUrl ?? this.snapRedirectUrl,
           expiresAt: expiresAt ?? this.expiresAt,
         );
     }

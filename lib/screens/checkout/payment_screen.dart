@@ -44,6 +44,29 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   bool get _isOrderPaid => DataService().isOrderPaid(widget.order.orderId);
 
+  /// Snap token real = ada nilai & bukan token simulasi lokal
+  bool get _hasRealSnapToken {
+    final t = widget.order.snapToken;
+    if (t == null || t.isEmpty) return false;
+    return !t.startsWith('snap_sandbox_');
+  }
+
+  Future<void> _openSnapPaymentPage() async {
+    final url = widget.order.snapRedirectUrl;
+    if (url == null || url.isEmpty) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Gagal membuka halaman Snap. Pastikan browser terpasang di perangkat.'),
+          backgroundColor: Color(0xFFB91C1C),
+        ),
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -915,6 +938,31 @@ class _PaymentScreenState extends State<PaymentScreen> {
           _buildCopyableTotalRow(),
           const SizedBox(height: 14),
 
+          // Tombol Bayar via Snap (jika server key sudah diset & token real tersedia)
+          if (_hasRealSnapToken) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _openSnapPaymentPage,
+                icon: const Icon(Icons.payment_rounded, size: 18),
+                label: const Text(
+                  'Bayar Sekarang via Snap',
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
           // Banner Panduan Sandbox & Tombol Buka Simulator
           Container(
             width: double.infinity,
@@ -1367,7 +1415,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Widget _buildItemizedBreakdownCard() {
-    final subtotal = widget.order.ticketPrice * widget.order.quantity;
+    final pricing = TransactionPricing.calculate(
+      widget.order.tier.price > 0
+          ? widget.order.tier.price
+          : widget.order.ticketPrice ~/ (widget.order.quantity > 0 ? widget.order.quantity : 1),
+      widget.order.quantity,
+    );
+    final ticketPrice = widget.order.ticketPrice > 0 ? widget.order.ticketPrice : pricing.ticketPrice;
+    final tax = widget.order.entertainmentTax > 0 ? widget.order.entertainmentTax : pricing.entertainmentTax;
+    final appFee = widget.order.applicationFee > 0 ? widget.order.applicationFee : pricing.applicationFee;
+    final rounding = widget.order.rounding > 0 ? widget.order.rounding : pricing.rounding;
+    final totalPay = widget.order.totalAmount > 0 ? widget.order.totalAmount : pricing.totalPay;
 
     return Container(
       width: double.infinity,
@@ -1381,7 +1439,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Rincian pembayaran & biaya admin',
+            'Rincian pembayaran',
             style: TextStyle(
               fontSize: 14.5,
               fontWeight: FontWeight.w700,
@@ -1390,18 +1448,23 @@ class _PaymentScreenState extends State<PaymentScreen> {
           ),
           const SizedBox(height: 14),
           _buildBreakdownRow(
-            '${widget.order.quantity}x Tiket ${widget.order.tier.name}',
-            _formatCurrency(subtotal),
+            'Harga Tiket (${widget.order.quantity}x ${widget.order.tier.name})',
+            _formatCurrency(ticketPrice),
           ),
           const SizedBox(height: 8),
           _buildBreakdownRow(
-            'Biaya layanan platform',
-            _formatCurrency(widget.order.serviceFee),
+            'Pajak Hiburan (10%)',
+            _formatCurrency(tax),
           ),
           const SizedBox(height: 8),
           _buildBreakdownRow(
-            'Biaya admin & pajak',
-            _formatCurrency(widget.order.taxAndAdmin),
+            'Biaya Aplikasi (2%)',
+            _formatCurrency(appFee),
+          ),
+          const SizedBox(height: 8),
+          _buildBreakdownRow(
+            'Pembulatan',
+            _formatCurrency(rounding),
           ),
           if (widget.order.transactionFee > 0) ...[
             const SizedBox(height: 8),
@@ -1418,7 +1481,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             children: [
               const Expanded(
                 child: Text(
-                  'Harga Total',
+                  'Total Bayar',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -1427,7 +1490,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ),
               ),
               Text(
-                _formatCurrency(widget.order.totalAmount),
+                _formatCurrency(totalPay),
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,

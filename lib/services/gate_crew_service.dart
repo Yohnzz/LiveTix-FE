@@ -6,6 +6,7 @@ import '../utils/local_storage.dart';
 import 'data_service.dart';
 import 'promoter_data_service.dart';
 import 'supabase_service.dart';
+import 'ticket_validator_service.dart';
 
 class AddGateCrewBatchResult {
   final bool isSuccess;
@@ -1315,6 +1316,41 @@ class GateCrewService {
         isValid: false,
         status: 'Ditolak (Invalid)',
         invalidReason: 'Kode barcode/QR tiket kosong.',
+      );
+    }
+
+    // 0. Validasi format HMAC-SHA256 Server (ticket_id.kode_tiket.signature)
+    final parts = cleanCode.split('.');
+    if (parts.length == 3) {
+      final valResult = await TicketValidatorService().validateQrPayload(
+        qrPayload: cleanCode,
+        gateUserId: DataService().currentUser?.id,
+      );
+
+      if (!valResult.valid) {
+        return TicketScanValidationResult(
+          isValid: false,
+          status: 'Ditolak (${valResult.reason ?? "Tidak Valid"})',
+          invalidReason: valResult.reasonLabel,
+          ticketId: parts[0],
+          ticketCode: parts[1],
+          bookingCode: parts[1],
+        );
+      }
+
+      return TicketScanValidationResult(
+        isValid: true,
+        status: 'Resmi & Valid',
+        ticketId: valResult.ticketId ?? parts[0],
+        ticketCode: parts[1],
+        bookingCode: parts[1],
+        attendeeName: 'Pengunjung LiveTix',
+        category: valResult.tierName ?? 'Reguler',
+        gateName: currentGate,
+        concertId: currentConcertId,
+        concertTitle: 'Konser LiveTix',
+        quota: valResult.scanQuota,
+        used: valResult.scansUsed,
       );
     }
 

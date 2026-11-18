@@ -26,8 +26,11 @@ class OrderSummaryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subtotal = order.ticketPrice * order.quantity;
-    final total = subtotal + order.serviceFee + order.taxAndAdmin;
+    final pricing = TransactionPricing.calculate(
+      order.tier.price > 0 ? order.tier.price : order.ticketPrice ~/ (order.quantity > 0 ? order.quantity : 1),
+      order.quantity,
+    );
+    final total = order.totalAmount > 0 ? order.totalAmount : pricing.totalPay;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -65,8 +68,8 @@ class OrderSummaryScreen extends StatelessWidget {
                   _buildConcertCard(),
                   const SizedBox(height: 16),
 
-                  // Kartu Rincian Pembayaran
-                  _buildPaymentDetailsCard(subtotal, total),
+                  // Kartu Rincian Pembayaran Transparan
+                  _buildPaymentDetailsCard(pricing, total),
                   const SizedBox(height: 16),
 
                   // Banner Jaminan Keamanan
@@ -213,7 +216,13 @@ class OrderSummaryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPaymentDetailsCard(int subtotal, int total) {
+  Widget _buildPaymentDetailsCard(TransactionPricing pricing, int total) {
+    final ticketPrice = order.ticketPrice > 0 ? order.ticketPrice : pricing.ticketPrice;
+    final tax = order.entertainmentTax > 0 ? order.entertainmentTax : pricing.entertainmentTax;
+    final appFee = order.applicationFee > 0 ? order.applicationFee : pricing.applicationFee;
+    final rounding = order.rounding > 0 ? order.rounding : pricing.rounding;
+    final totalPay = total > 0 ? total : pricing.totalPay;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -234,36 +243,43 @@ class OrderSummaryScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Baris 1: Tiket
+          // Baris 1: Harga Tiket
           _buildDetailRow(
-            '${order.quantity}x Tiket ${order.tier.name}',
-            _formatCurrency(subtotal),
+            'Harga Tiket (${order.quantity}x ${order.tier.name})',
+            _formatCurrency(ticketPrice),
           ),
           const SizedBox(height: 10),
 
-          // Baris 2: Layanan
+          // Baris 2: Pajak Hiburan (10%)
           _buildDetailRow(
-            'Biaya layanan',
-            _formatCurrency(order.serviceFee),
+            'Pajak Hiburan (10%)',
+            _formatCurrency(tax),
           ),
           const SizedBox(height: 10),
 
-          // Baris 3: Pajak & Admin
+          // Baris 3: Biaya Aplikasi (2%)
           _buildDetailRow(
-            'Pajak & admin',
-            _formatCurrency(order.taxAndAdmin),
+            'Biaya Aplikasi (2%)',
+            _formatCurrency(appFee),
+          ),
+          const SizedBox(height: 10),
+
+          // Baris 4: Pembulatan
+          _buildDetailRow(
+            'Pembulatan',
+            _formatCurrency(rounding),
           ),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 14),
             child: Divider(height: 1, color: AppColors.border),
           ),
 
-          // Baris Total Tagihan
+          // Baris 5: Total Bayar
           Row(
             children: [
               const Expanded(
                 child: Text(
-                  'Total tagihan',
+                  'Total Bayar',
                   style: TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w700,
@@ -274,7 +290,7 @@ class OrderSummaryScreen extends StatelessWidget {
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  _formatCurrency(total),
+                  _formatCurrency(totalPay),
                   textAlign: TextAlign.end,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -375,7 +391,7 @@ class OrderSummaryScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Total tagihan',
+                    'Total Bayar',
                     style: TextStyle(fontSize: 12, color: AppColors.textGrey),
                   ),
                   const SizedBox(height: 2),
