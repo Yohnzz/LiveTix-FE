@@ -19,6 +19,13 @@ Widget resolveProducerEntryScreen({String? name, String? phone}) {
   // Guard ketat: hanya status 'approved' yang boleh masuk ke fitur produser.
   // 'pending' & 'rejected' tetap diblokir; status tak dikenal diperlakukan
   // sebagai belum verifikasi (tidak ada bypass ke dasbor).
+  if (status == 'deactivated') {
+    return ProducerVerificationFlow(
+      initialStage: ProducerVerificationStage.akunDinonaktifkan,
+      initialName: name,
+      initialPhone: phone,
+    );
+  }
   if (status == 'pending') {
     return ProducerVerificationFlow(
       initialStage: ProducerVerificationStage.approvalMenunggu,

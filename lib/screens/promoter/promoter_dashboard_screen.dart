@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/promoter_models.dart';
 import '../../services/promoter_data_service.dart';
+import 'widgets/concert_image_widget.dart';
 import 'widgets/sales_trend_bar_chart.dart';
 
 class PromoterDashboardScreen extends StatelessWidget {
@@ -834,34 +835,38 @@ class PromoterDashboardScreen extends StatelessWidget {
             ),
             child: Row(
               children: [
-                // Modern Artwork Container
+                // Modern Artwork Container (Menampilkan Poster / Logo Konser)
                 Container(
                   width: 58,
                   height: 58,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF1B2A8C), // Navy
-                        Color(0xFFC2185B), // Magenta
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
                     borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFF1B2A8C).withValues(alpha: 0.15),
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF1B2A8C).withValues(alpha: 0.25),
+                        color: const Color(0xFF1B2A8C).withValues(alpha: 0.15),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.music_note_rounded,
-                      color: Colors.white,
-                      size: 26,
-                    ),
+                  clipBehavior: Clip.antiAlias,
+                  child: ConcertImageWidget(
+                    imageSource: (concert.displayPosterSource.isNotEmpty &&
+                            (concert.displayPosterSource.startsWith('data:image/') ||
+                                concert.displayPosterSource.startsWith('http') ||
+                                concert.displayPosterSource.startsWith('assets/')))
+                        ? concert.displayPosterSource
+                        : (concert.displayLogoSource.isNotEmpty
+                            ? concert.displayLogoSource
+                            : concert.displayPosterSource),
+                    width: 58,
+                    height: 58,
+                    fit: BoxFit.cover,
+                    fallbackIcon: Icons.music_note_rounded,
+                    fallbackLabel: concert.title,
                   ),
                 ),
                 const SizedBox(width: 14),

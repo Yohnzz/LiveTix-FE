@@ -6,26 +6,77 @@ import 'file_picker_stub.dart';
 
 export 'file_picker_stub.dart' show PickedFileResult;
 
+/// Membuka file picker browser yang kompatibel dengan desktop maupun mobile web.
+/// Elemen input di-attach ke DOM agar browser desktop (Chrome/Edge/Firefox) 
+/// benar-benar membuka dialog file. Fallback timer 60 detik untuk berjaga-jaga.
 Future<String?> pickNativeFile({String accept = '.jpg,.jpeg,.png,.pdf,image/*'}) async {
   final completer = Completer<String?>();
-  final uploadInput = html.FileUploadInputElement();
-  uploadInput.accept = accept;
 
-  uploadInput.onChange.listen((event) {
+  final uploadInput = html.FileUploadInputElement()
+    ..accept = accept
+    ..style.display = 'none';
+
+  // Harus di-attach ke DOM agar dialog file benar-benar muncul di browser desktop
+  html.document.body?.append(uploadInput);
+
+  StreamSubscription<html.Event>? changeSub;
+  StreamSubscription<html.Event>? blurSub;
+  StreamSubscription<html.Event>? focusSub;
+  Timer? fallbackTimer;
+  bool hadBlur = false;
+
+  void cleanup() {
+    changeSub?.cancel();
+    blurSub?.cancel();
+    focusSub?.cancel();
+    fallbackTimer?.cancel();
+    try {
+      uploadInput.remove();
+    } catch (_) {}
+  }
+
+  changeSub = uploadInput.onChange.listen((event) {
     final files = uploadInput.files;
-    if (files != null && files.isNotEmpty) {
-      if (!completer.isCompleted) completer.complete(files.first.name);
-    } else if (!completer.isCompleted) {
-      completer.complete(null);
+    cleanup();
+    if (!completer.isCompleted) {
+      if (files != null && files.isNotEmpty) {
+        completer.complete(files.first.name);
+      } else {
+        completer.complete(null);
+      }
     }
   });
-  // File inputs do not emit a change event when their dialog is dismissed.
-  // When focus returns, allow a selected file's change event time to arrive
-  // before treating the interaction as cancelled.
-  html.window.onFocus.first.then((_) {
-    Timer(const Duration(milliseconds: 100), () {
+
+  // Browser desktop modern (Chrome/Edge/Safari/Firefox) memicu event 'cancel'
+  // saat pengguna menutup dialog tanpa memilih file.
+  uploadInput.addEventListener('cancel', (_) {
+    Timer(const Duration(milliseconds: 200), () {
+      cleanup();
       if (!completer.isCompleted) completer.complete(null);
     });
+  });
+
+  // Untuk browser yang tidak memicu event 'cancel', deteksi blur -> focus:
+  // Hanya picu batal jika window sempat kehilangan fokus terlebih dahulu
+  blurSub = html.window.onBlur.listen((_) => hadBlur = true);
+
+  focusSub = html.window.onFocus.listen((_) {
+    if (!hadBlur) return;
+    Timer(const Duration(milliseconds: 1500), () {
+      if (!completer.isCompleted) {
+        final files = uploadInput.files;
+        if (files == null || files.isEmpty) {
+          cleanup();
+          completer.complete(null);
+        }
+      }
+    });
+  });
+
+  // Fallback: tutup completer setelah 120 detik jika dialog diabaikan
+  fallbackTimer = Timer(const Duration(seconds: 120), () {
+    cleanup();
+    if (!completer.isCompleted) completer.complete(null);
   });
 
   uploadInput.click();
@@ -37,33 +88,62 @@ Future<PickedFileResult?> pickNativeFileWithContent({
   String accept = '.csv,.xlsx,.xls,.txt',
 }) async {
   final completer = Completer<PickedFileResult?>();
-  final uploadInput = html.FileUploadInputElement();
-  uploadInput.accept = accept;
-  uploadInput.click();
 
-  uploadInput.onChange.listen((event) {
+  final uploadInput = html.FileUploadInputElement()
+    ..accept = accept
+    ..style.display = 'none';
+
+  html.document.body?.append(uploadInput);
+
+  StreamSubscription<html.Event>? changeSub;
+  StreamSubscription<html.Event>? focusSub;
+  Timer? fallbackTimer;
+
+  void cleanup() {
+    changeSub?.cancel();
+    focusSub?.cancel();
+    fallbackTimer?.cancel();
+    try { uploadInput.remove(); } catch (_) {}
+  }
+
+  changeSub = uploadInput.onChange.listen((event) {
     final files = uploadInput.files;
     if (files != null && files.isNotEmpty) {
       final file = files.first;
       final reader = html.FileReader();
       reader.onLoadEnd.listen((_) {
+        cleanup();
         if (!completer.isCompleted) {
           final text = reader.result?.toString() ?? '';
           completer.complete(PickedFileResult(name: file.name, content: text));
         }
       });
       reader.onError.listen((_) {
+        cleanup();
         if (!completer.isCompleted) {
           completer.complete(PickedFileResult(name: file.name, content: ''));
         }
       });
       reader.readAsText(file);
     } else {
-      if (!completer.isCompleted) {
-        completer.complete(null);
-      }
+      cleanup();
+      if (!completer.isCompleted) completer.complete(null);
     }
   });
+
+  focusSub = html.window.onFocus.listen((_) {
+    Timer(const Duration(milliseconds: 500), () {
+      cleanup();
+      if (!completer.isCompleted) completer.complete(null);
+    });
+  });
+
+  fallbackTimer = Timer(const Duration(seconds: 60), () {
+    cleanup();
+    if (!completer.isCompleted) completer.complete(null);
+  });
+
+  uploadInput.click();
 
   return completer.future;
 }

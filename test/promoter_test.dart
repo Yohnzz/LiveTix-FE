@@ -4,11 +4,14 @@ import 'package:livetix/screens/promoter/promoter_main_screen.dart';
 import 'package:livetix/screens/promoter/promoter_concert_list_screen.dart';
 import 'package:livetix/screens/promoter/promoter_pin_lock_screen.dart';
 import 'package:livetix/screens/promoter/add_concert/add_concert_flow.dart';
+import 'package:livetix/screens/promoter/verification/approval_waiting_screen.dart';
+import 'package:livetix/screens/promoter/verification/producer_deactivated_screen.dart';
 import 'package:livetix/screens/promoter/verification/producer_verification_flow.dart';
 import 'package:livetix/services/promoter_data_service.dart';
 
 void main() {
   testWidgets('PromoterMainScreen renders correctly', (WidgetTester tester) async {
+    PromoterDataService().verificationStatusNotifier.value = 'approved';
     await tester.pumpWidget(
       const MaterialApp(
         home: PromoterMainScreen(),
@@ -44,7 +47,7 @@ void main() {
     expect(find.text('Ditolak'), findsOneWidget);
   });
 
-  testWidgets('AddConcertFlow steps 3 to 4 starts empty and submits to Detail Status Konser',
+  testWidgets('AddConcertFlow steps 3 to 4 starts empty and validates Gate correctly',
       (WidgetTester tester) async {
     PromoterDataService().quotaRemainingNotifier.value = 5;
 
@@ -71,11 +74,32 @@ void main() {
     await tester.tap(find.text('Lanjut ke Pilih Gate Crew'));
     await tester.pumpAndSettle();
 
-    // Step 4: Pilih Gate Crew
+    // Step 4: Pilih Gate Crew — verifikasi judul dan tombol ada
     expect(find.text('Pilih & Tugaskan Gate Crew'), findsOneWidget);
     expect(find.text('Lanjut ke Ringkasan & Approval'), findsOneWidget);
-
+    // Verifikasi bahwa gate default memang kosong (sesuai requirement)
+    expect(
+      find.text('Belum ada Pos Gate. Klik "+ Tambah Gate" untuk menambahkan gate.'),
+      findsOneWidget,
+    );
+    // Verifikasi bahwa tap Lanjut tanpa gate akan diblokir (snackbar muncul)
     await tester.tap(find.text('Lanjut ke Ringkasan & Approval'));
+    await tester.pump();
+    expect(
+      find.text('Daftar Gate masih kosong. Producer wajib menambahkan Gate secara manual.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('AddConcertFlow step 5 (Ringkasan) submits to Detail Status Konser',
+      (WidgetTester tester) async {
+    PromoterDataService().quotaRemainingNotifier.value = 5;
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: AddConcertFlow(initialStep: 5),
+      ),
+    );
     await tester.pumpAndSettle();
 
     // Step 5: Ringkasan Pengajuan
@@ -293,12 +317,12 @@ void main() {
     await tester.tap(submitPinBtn);
     await tester.pumpAndSettle();
 
-    // Setelah verifikasi: lanjut ke halaman PIN, lalu Beranda Produser
+    // Setelah verifikasi: status pending menunggu approval admin (tidak langsung ke dashboard / PIN lock)
     final service = PromoterDataService();
-    expect(service.verificationStatusNotifier.value, 'approved');
+    expect(service.verificationStatusNotifier.value, 'pending');
     expect(service.bankNameNotifier.value, 'BCA');
     expect(service.bankAccountNumberNotifier.value, '8820192831');
-    expect(find.byType(PromoterPinLockScreen), findsOneWidget);
+    expect(find.byType(ApprovalWaitingScreen), findsOneWidget);
   });
 
   test('Produser terverifikasi langsung diarahkan ke halaman PIN, belum verifikasi ke alur verifikasi',
@@ -307,8 +331,57 @@ void main() {
     service.verificationStatusNotifier.value = 'unverified';
     expect(resolveProducerEntryScreen(), isA<ProducerVerificationFlow>());
 
+    service.verificationStatusNotifier.value = 'pending';
+    expect(resolveProducerEntryScreen(), isA<ProducerVerificationFlow>());
+
+    service.verificationStatusNotifier.value = 'deactivated';
+    final screen = resolveProducerEntryScreen();
+    expect(screen, isA<ProducerVerificationFlow>());
+    expect((screen as ProducerVerificationFlow).initialStage,
+        ProducerVerificationStage.akunDinonaktifkan);
+
     service.verificationStatusNotifier.value = 'approved';
     service.isPinUnlockedThisSession = false;
     expect(resolveProducerEntryScreen(), isA<PromoterPinLockScreen>());
+  });
+
+  testWidgets(
+      'ProducerDeactivatedScreen renders keterangan merah and WhatsApp contact button',
+      (WidgetTester tester) async {
+    bool contactAdminCalled = false;
+    bool logoutCalled = false;
+
+    PromoterDataService().rejectionReasonNotifier.value =
+        'Pelanggaran syarat dan ketentuan promotor';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProducerDeactivatedScreen(
+            responsiblePersonName: 'Ahmad Produser',
+            onContactAdmin: () => contactAdminCalled = true,
+            onLogout: () => logoutCalled = true,
+          ),
+        ),
+      ),
+    );
+
+    // Keterangan dinonaktifkan dengan teks merah
+    expect(find.text('Status Akun Anda'), findsOneWidget);
+    expect(find.text('Akun dinonaktifkan oleh admin'), findsWidgets);
+    expect(
+        find.text('Catatan Admin: "Pelanggaran syarat dan ketentuan promotor"'),
+        findsOneWidget);
+
+    // Tombol WhatsApp & Logout
+    final waBtn = find.text('Hubungi Admin via WhatsApp');
+    expect(waBtn, findsOneWidget);
+    await tester.tap(waBtn);
+    expect(contactAdminCalled, isTrue);
+
+    final logoutBtn = find.text('Keluar ke Login');
+    expect(logoutBtn, findsWidgets);
+    await tester.tap(logoutBtn.first);
+    expect(logoutCalled, isTrue);
   });
 }
