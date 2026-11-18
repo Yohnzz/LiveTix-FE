@@ -9,13 +9,18 @@ bool get isPlatformFilePickerSupported => true;
 Future<Uint8List?> pickPlatformImageBytes() {
   final completer = Completer<Uint8List?>();
   final input = html.FileUploadInputElement()
-    ..accept = 'image/png,image/jpeg,image/webp,image/gif';
+    ..accept = 'image/png,image/jpeg,image/webp,image/gif'
+    ..style.display = 'none';
+
+  // Harus di-attach ke DOM agar dialog benar-benar terbuka di browser desktop
+  html.document.body?.append(input);
 
   bool settled = false;
   void completeOnce(Uint8List? bytes) {
     if (!settled) {
       settled = true;
       completer.complete(bytes);
+      try { input.remove(); } catch (_) {}
     }
   }
 
@@ -41,7 +46,8 @@ Future<Uint8List?> pickPlatformImageBytes() {
     reader.readAsArrayBuffer(file);
   });
 
-  // Jika pengguna membatalkan dialog pemilihan file di browser
+  // Jika pengguna membatalkan dialog: delay 500ms setelah window focus kembali
+  // agar event "change" sempat datang lebih dulu kalau file dipilih
   html.window.onFocus.first.then((_) {
     Future.delayed(const Duration(milliseconds: 500), () {
       if (!settled && (input.files == null || input.files!.isEmpty)) {

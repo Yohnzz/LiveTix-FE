@@ -7,6 +7,7 @@ import '../promoter_pin_lock_screen.dart';
 import '../widgets/responsive_promoter_wrapper.dart';
 import 'approval_rejected_screen.dart';
 import 'approval_waiting_screen.dart';
+import 'producer_deactivated_screen.dart';
 import 'step1_producer_profile_screen.dart';
 import 'step2_upload_ktp_screen.dart';
 import 'step3_create_pin_screen.dart';
@@ -17,6 +18,7 @@ enum ProducerVerificationStage {
   buatPin,
   approvalMenunggu,
   approvalDitolak,
+  akunDinonaktifkan,
 }
 
 class ProducerVerificationFlow extends StatefulWidget {
@@ -216,6 +218,7 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
   }
 
   Future<void> _showUploadKtpSheet() async {
+    final manualKtpController = TextEditingController();
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -330,6 +333,107 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
                   ),
                 ),
               ),
+
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  const Expanded(child: Divider()),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      'ATAU ISI NAMA FILE SECARA MANUAL',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade500,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  const Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: manualKtpController,
+                      style: const TextStyle(fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'Contoh: ktp_penanggung_jawab.jpg',
+                        hintStyle: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade400,
+                        ),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      final fileName = manualKtpController.text.trim();
+                      if (fileName.isEmpty) return;
+                      final extension = fileName.contains('.')
+                          ? fileName.split('.').last.toLowerCase()
+                          : '';
+                      if (!const {'jpg', 'jpeg', 'png', 'pdf'}
+                          .contains(extension)) {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Format dokumen KTP harus .jpg, .jpeg, .png, atau .pdf.'),
+                            backgroundColor: Color(0xFFB91C1C),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(ctx);
+                      setState(() {
+                        _ktpFileName = fileName;
+                        _isKtpUploaded = true;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content:
+                              Text('Dokumen $_ktpFileName berhasil disimpan'),
+                          backgroundColor: const Color(0xFFC2185B),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC2185B),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text(
+                      'Simpan',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -338,6 +442,7 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
   }
 
   Future<void> _showUploadResponsibilitySheet() async {
+    final manualLetterController = TextEditingController();
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -391,7 +496,7 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
                 height: 46,
                 child: OutlinedButton.icon(
                   onPressed: () async {
-                    final pickedName = await _pickVerificationFile('.doc,.docx,.pdf');
+                    final pickedName = await _pickVerificationFile('.doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf');
                     final fileName = pickedName?.trim() ?? '';
                     if (fileName.isEmpty) return;
                     final extension = fileName.contains('.')
@@ -449,6 +554,106 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
                     ),
                   ),
                 ),
+              ),
+
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  const Expanded(child: Divider()),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      'ATAU ISI NAMA FILE SECARA MANUAL',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade500,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  const Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: manualLetterController,
+                      style: const TextStyle(fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'Contoh: lembar_penanggung_jawab.docx',
+                        hintStyle: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade400,
+                        ),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      final fileName = manualLetterController.text.trim();
+                      if (fileName.isEmpty) return;
+                      final extension = fileName.contains('.')
+                          ? fileName.split('.').last.toLowerCase()
+                          : '';
+                      if (!const {'doc', 'docx', 'pdf'}.contains(extension)) {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Format lembar penanggung jawab harus .doc, .docx, atau .pdf.'),
+                            backgroundColor: Color(0xFFB91C1C),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(ctx);
+                      setState(() {
+                        _responsibilityLetterFileName = fileName;
+                        _isResponsibilityLetterUploaded = true;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                              'Lembar Penanggung Jawab $_responsibilityLetterFileName berhasil disimpan'),
+                          backgroundColor: const Color(0xFF1B2A8C),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1B2A8C),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text(
+                      'Simpan',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -536,12 +741,36 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
       return;
     }
 
-    // Verifikasi tersimpan: lanjut ke halaman PIN lalu Beranda Produser
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const PromoterPinLockScreen()),
-      (route) => false,
+    // Verifikasi tersimpan: alihkan ke layar menunggu persetujuan (approval) admin
+    setState(() {
+      _currentStage = ProducerVerificationStage.approvalMenunggu;
+    });
+  }
+
+  Future<void> _contactAdminViaWhatsApp() async {
+    const adminWhatsAppNumber = '6281234567890';
+    final service = PromoterDataService();
+    final name = _fullNameController.text.trim().isNotEmpty
+        ? _fullNameController.text.trim()
+        : service.promoterName;
+    final message = Uri.encodeComponent(
+      'Halo Admin LiveTix, akun produser saya ($name) dinonaktifkan oleh Admin. Mohon informasi dan bantuan pengaktifan kembali.',
     );
+    final url = 'https://wa.me/$adminWhatsAppNumber?text=$message';
+    try {
+      await openExternalUrl(url);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Gagal membuka WhatsApp. Silakan hubungi admin di +$adminWhatsAppNumber',
+            ),
+            backgroundColor: Color(0xFFDC2626),
+          ),
+        );
+      }
+    }
   }
 
   void _showContactAdminDialog() {
@@ -706,6 +935,14 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
               );
             }
           },
+          onLogout: () {
+            DataService().logout();
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (route) => false,
+            );
+          },
         );
         break;
 
@@ -729,6 +966,21 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
             setState(() {
               _currentStage = ProducerVerificationStage.lengkapiProfil;
             });
+          },
+        );
+        break;
+
+      case ProducerVerificationStage.akunDinonaktifkan:
+        activeScreen = ProducerDeactivatedScreen(
+          responsiblePersonName: _fullNameController.text.trim(),
+          onContactAdmin: _contactAdminViaWhatsApp,
+          onLogout: () {
+            DataService().logout();
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (route) => false,
+            );
           },
         );
         break;

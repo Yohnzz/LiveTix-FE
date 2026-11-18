@@ -76,11 +76,16 @@ class VenueGeocodingService {
 
   /// Cari venue/alamat. Dibatasi ke Indonesia karena aplikasi ini digunakan
   /// untuk konser di Indonesia.
-  Future<List<VenueSearchResult>> search(String query) async {
+  /// [userLat] & [userLon] opsional untuk memprioritaskan hasil di sekitar lokasi pengguna/peta.
+  Future<List<VenueSearchResult>> search(
+    String query, {
+    double? userLat,
+    double? userLon,
+  }) async {
     final cleanQuery = query.trim();
     if (cleanQuery.isEmpty) return const [];
 
-    final uri = Uri.https(_host, '/search', {
+    final queryParams = <String, String>{
       'q': cleanQuery,
       'format': 'jsonv2',
       'addressdetails': '1',
@@ -88,7 +93,18 @@ class VenueGeocodingService {
       'countrycodes': 'id',
       'accept-language': 'id',
       'dedupe': '1',
-    });
+    };
+
+    if (userLat != null &&
+        userLon != null &&
+        _isValidCoordinate(userLat, userLon)) {
+      // Prioritaskan area di sekitar user (+/- 0.6 derajat)
+      queryParams['viewbox'] =
+          '${userLon - 0.6},${userLat + 0.6},${userLon + 0.6},${userLat - 0.6}';
+      queryParams['bounded'] = '0';
+    }
+
+    final uri = Uri.https(_host, '/search', queryParams);
 
     final json = await _getJson(uri);
     if (json is! List) {

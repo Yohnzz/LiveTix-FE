@@ -4,11 +4,13 @@ import '../../../services/promoter_data_service.dart';
 class ApprovalWaitingScreen extends StatelessWidget {
   final String responsiblePersonName;
   final VoidCallback onCheckStatus;
+  final VoidCallback? onLogout;
 
   const ApprovalWaitingScreen({
     super.key,
     this.responsiblePersonName = 'Rafi Firmansyah',
     required this.onCheckStatus,
+    this.onLogout,
   });
 
   @override
@@ -43,19 +45,36 @@ class ApprovalWaitingScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Top Bar with Theme Toggle on the right
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: IconButton(
-                        icon: Icon(
-                          isDarkMode
-                              ? Icons.dark_mode_outlined
-                              : Icons.wb_sunny_outlined,
-                          size: 22,
-                          color: textColor,
+                    // Top Bar with Logout & Theme Toggle
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        if (onLogout != null)
+                          TextButton.icon(
+                            onPressed: onLogout,
+                            icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                            label: const Text('Keluar ke Login'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFC2185B),
+                              textStyle: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          )
+                        else
+                          const SizedBox.shrink(),
+                        IconButton(
+                          icon: Icon(
+                            isDarkMode
+                                ? Icons.dark_mode_outlined
+                                : Icons.wb_sunny_outlined,
+                            size: 22,
+                            color: textColor,
+                          ),
+                          onPressed: service.toggleTheme,
                         ),
-                        onPressed: service.toggleTheme,
-                      ),
+                      ],
                     ),
 
                     const SizedBox(height: 4),

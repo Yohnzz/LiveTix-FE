@@ -5,6 +5,7 @@ import '../../widgets/app_text_field.dart';
 import '../../widgets/custom_checkbox.dart';
 import '../../widgets/primary_button.dart';
 import '../../services/data_service.dart';
+import '../../services/promoter_data_service.dart';
 import '../promoter/verification/producer_verification_flow.dart';
 import 'user_verification_screen.dart';
 
@@ -60,6 +61,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       final role = user.role.trim().toLowerCase();
       if (role == 'produser' || role == 'producer' || role == 'promoter') {
+        PromoterDataService()
+            .resetProducerVerificationStateForNewAccount(user.name);
         Navigator.push(
           context,
           MaterialPageRoute(

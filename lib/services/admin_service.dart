@@ -1328,6 +1328,7 @@ class AdminService {
       statsNotifier.value =
           stats.copyWith(activeProducers: stats.activeProducers - 1);
     }
+    PromoterDataService().onAdminDeactivatedProducer(trimmed);
 
     if (SupabaseService.isInitialized) {
       SupabaseService.client

@@ -626,37 +626,36 @@ class Step1DetailPosterScreen extends StatelessWidget {
               const SizedBox(height: 24),
 
               // Form Field 6: HIGHLIGHT KONSER TAMBAHAN (MULTI-IMAGE)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildFieldLabel(
-                            'FOTO HIGHLIGHT KONSER (OPSIONAL)', labelColor),
-                        const SizedBox(height: 3),
-                        Text(
-                          'Tambahkan foto suasana panggung, musisi, atau keseruan konser.',
-                          style: TextStyle(fontSize: 11.5, color: subtextColor),
-                        ),
-                      ],
-                    ),
+                  _buildFieldLabel(
+                      'FOTO HIGHLIGHT KONSER (OPSIONAL)', labelColor),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Tambahkan foto suasana panggung, musisi, atau keseruan konser.',
+                    style: TextStyle(fontSize: 11.5, color: subtextColor),
                   ),
-                  OutlinedButton.icon(
-                    onPressed: onAddHighlight,
-                    icon: const Icon(Icons.add_photo_alternate_outlined,
-                        size: 15),
-                    label: const Text('+ Tambah',
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w700)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1B2A8C),
-                      side: const BorderSide(color: Color(0xFF1B2A8C)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: onAddHighlight,
+                      icon: const Icon(Icons.add_photo_alternate_outlined,
+                          size: 14),
+                      label: const Text('+ Tambah',
+                          style: TextStyle(
+                              fontSize: 11.5, fontWeight: FontWeight.w700)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF1B2A8C),
+                        side: const BorderSide(color: Color(0xFF1B2A8C)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
                   ),
@@ -797,12 +796,15 @@ class Step1DetailPosterScreen extends StatelessWidget {
                             color: Color(0xFF64748B),
                           ),
                           SizedBox(width: 8),
-                          Text(
-                            'Ketuk untuk menambahkan galeri foto highlight',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF64748B),
+                          Flexible(
+                            child: Text(
+                              'Ketuk untuk menambahkan galeri foto highlight',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF64748B),
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],

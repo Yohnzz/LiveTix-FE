@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../models/promoter_models.dart';
 import '../../../services/promoter_data_service.dart';
 import '../../../services/venue_geocoding_service.dart';
+import '../../../services/venue_location_search_service.dart';
 import '../widgets/promoter_step_indicator.dart';
+import '../widgets/real_map_embed.dart';
 
 class Step2VenueLocationScreen extends StatefulWidget {
   final String venueName;
@@ -53,6 +56,8 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
   // Venue populer: label chip -> kata kunci yang dicari ke OpenStreetMap.
   static const List<({String label, String query})> _presets = [
     (label: 'Stadion Gajayana', query: 'Stadion Gajayana Malang'),
+    (label: 'Graha Cakrawala', query: 'Graha Cakrawala Universitas Negeri Malang'),
+    (label: 'Jl. Ijen Malang', query: 'Jalan Ijen Malang'),
     (label: 'GBK Senayan', query: 'Stadion Utama Gelora Bung Karno Jakarta'),
     (label: 'ICE BSD Tangerang', query: 'Indonesia Convention Exhibition BSD'),
     (label: 'GBT Surabaya', query: 'Stadion Gelora Bung Tomo Surabaya'),
@@ -97,9 +102,11 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
   @override
   void initState() {
     super.initState();
-    _currentVenueName = widget.venueName;
-    _currentVenueAddress = widget.venueAddress;
-    _currentSearchQuery = widget.venueSearchQuery;
+    _currentVenueName = widget.venueName.isNotEmpty ? widget.venueName : 'Stadion Gajayana Malang';
+    _currentVenueAddress = widget.venueAddress.isNotEmpty
+        ? widget.venueAddress
+        : 'Jl. Tangkuban Perahu, Kauman, Kec. Klojen, Kota Malang, Jawa Timur 65119';
+    _currentSearchQuery = widget.venueSearchQuery.isNotEmpty ? widget.venueSearchQuery : _currentVenueName;
 
     if (_isValidCoordinate(
       widget.initialLatitude,
@@ -112,15 +119,43 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
 
     _searchController.text = _currentSearchQuery;
     _manualNameController = TextEditingController(text: _currentVenueName);
-    _manualAddressController =
-        TextEditingController(text: _currentVenueAddress);
+    _manualAddressController = TextEditingController(text: _currentVenueAddress);
+
+    // Sinkronisasi otomatis dua arah saat pengguna mengetik di form manual
+    _manualNameController.addListener(_onManualFormChanged);
+    _manualAddressController.addListener(_onManualFormChanged);
 
     _restoreInitialLocation();
+
+    // Pastikan parent flow terisi dengan nilai default jika sebelumnya kosong
+    if (widget.venueName.isEmpty && widget.onVenueChanged != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.onVenueChanged!(
+            _currentVenueName,
+            _currentVenueAddress,
+            _currentVenueName,
+          );
+        }
+      });
+    }
+  }
+
+  void _onManualFormChanged() {
+    final name = _manualNameController.text;
+    final address = _manualAddressController.text;
+    if (name != _currentVenueName || address != _currentVenueAddress) {
+      _currentVenueName = name;
+      _currentVenueAddress = address;
+      widget.onVenueChanged?.call(_currentVenueName, _currentVenueAddress, _currentVenueName);
+    }
   }
 
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    _manualNameController.removeListener(_onManualFormChanged);
+    _manualAddressController.removeListener(_onManualFormChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     _manualNameController.dispose();
@@ -259,7 +294,11 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
 
     _debounceTimer = Timer(const Duration(milliseconds: 700), () async {
       try {
-        final results = await _places.search(query);
+        final results = await _places.search(
+        query,
+        userLat: _currentLatitude,
+        userLon: _currentLongitude,
+      );
         if (!mounted || requestId != _searchRequestId) return;
         setState(() {
           _suggestions = results;
@@ -290,59 +329,49 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
     final cleanQuery = query.trim();
     if (cleanQuery.isEmpty) return;
 
-    _debounceTimer?.cancel();
-    _searchRequestId++;
-    setState(() => _isLoadingResults = true);
+    setState(() {
+      _isLoadingResults = true;
+    });
 
-    try {
-      final results = await _places.search(cleanQuery);
-      if (!mounted) return;
-      if (results.isEmpty) {
-        _showMessage(
-          'Lokasi "$cleanQuery" tidak ditemukan di peta. Coba kata kunci lain.',
-          isError: true,
-        );
-      } else {
-        final result = results.first;
-        _selectVenue(
-          result.toVenueLocation(),
-          placeId: result.placeId.isEmpty ? null : result.placeId,
-        );
-      }
-    } catch (e) {
-      _showMessage(_errorText(e), isError: true);
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingResults = false;
-          _isSearching = false;
-        });
-        _searchFocusNode.unfocus();
-      }
+    final results = await VenueLocationSearchService().search(
+      cleanQuery,
+      userLat: _currentLatitude,
+      userLon: _currentLongitude,
+    );
+
+    if (results.isNotEmpty) {
+      _selectVenue(results.first);
+    } else {
+      final customVenue = PromoterVenueLocation(
+        name: cleanQuery,
+        address: cleanQuery.toLowerCase().contains('jl')
+            ? cleanQuery
+            : '$cleanQuery, Jawa Timur, Indonesia',
+        city: 'Kota Malang, Jawa Timur',
+        latitude: _currentLatitude,
+        longitude: _currentLongitude,
+      );
+      _selectVenue(customVenue);
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoadingResults = false;
+        _isSearching = false;
+      });
+      _searchFocusNode.unfocus();
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Memilih lokasi (dari mana pun) -> satu pintu
-  // ---------------------------------------------------------------------------
   void _selectVenue(
     PromoterVenueLocation venue, {
     String? placeId,
+    String? query,
     int? presetIndex,
     bool animate = true,
     bool silent = false,
   }) {
-    if (!_isValidCoordinate(venue.latitude, venue.longitude)) {
-      _showMessage(
-        'Lokasi dari peta tidak memiliki koordinat yang valid. Coba pilih hasil lain.',
-        isError: true,
-      );
-      return;
-    }
-
-    final query =
-        venue.city.isEmpty ? venue.name : '${venue.name} ${venue.city}';
-
+    final effectiveQuery = query ?? venue.name;
     setState(() {
       _currentVenueName = venue.name;
       _currentVenueAddress = venue.address;
@@ -350,7 +379,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
       _currentLongitude = venue.longitude;
       _hasSelectedLocation = true;
       _currentPlaceId = placeId;
-      _currentSearchQuery = query;
+      _currentSearchQuery = effectiveQuery;
       _activePreset = presetIndex;
       _searchController.text = venue.name;
       _manualNameController.text = venue.name;
@@ -362,7 +391,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
 
     if (animate) _moveCamera(venue.latitude, venue.longitude);
 
-    widget.onVenueChanged?.call(venue.name, venue.address, query);
+    widget.onVenueChanged?.call(venue.name, venue.address, effectiveQuery);
     widget.onCoordinatesChanged?.call(venue.latitude, venue.longitude);
     widget.onPlaceIdChanged?.call(placeId);
 
@@ -631,8 +660,23 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // Peta OpenStreetMap (gratis, tanpa API key)
+  // Peta Google Maps Interaktif
   // ---------------------------------------------------------------------------
+  String _getGoogleMapsTileUrl() {
+    final apiKey = dotenv.env['GOOGLE_MAPS_API_KEY']?.trim();
+    if (apiKey != null && apiKey.isNotEmpty) {
+      return 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=$apiKey';
+    }
+    return 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
+  }
+
+  void _openGoogleMapsExternal() {
+    final lat = _currentLatitude;
+    final lng = _currentLongitude;
+    final url = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+    openGoogleMapsUrl(url);
+  }
+
   void _zoomBy(double delta) {
     if (!_mapReady) return;
     final camera = _mapController.camera;
@@ -687,8 +731,9 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.example.livetix',
+                  urlTemplate: _getGoogleMapsTileUrl(),
+                  subdomains: const ['0', '1', '2', '3'],
+                  userAgentPackageName: 'id.livetix.app',
                   maxNativeZoom: 19,
                 ),
                 if (_hasSelectedLocation)
@@ -709,7 +754,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                             child: Icon(
                               Icons.location_on_rounded,
                               size: 46,
-                              color: Color(0xFFC2185B),
+                              color: Color(0xFFEA4335),
                             ),
                           ),
                         ),
@@ -719,21 +764,45 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
               ],
             ),
 
-            // Atribusi wajib saat memakai tile OpenStreetMap.
+            // Google Maps Watermark Badge
             Positioned(
-              left: 0,
-              bottom: 0,
+              left: 10,
+              bottom: 10,
               child: Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                color: Colors.white.withValues(alpha: 0.82),
-                child: const Text(
-                  '© OpenStreetMap contributors',
-                  style: TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF334155),
-                  ),
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Google',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.4,
+                        color: Color(0xFF4285F4),
+                      ),
+                    ),
+                    SizedBox(width: 3),
+                    Text(
+                      'Maps',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF5F6368),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -876,6 +945,40 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                       color: subtextColor,
                     ),
                   ),
+                if (_hasValidLocation) ...[
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: _openGoogleMapsExternal,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1B2A8C).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.open_in_new_rounded,
+                            size: 13,
+                            color: Color(0xFF1B2A8C),
+                          ),
+                          SizedBox(width: 5),
+                          Text(
+                            'Buka di Google Maps',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1B2A8C),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -884,7 +987,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
     );
   }
 
-  void _handleNext() {
+  void _onConfirmAndProceed() {
     if (!_hasValidLocation) {
       _showMessage(
         'Tentukan lokasi venue terlebih dahulu: cari nama venue, ketuk peta, geser pin, atau gunakan GPS.',
@@ -900,6 +1003,15 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
       );
       return;
     }
+
+    widget.onVenueChanged?.call(
+      _currentVenueName,
+      _currentVenueAddress,
+      _currentSearchQuery,
+    );
+    widget.onCoordinatesChanged?.call(_currentLatitude, _currentLongitude);
+    widget.onPlaceIdChanged?.call(_currentPlaceId);
+
     widget.onNext();
   }
 
@@ -1033,7 +1145,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                             children: [
                               Flexible(
                                 child: Text(
-                                  'Peta OpenStreetMap · gratis tanpa API key',
+                                  'Peta Interaktif Google Maps',
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w700,
@@ -1050,7 +1162,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Ketik nama venue atau alamat, ketuk titik di peta, atau geser pin. Data peta © OpenStreetMap contributors.',
+                            'Ketik nama venue atau alamat, ketuk titik di peta, atau geser pin lokasi konser Anda.',
                             style: TextStyle(
                               fontSize: 11,
                               color: subtextColor,
@@ -1449,6 +1561,10 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                             const SizedBox(height: 6),
                             TextField(
                               controller: _manualNameController,
+                              onChanged: (val) {
+                                _currentVenueName = val;
+                                widget.onVenueChanged?.call(val, _currentVenueAddress, val);
+                              },
                               style: TextStyle(
                                 fontSize: 13,
                                 color: textColor,
@@ -1480,6 +1596,10 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                             TextField(
                               controller: _manualAddressController,
                               maxLines: 2,
+                              onChanged: (val) {
+                                _currentVenueAddress = val;
+                                widget.onVenueChanged?.call(_currentVenueName, val, _currentVenueName);
+                              },
                               style: TextStyle(
                                 fontSize: 13,
                                 color: textColor,
@@ -1536,7 +1656,7 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _handleNext,
+                  onPressed: _onConfirmAndProceed,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1B2A8C), // Navy
                     foregroundColor: Colors.white,

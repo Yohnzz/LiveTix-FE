@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/promoter_models.dart';
 import '../../services/promoter_data_service.dart';
+import 'widgets/concert_image_widget.dart';
 import 'widgets/sales_trend_bar_chart.dart';
 
 class PromoterDashboardScreen extends StatelessWidget {
@@ -264,77 +265,96 @@ class PromoterDashboardScreen extends StatelessWidget {
             );
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top Brand & Avatar Row
+                  // Top Brand & Avatar Row (Mepet Kanan)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Flexible(
-                        child: Text(
-                          service.promoterName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w700,
-                            color: textColor,
-                          ),
+                      Expanded(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                service.promoterName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: textColor,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2.5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF59E0B), // Orange amber pill
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                service.verificationBadge,
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2.5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF59E0B), // Orange amber pill
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          service.verificationBadge,
-                          style: const TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.5,
+                      // Matahari / Dark Mode Toggle & Profil Avatar (Mepet Kanan)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 36,
+                              minHeight: 36,
+                            ),
+                            icon: Icon(
+                              isDarkMode
+                                  ? Icons.dark_mode_outlined
+                                  : Icons.wb_sunny_outlined,
+                              size: 22,
+                              color: textColor,
+                            ),
+                            tooltip: 'Ganti Tema',
+                            onPressed: service.toggleTheme,
                           ),
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: Icon(
-                          isDarkMode
-                              ? Icons.dark_mode_outlined
-                              : Icons.wb_sunny_outlined,
-                          size: 22,
-                          color: textColor,
-                        ),
-                        tooltip: 'Ganti Tema',
-                        onPressed: service.toggleTheme,
-                      ),
-                      const SizedBox(width: 4),
-                      GestureDetector(
-                        onTap: onNavigateToProfile,
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFF3E8FF), // Soft purple-pink
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              service.promoterInitials,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF7E22CE), // Purple/Magenta
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: onNavigateToProfile,
+                            child: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF3E8FF), // Soft purple-pink
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  service.promoterInitials,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF7E22CE), // Purple/Magenta
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
@@ -815,34 +835,38 @@ class PromoterDashboardScreen extends StatelessWidget {
             ),
             child: Row(
               children: [
-                // Modern Artwork Container
+                // Modern Artwork Container (Menampilkan Poster / Logo Konser)
                 Container(
                   width: 58,
                   height: 58,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF1B2A8C), // Navy
-                        Color(0xFFC2185B), // Magenta
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
                     borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFF1B2A8C).withValues(alpha: 0.15),
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF1B2A8C).withValues(alpha: 0.25),
+                        color: const Color(0xFF1B2A8C).withValues(alpha: 0.15),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.music_note_rounded,
-                      color: Colors.white,
-                      size: 26,
-                    ),
+                  clipBehavior: Clip.antiAlias,
+                  child: ConcertImageWidget(
+                    imageSource: (concert.displayPosterSource.isNotEmpty &&
+                            (concert.displayPosterSource.startsWith('data:image/') ||
+                                concert.displayPosterSource.startsWith('http') ||
+                                concert.displayPosterSource.startsWith('assets/')))
+                        ? concert.displayPosterSource
+                        : (concert.displayLogoSource.isNotEmpty
+                            ? concert.displayLogoSource
+                            : concert.displayPosterSource),
+                    width: 58,
+                    height: 58,
+                    fit: BoxFit.cover,
+                    fallbackIcon: Icons.music_note_rounded,
+                    fallbackLabel: concert.title,
                   ),
                 ),
                 const SizedBox(width: 14),

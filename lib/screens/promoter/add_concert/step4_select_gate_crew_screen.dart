@@ -27,18 +27,20 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
   final GateCrewService _gateCrewService = GateCrewService();
   late Map<String, String> _assignments;
 
-  // FIX: sebelumnya list kosong sehingga `_gateOptions.first` melempar
-  // StateError. Sekarang ada pos gate default (minimal selalu 1).
-  final List<String> _gateOptions = [
-    'Gate A',
-    'Gate B',
-    'Gate VIP',
-  ];
+  // Daftar Pos Gate yang ditambahkan secara manual oleh Producer.
+  // Secara default daftar Gate harus kosong.
+  final List<String> _gateOptions = [];
 
   @override
   void initState() {
     super.initState();
     _assignments = Map<String, String>.from(widget.selectedCrewWithGate);
+    // Masukkan gate yang sudah ada dari assignments jika ada
+    for (final gate in _assignments.values) {
+      if (!_gateOptions.contains(gate)) {
+        _gateOptions.add(gate);
+      }
+    }
   }
 
   /// Kirim salinan map ke parent supaya state parent tidak berbagi
@@ -48,6 +50,16 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
   }
 
   void _toggleCrew(String crewId, bool isSelected) {
+    if (isSelected && _gateOptions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Tambahkan minimal 1 Pos Gate terlebih dahulu sebelum memilih Crew Gate.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
     setState(() {
       if (isSelected) {
         _assignments[crewId] = _gateOptions.first;
@@ -56,6 +68,36 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
       }
     });
     _notify();
+  }
+
+  void _validateAndProceed() {
+    if (_gateOptions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Daftar Gate masih kosong. Producer wajib menambahkan Gate secara manual.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    // Setiap Gate wajib memiliki minimal 1 Crew Gate
+    for (final gate in _gateOptions) {
+      final hasCrew = _assignments.values.any((assignedGate) => assignedGate == gate);
+      if (!hasCrew) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Pos "$gate" belum memiliki Crew Gate! Setiap Gate wajib memiliki minimal 1 Crew Gate.'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+        return;
+      }
+    }
+
+    widget.onNext();
   }
 
   void _changeGate(String crewId, String gateName) {
@@ -124,6 +166,17 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
     // Hanya crew yang belum ditugaskan yang bisa dipilih.
     final available =
         allCrews.where((c) => !_assignments.containsKey(c.id)).toList();
+
+    if (_gateOptions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Tambahkan Pos Gate terlebih dahulu sebelum menugaskan Gate Crew.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
 
     if (allCrews.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -255,6 +308,15 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
   }
 
   void _autoDistributeEvenly() {
+    if (_gateOptions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tambahkan Pos Gate terlebih dahulu.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
     if (_assignments.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -440,47 +502,78 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: _gateOptions.map((gate) {
-                                  final canDelete = _gateOptions.length > 1;
-                                  return Chip(
-                                    label: Text(
-                                      gate,
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: textColor,
-                                      ),
-                                    ),
-                                    backgroundColor: isDarkMode
+                              if (_gateOptions.isEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12, horizontal: 14),
+                                  decoration: BoxDecoration(
+                                    color: isDarkMode
                                         ? const Color(0xFF0F172A)
-                                        : const Color(0xFFF1F5F9),
-                                    deleteIcon: canDelete
-                                        ? Icon(Icons.close_rounded,
-                                            size: 14, color: textColor)
-                                        : null,
-                                    onDeleted: canDelete
-                                        ? () {
-                                            setState(() {
-                                              _gateOptions.remove(gate);
-                                              _assignments.removeWhere(
-                                                  (k, v) => v == gate);
-                                            });
-                                            _notify();
-                                          }
-                                        : null,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      side: BorderSide(
-                                          color: isDarkMode
-                                              ? Colors.white24
-                                              : const Color(0xFFE2E8F0)),
+                                        : const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: isDarkMode
+                                          ? Colors.white12
+                                          : const Color(0xFFE2E8F0),
                                     ),
-                                  );
-                                }).toList(),
-                              ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.info_outline_rounded,
+                                        size: 16,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Belum ada Pos Gate. Klik "+ Tambah Gate" untuk menambahkan gate.',
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            color: subtextColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: _gateOptions.map((gate) {
+                                    return Chip(
+                                      label: Text(
+                                        gate,
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: textColor,
+                                        ),
+                                      ),
+                                      backgroundColor: isDarkMode
+                                          ? const Color(0xFF0F172A)
+                                          : const Color(0xFFF1F5F9),
+                                      deleteIcon: Icon(Icons.close_rounded,
+                                          size: 14, color: textColor),
+                                      onDeleted: () {
+                                        setState(() {
+                                          _gateOptions.remove(gate);
+                                          _assignments.removeWhere(
+                                              (k, v) => v == gate);
+                                        });
+                                        _notify();
+                                      },
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        side: BorderSide(
+                                            color: isDarkMode
+                                                ? Colors.white24
+                                                : const Color(0xFFE2E8F0)),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
                               const SizedBox(height: 12),
                               Row(
                                 children: [
@@ -616,8 +709,10 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                           ...approvedCrews.map((crew) {
                             final isAssigned =
                                 _assignments.containsKey(crew.id);
-                            final currentGate =
-                                _assignments[crew.id] ?? _gateOptions.first;
+                            final currentGate = _assignments[crew.id] ??
+                                (_gateOptions.isNotEmpty
+                                    ? _gateOptions.first
+                                    : '');
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
@@ -719,7 +814,9 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                                               value: _gateOptions
                                                       .contains(currentGate)
                                                   ? currentGate
-                                                  : _gateOptions.first,
+                                                  : (_gateOptions.isNotEmpty
+                                                      ? _gateOptions.first
+                                                      : null),
                                               isExpanded: true,
                                               underline: const SizedBox(),
                                               icon: const Icon(
@@ -775,7 +872,7 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: widget.onNext,
+                      onPressed: _validateAndProceed,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1B2A8C), // Navy
                         foregroundColor: Colors.white,

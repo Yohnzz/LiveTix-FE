@@ -170,6 +170,12 @@ class _InteractiveMapViewState extends State<InteractiveMapView>
                 'Koordinat (${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}), Indonesia';
           }
         });
+        widget.onLocationSelected?.call(
+          _activePlaceName,
+          _activeAddress,
+          point.latitude,
+          point.longitude,
+        );
       }
     } catch (_) {
       if (mounted) {

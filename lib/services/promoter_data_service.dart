@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide LocalStorage;
 import '../models/approval_models.dart';
+import '../screens/promoter/widgets/concert_image_widget.dart';
 import '../screens/promoter/widgets/sales_trend_bar_chart.dart';
 import '../models/promoter_models.dart';
 import '../utils/local_storage.dart';
@@ -160,7 +161,9 @@ class PromoterDataService {
           ? 'TERVERIFIKASI'
           : (verificationStatusNotifier.value == 'pending'
               ? 'MENUNGGU APPROVAL'
-              : 'BELUM VERIFIKASI');
+              : (verificationStatusNotifier.value == 'deactivated'
+                  ? 'NONAKTIF'
+                  : 'BELUM VERIFIKASI'));
 
   String get promoterInitials {
     final parts = promoterName
@@ -302,6 +305,9 @@ class PromoterDataService {
         status: ConcertStatus.disetujui,
         likesCount: '4.2k',
         posterFileName: 'poster_soundwave.png',
+        squareLogoFileName: 'logo_soundwave_square.png',
+        posterDataUrl: ConcertImageWidget.sampleSoundwavePng,
+        squareLogoDataUrl: ConcertImageWidget.sampleSoundwavePng,
         ticketsSold: 0,
         grossRevenue: 0,
         affectedBuyersCount: 0,
@@ -343,6 +349,9 @@ class PromoterDataService {
         status: ConcertStatus.menunggu,
         likesCount: '1.8k',
         posterFileName: 'poster_symphony.png',
+        squareLogoFileName: 'logo_symphony_square.png',
+        posterDataUrl: ConcertImageWidget.sampleSymphonyPng,
+        squareLogoDataUrl: ConcertImageWidget.sampleSymphonyPng,
         ticketsSold: 0,
         affectedBuyersCount: 0,
         totalRefundAmount: 0,
@@ -371,6 +380,9 @@ class PromoterDataService {
         status: ConcertStatus.draft,
         likesCount: '250',
         posterFileName: 'poster_rock_anthem.png',
+        squareLogoFileName: 'logo_rock_anthem_square.png',
+        posterDataUrl: ConcertImageWidget.sampleRockAnthemPng,
+        squareLogoDataUrl: ConcertImageWidget.sampleRockAnthemPng,
         tiers: [
           PromoterTicketTier(
             id: 't4',
@@ -393,6 +405,9 @@ class PromoterDataService {
         status: ConcertStatus.ditolak,
         likesCount: '0',
         posterFileName: 'poster_harmoni_final.png',
+        squareLogoFileName: 'logo_harmoni_square.png',
+        posterDataUrl: ConcertImageWidget.sampleFestivalGajayanaPng,
+        squareLogoDataUrl: ConcertImageWidget.sampleFestivalGajayanaPng,
         tiers: [
           PromoterTicketTier(
             id: 't5',
@@ -969,9 +984,9 @@ class PromoterDataService {
           'bank_name': cleanBank,
           'bank_account_number': cleanAccNo,
           'bank_account_holder': cleanHolder,
-          'is_verified': true,
-          'verification_status': 'approved',
-          'approval_status': 'approved',
+          'is_verified': false,
+          'verification_status': 'pending',
+          'approval_status': 'pending',
           'updated_at': nowIso,
         }).select();
       } catch (e) {
@@ -987,8 +1002,8 @@ class PromoterDataService {
             'phone': phone.trim(),
             'role': 'Produser',
             'pin_code': storedPinHash,
-            'is_verified': true,
-            'verification_status': 'approved',
+            'is_verified': false,
+            'verification_status': 'pending',
           }).select();
           dbError = null;
         } catch (e2) {
@@ -1015,9 +1030,9 @@ class PromoterDataService {
           'bank_account_number': cleanAccNo,
           'bank_account_name': cleanHolder,
           'bank_account_holder': cleanHolder,
-          'is_verified': true,
-          'verification_status': 'approved',
-          'approval_status': 'approved',
+          'is_verified': false,
+          'verification_status': 'pending',
+          'approval_status': 'pending',
           'submitted_at': nowIso,
           'updated_at': nowIso,
         }).select();
@@ -1035,8 +1050,8 @@ class PromoterDataService {
           'bank_name': cleanBank,
           'bank_account_number': cleanAccNo,
           'bank_account_holder': cleanHolder,
-          'is_verified': true,
-          'approval_status': 'approved',
+          'is_verified': false,
+          'approval_status': 'pending',
         };
         for (int i = 0; i < 12; i++) {
           try {
@@ -1082,10 +1097,10 @@ class PromoterDataService {
     bankNameNotifier.value = cleanBank;
     bankAccountNumberNotifier.value = cleanAccNo;
     bankAccountHolderNotifier.value = cleanHolder;
-    verificationStatusNotifier.value = 'approved';
+    verificationStatusNotifier.value = 'pending';
     isPinUnlockedThisSession = false;
 
-    // Sinkronkan ke daftar Produser di AdminService (tercatat terverifikasi)
+    // Sinkronkan ke daftar Produser di AdminService (tercatat menunggu approval)
     final adminService = AdminService();
     final newApp = ProducerApplicationModel(
       id: rowId,
@@ -1096,8 +1111,8 @@ class PromoterDataService {
       address: address.trim().isNotEmpty
           ? address.trim()
           : 'Jl. Kayutangan No. 45, Malang',
-      approvalStatus: ApprovalStatus.approved,
-      isVerified: true,
+      approvalStatus: ApprovalStatus.pending,
+      isVerified: false,
       submittedAt: DateTime.now(),
       submissionDocuments: [
         ProducerDocumentModel(
@@ -1262,6 +1277,17 @@ class PromoterDataService {
           pendingResponsibilityLetterNotifier.value!;
       pendingResponsibilityLetterNotifier.value = null;
     }
+  }
+
+  /// Dipanggil saat Admin menonaktifkan akun Produser
+  void onAdminDeactivatedProducer(String reason) {
+    verificationStatusNotifier.value = 'deactivated';
+    rejectionReasonNotifier.value = reason.trim();
+    isPinUnlockedThisSession = false;
+    LocalStorage.setString(
+      'livetix_producer_rejection_reason',
+      reason.trim(),
+    );
   }
 
   /// Dipanggil saat Admin menolak pengajuan Produser agar alasan & waktu penolakan sinkron

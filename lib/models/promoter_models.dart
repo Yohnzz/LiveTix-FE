@@ -624,6 +624,7 @@ class PromoterVenueLocation {
   final String city;
   final double latitude;
   final double longitude;
+  final String? placeId;
 
   const PromoterVenueLocation({
     required this.name,
@@ -631,6 +632,7 @@ class PromoterVenueLocation {
     required this.city,
     required this.latitude,
     required this.longitude,
+    this.placeId,
   });
 }
 

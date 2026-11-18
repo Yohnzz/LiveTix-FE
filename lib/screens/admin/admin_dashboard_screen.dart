@@ -204,6 +204,29 @@ class _DashboardHeader extends StatelessWidget {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        ValueListenableBuilder<bool>(
+                          valueListenable: DataService().isDarkModeNotifier,
+                          builder: (context, isDark, _) {
+                            return IconButton(
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 36,
+                              ),
+                              icon: Icon(
+                                isDark
+                                    ? Icons.dark_mode_outlined
+                                    : Icons.wb_sunny_outlined,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                              tooltip: 'Ganti Tema',
+                              onPressed: DataService().toggleDarkMode,
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 8),
                         const _NotificationButton(),
                         const SizedBox(width: 8),
                         _HeaderAvatar(initials: initials),
