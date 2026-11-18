@@ -348,7 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 8),
             _buildMenuItem(
               icon: Icons.support_agent_rounded,
-              title: 'Customer Service LiveTix',
+              title: 'Customer Service LiveTix (AI 24/7)',
               iconColor: const Color(0xFF1B2A8C),
               onTap: () {
                 Navigator.push(

@@ -119,9 +119,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                     ),
                   ),
                   alignment: Alignment.center,
-                  child: Text(
+                  child: const Text(
                     initials,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
@@ -315,7 +315,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                             iconColor: AdminColors.infoOf(context),
                             title: 'Customer Service',
                             subtitle:
-                                'Kelola pesan masuk dari Produser dan User',
+                                'AI Copilot · Kelola chat Produser & User',
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [

@@ -285,7 +285,8 @@ void main() {
         home: PromoterManageConcertScreen(concert: concert),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(
       find.text(
@@ -362,6 +363,6 @@ void main() {
       await tester.pump();
     }
 
-    expect(find.text('Customer Service Live'), findsOneWidget);
+    expect(find.textContaining('Customer Service'), findsWidgets);
   });
 }

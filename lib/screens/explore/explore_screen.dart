@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/concert_model.dart';
+import '../../services/ai_backend_service.dart';
 import '../../services/data_service.dart';
 import '../../widgets/concert_media.dart';
+import '../common/concert_ai_info_modal.dart';
 import '../concert/concert_detail_screen.dart';
 
 enum _PriceFilterOption {
@@ -62,6 +64,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
     'Des',
   ];
 
+  final AiBackendService _aiBackendService = AiBackendService();
+
   List<CityModel> _popularCities = [];
   List<String> _genres = ['Semua'];
   List<ConcertModel> _allConcerts = [];
@@ -75,6 +79,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
   DateTime? _selectedDate;
   _PriceFilterOption _selectedPrice = _PriceFilterOption.all;
   String _searchQuery = '';
+
+  // ── AI Search State (Fitur 2) ──────────────────────────────────
+  bool _isAiSearchMode = false;
+  bool _isAiSearching = false;
+  AiFilterModel? _activeAiFilter;
+  List<ConcertModel> _aiSearchResults = [];
+  String _aiSearchMessage = '';
 
   bool get _hasActiveFilter =>
       _onlyFavorites ||
@@ -95,6 +106,36 @@ class _ExploreScreenState extends State<ExploreScreen> {
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _runAiSearch(String query) async {
+    final clean = query.trim();
+    if (clean.isEmpty) return;
+    setState(() {
+      _isAiSearching = true;
+      _aiSearchMessage = '';
+      _aiSearchResults = [];
+      _activeAiFilter = null;
+    });
+    final response = await _aiBackendService.searchConcerts(clean);
+    if (!mounted) return;
+    setState(() {
+      _isAiSearching = false;
+      _activeAiFilter = response.filter;
+      _aiSearchResults = response.results;
+      _aiSearchMessage = response.message;
+    });
+  }
+
+  void _clearAiSearch() {
+    setState(() {
+      _isAiSearchMode = false;
+      _isAiSearching = false;
+      _activeAiFilter = null;
+      _aiSearchResults = [];
+      _aiSearchMessage = '';
+      _searchController.clear();
+    });
   }
 
   Future<void> _loadDataFromService() async {
@@ -375,179 +416,616 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ),
             const SizedBox(height: 18),
 
-            _buildSearchBar(),
+            _buildSearchBarWithAiToggle(),
             const SizedBox(height: 14),
 
+            // Active AI filter chips (Fitur 2)
+            if (_isAiSearchMode && _activeAiFilter != null && _activeAiFilter!.hasActiveFilter)
+              _buildAiFilterBadges(),
+
             // Hanya mempertahankan filter Tanggal (date picker + Today) dan Harga
-            _buildTopFiltersRow(),
+            if (!_isAiSearchMode) _buildTopFiltersRow(),
             const SizedBox(height: 24),
 
-            // Bagian Kota Populer dengan efek shadow #C654C3 saat aktif & tanpa total event
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    'Kota populer',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? AppColors.darkText : AppColors.textDark,
-                    ),
-                  ),
-                ),
-                if (_selectedCity != 'Semua')
-                  TextButton(
-                    onPressed: () {
-                      setState(() => _selectedCity = 'Semua');
-                      _applyFilters();
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.accent,
-                      minimumSize: const Size(44, 44),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                    child: const Text(
-                      'Semua Kota',
+            if (_isAiSearchMode)
+              _buildAiSearchResults(isDark)
+            else ...[
+              // Bagian Kota Populer
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Kota populer',
                       style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.accent,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? AppColors.darkText : AppColors.textDark,
                       ),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            _buildPopularCitiesRow(),
-            const SizedBox(height: 22),
-
-            Text(
-              'Genre',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: isDark ? AppColors.darkText : AppColors.textDark,
+                  if (_selectedCity != 'Semua')
+                    TextButton(
+                      onPressed: () {
+                        setState(() => _selectedCity = 'Semua');
+                        _applyFilters();
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.accent,
+                        minimumSize: const Size(44, 44),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      child: const Text(
+                        'Semua Kota',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            ),
-            const SizedBox(height: 12),
-            _buildGenrePillsRow(),
-            const SizedBox(height: 24),
+              const SizedBox(height: 10),
+              _buildPopularCitiesRow(),
+              const SizedBox(height: 22),
 
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    _hasActiveFilter
-                        ? 'Hasil Filter (${_filteredConcerts.length})'
-                        : 'Sedang trending',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? AppColors.darkText : AppColors.textDark,
+              Text(
+                'Genre',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? AppColors.darkText : AppColors.textDark,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildGenrePillsRow(),
+              const SizedBox(height: 24),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      _hasActiveFilter
+                          ? 'Hasil Filter (${_filteredConcerts.length})'
+                          : 'Sedang trending',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? AppColors.darkText : AppColors.textDark,
+                      ),
                     ),
                   ),
+                  if (_hasActiveFilter) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_filteredConcerts.length} konser',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              if (_filteredConcerts.isEmpty)
+                _buildEmptyState()
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _filteredConcerts.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 14),
+                  itemBuilder: (context, index) {
+                    final concert = _filteredConcerts[index];
+                    return _buildTrendingConcertCard(concert);
+                  },
                 ),
-                if (_hasActiveFilter) ...[
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Search bar biasa dengan toggle tombol [✨ AI Search] di kanan (Fitur 2)
+  Widget _buildSearchBarWithAiToggle() {
+    final isDark = AppColors.isDark(context);
+    final borderColor = isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Semantics(
+                label: _isAiSearchMode
+                    ? 'Pencarian AI: ketik bahasa alami'
+                    : 'Cari artis, venue, atau kota',
+                textField: true,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: _isAiSearchMode
+                        ? (isDark
+                            ? const Color(0xFF1E1B4B)
+                            : const Color(0xFFEEF2FF))
+                        : (isDark
+                            ? AppColors.darkSurfaceVariant
+                            : AppColors.searchBarBg),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _isAiSearchMode
+                          ? const Color(0xFF6366F1)
+                          : borderColor,
+                      width: _isAiSearchMode ? 1.5 : 1.0,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _isAiSearchMode
+                            ? Icons.auto_awesome_rounded
+                            : Icons.search,
+                        size: 20,
+                        color: _isAiSearchMode
+                            ? const Color(0xFF6366F1)
+                            : (isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textGrey),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: _isAiSearchMode
+                              ? null
+                              : (val) {
+                                  _searchQuery = val;
+                                  _applyFilters();
+                                },
+                          onSubmitted: _isAiSearchMode
+                              ? _runAiSearch
+                              : null,
+                          textInputAction: _isAiSearchMode
+                              ? TextInputAction.search
+                              : TextInputAction.done,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: isDark ? AppColors.darkText : AppColors.textDark,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: _isAiSearchMode
+                                ? 'Contoh: konser rock di Malang tahun 2027...'
+                                : 'Cari artis, venue, atau kota',
+                            hintStyle: TextStyle(
+                              fontSize: 13,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textGrey,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ),
+                      if (_isAiSearchMode && _isAiSearching)
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                Color(0xFF6366F1)),
+                          ),
+                        )
+                      else if (_isAiSearchMode && _searchController.text.isNotEmpty)
+                        IconButton(
+                          tooltip: 'Cari dengan AI',
+                          onPressed: _isAiSearching
+                              ? null
+                              : () => _runAiSearch(_searchController.text),
+                          constraints: const BoxConstraints(
+                              minWidth: 36, minHeight: 36),
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.send_rounded,
+                              size: 18, color: Color(0xFF6366F1)),
+                        )
+                      else if (!_isAiSearchMode && _searchQuery.isNotEmpty)
+                        IconButton(
+                          tooltip: 'Hapus kata kunci pencarian',
+                          onPressed: () {
+                            _searchController.clear();
+                            _searchQuery = '';
+                            _applyFilters();
+                          },
+                          constraints: const BoxConstraints(
+                              minWidth: 36, minHeight: 36),
+                          padding: EdgeInsets.zero,
+                          icon: Icon(Icons.close_rounded,
+                              size: 18,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textGrey),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+
+            // ✨ Tombol Toggle AI Search
+            Tooltip(
+              message: _isAiSearchMode ? 'Kembali ke pencarian biasa' : 'Aktifkan AI Search',
+              child: GestureDetector(
+                onTap: () {
+                  if (_isAiSearchMode) {
+                    _clearAiSearch();
+                  } else {
+                    setState(() {
+                      _isAiSearchMode = true;
+                      _searchController.clear();
+                      _searchQuery = '';
+                    });
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    gradient: _isAiSearchMode
+                        ? const LinearGradient(
+                            colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: _isAiSearchMode
+                        ? null
+                        : (isDark
+                            ? AppColors.darkSurface
+                            : Colors.white),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _isAiSearchMode
+                          ? Colors.transparent
+                          : borderColor,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.auto_awesome_rounded,
+                        size: 16,
+                        color: _isAiSearchMode
+                            ? Colors.white
+                            : const Color(0xFF6366F1),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'AI',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _isAiSearchMode
+                              ? Colors.white
+                              : const Color(0xFF6366F1),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Chip badge untuk filter aktif dari AI Search (Fitur 2)
+  Widget _buildAiFilterBadges() {
+    if (_activeAiFilter == null) return const SizedBox.shrink();
+    final badges = _activeAiFilter!.filterBadges;
+    if (badges.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        children: [
+          ...badges.map((b) => Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFC7D2FE)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.auto_awesome,
+                        size: 12, color: Color(0xFF4338CA)),
+                    const SizedBox(width: 5),
+                    Text(
+                      b,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF4338CA),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+
+  /// Daftar hasil AI Search (Fitur 2) + tombol Asisten Info Konser (Fitur 1)
+  Widget _buildAiSearchResults(bool isDark) {
+    if (_isAiSearching) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48),
+        child: Column(
+          children: [
+            const CircularProgressIndicator(
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'AI sedang mencari konser yang sesuai...',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textGrey,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_activeAiFilter == null && !_isAiSearching) {
+      // Belum ada pencarian — tampilkan panduan + tombol Asisten Info Konser
+      return _buildAiSearchGuide(isDark);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_activeAiFilter != null) _buildAiFilterBadges(),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                _aiSearchResults.isEmpty
+                    ? 'Tidak Ada Hasil'
+                    : 'Hasil AI Search (${_aiSearchResults.length})',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? AppColors.darkText : AppColors.textDark,
+                ),
+              ),
+            ),
+            if (_aiSearchResults.isNotEmpty)
+              Text(
+                '${_aiSearchResults.length} konser',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textGrey,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _aiSearchMessage,
+          style: TextStyle(
+            fontSize: 13,
+            color:
+                isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (_aiSearchResults.isEmpty) ...[
+          _buildEmptyState(),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.tune_rounded, size: 16),
+            label: const Text('Reset & Cari Manual'),
+            onPressed: _clearAiSearch,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF6366F1),
+              side: const BorderSide(color: Color(0xFF6366F1)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ] else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _aiSearchResults.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 14),
+            itemBuilder: (context, index) {
+              return _buildTrendingConcertCard(_aiSearchResults[index]);
+            },
+          ),
+
+        const SizedBox(height: 24),
+        // Tombol Asisten Info Konser AI (Fitur 1) selalu ditampilkan di AI mode
+        _buildAiConcertInfoButton(isDark),
+      ],
+    );
+  }
+
+  Widget _buildAiSearchGuide(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [
+                      const Color(0xFF1E1B4B),
+                      const Color(0xFF312E81).withValues(alpha: 0.5)
+                    ]
+                  : [
+                      const Color(0xFFEEF2FF),
+                      const Color(0xFFF5F3FF)
+                    ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark
+                  ? const Color(0xFF4338CA)
+                  : const Color(0xFFC7D2FE),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.auto_awesome_rounded,
+                      size: 18, color: Color(0xFF6366F1)),
                   const SizedBox(width: 8),
                   Text(
-                    '${_filteredConcerts.length} konser',
+                    'AI Search Aktif',
                     style: TextStyle(
-                      fontSize: 12.5,
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF1E1B4B),
                     ),
                   ),
                 ],
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            if (_filteredConcerts.isEmpty)
-              _buildEmptyState()
-            else
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _filteredConcerts.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 14),
-                itemBuilder: (context, index) {
-                  final concert = _filteredConcerts[index];
-                  return _buildTrendingConcertCard(concert);
-                },
               ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSearchBar() {
-    final isDark = AppColors.isDark(context);
-
-    return Semantics(
-      label: 'Cari artis, venue, atau kota',
-      textField: true,
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurfaceVariant : AppColors.searchBarBg,
-          borderRadius: BorderRadius.circular(14),
-          border: isDark ? Border.all(color: AppColors.darkBorder) : null,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.search,
-              size: 20,
-              color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: _searchController,
-                onChanged: (val) {
-                  _searchQuery = val;
-                  _applyFilters();
-                },
+              const SizedBox(height: 10),
+              Text(
+                'Ketik dengan bahasa alami, contoh:',
                 style: TextStyle(
-                  fontSize: 13.5,
-                  color: isDark ? AppColors.darkText : AppColors.textDark,
+                  fontSize: 13,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textGrey,
                 ),
-                decoration: InputDecoration(
-                  hintText: 'Cari artis, venue, atau kota',
-                  hintStyle: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+              ),
+              const SizedBox(height: 8),
+              ...[
+                '"Konser rock di Malang tahun 2027"',
+                '"Artis indie tiket di bawah 150rb"',
+                '"Konser Hindia atau Barasuara"',
+              ].map(
+                (ex) => Padding(
+                  padding: const EdgeInsets.only(bottom: 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.arrow_right_rounded,
+                          size: 16, color: Color(0xFF6366F1)),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            _searchController.text =
+                                ex.replaceAll('"', '');
+                            _runAiSearch(ex.replaceAll('"', ''));
+                          },
+                          child: Text(
+                            ex,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontStyle: FontStyle.italic,
+                              color: Color(0xFF4338CA),
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.zero,
                 ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _buildAiConcertInfoButton(isDark),
+      ],
+    );
+  }
+
+  Widget _buildAiConcertInfoButton(bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark
+            ? const Color(0xFF1E293B)
+            : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color:
+              isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.forum_outlined, size: 20, color: Color(0xFF6366F1)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Mau tanya detail konser tertentu?',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: isDark ? AppColors.darkText : AppColors.textDark,
               ),
             ),
-            if (_searchQuery.isNotEmpty)
-              IconButton(
-                tooltip: 'Hapus kata kunci pencarian',
-                onPressed: () {
-                  _searchController.clear();
-                  _searchQuery = '';
-                  _applyFilters();
-                },
-                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                padding: EdgeInsets.zero,
-                icon: Icon(
-                  Icons.close_rounded,
-                  size: 18,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
-                ),
+          ),
+          TextButton(
+            onPressed: () => ConcertAiInfoModal.show(context),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF6366F1),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            ),
+            child: const Text(
+              'Tanya AI →',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
               ),
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
+
 
   Widget _buildTopFiltersRow() {
     final isDark = AppColors.isDark(context);

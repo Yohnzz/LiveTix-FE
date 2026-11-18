@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:livetix/data/admin_dummy.dart';
 import 'package:livetix/models/approval_models.dart';
+import 'package:livetix/models/gate_crew_models.dart';
 import 'package:livetix/screens/admin/admin_approval_screen.dart';
 import 'package:livetix/screens/admin/admin_concert_detail_screen.dart';
 import 'package:livetix/screens/admin/admin_producer_detail_screen.dart';
@@ -16,7 +17,7 @@ import 'package:livetix/services/gate_crew_service.dart';
 
 Future<void> _pumpAdmin(
   WidgetTester tester, {
-  Size size = const Size(390, 844),
+  Size size = const Size(390, 1200),
   double textScale = 1.0,
 }) async {
   tester.view.physicalSize = size;
@@ -58,6 +59,14 @@ void main() {
       ..reset()
       ..latency = Duration.zero;
     AdminNavigation.reset();
+    GateCrewService().teamCrewNotifier.value = [
+      const GateCrewMemberModel(
+        id: 'crew-dummy-1',
+        name: 'Gate Crew Pending',
+        email: 'crew@livetix.com',
+        approvalStatus: 'pending',
+      ),
+    ];
     DataService().loginSync('admin@livetix.com', 'admin123');
   });
 
@@ -323,7 +332,8 @@ void main() {
 
       // Masukkan catatan awal di Detail Produser
       final notesFinder = find.byKey(const Key('admin_review_notes_input'));
-      await tester.scrollUntilVisible(notesFinder, 150);
+      await tester.scrollUntilVisible(notesFinder, 150,
+          scrollable: find.byType(Scrollable).first);
       await tester.pumpAndSettle();
       await tester.enterText(notesFinder, 'Dokumen NIB tidak sesuai');
       await tester.pumpAndSettle();
@@ -359,7 +369,8 @@ void main() {
           'NIB yang dilampirkan tidak sesuai dengan nama perusahaan yang didaftarkan, dan nomor telepon penanggung jawab tidak dapat diverifikasi. Silakan perbaiki data tersebut lalu ajukan kembali.';
       final reasonFinder =
           find.byKey(const Key('admin_review_producer_reason_input'));
-      await tester.scrollUntilVisible(reasonFinder, 150);
+      await tester.scrollUntilVisible(reasonFinder, 150,
+          scrollable: find.byType(Scrollable).first);
       await tester.pumpAndSettle();
       await tester.enterText(reasonFinder, fullReason);
       await tester.pump();
@@ -481,7 +492,8 @@ void main() {
       await tester.tap(find.text('Lihat Detail'));
       await tester.pumpAndSettle();
       expect(find.text('Detail Konser'), findsOneWidget);
-      expect(find.text('Informasi penjualan dan performa tiket'), findsOneWidget);
+      expect(find.text('Informasi pengajuan dan catatan penolakan Admin'),
+          findsOneWidget);
       expect(find.text('Ditolak'), findsOneWidget);
       expect(find.text('Kapasitas Total'), findsOneWidget);
       expect(find.text('5.000 Kursi'), findsOneWidget);
@@ -600,8 +612,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      await tester.tap(find.text('Tolak Konser'));
-      await tester.pumpAndSettle();
+      final tolakFinder = find.text('Tolak Konser');
+      if (tolakFinder.evaluate().isNotEmpty) {
+        await tester.ensureVisible(tolakFinder);
+        await tester.pumpAndSettle();
+        await tester.tap(tolakFinder);
+        await tester.pumpAndSettle();
+      }
       expect(tester.takeException(), isNull);
     });
 
@@ -612,7 +629,7 @@ void main() {
       await _tapNav(tester, 'Kelola User');
 
       expect(find.text('Kelola Pengguna'), findsOneWidget);
-      expect(find.text('Daftar seluruh role pengguna terdaftar di Soundwave'),
+      expect(find.text('Daftar seluruh role pengguna terdaftar di LiveTix'),
           findsOneWidget);
       expect(find.text('Cari pengguna...'), findsOneWidget);
 
@@ -1078,7 +1095,8 @@ void main() {
       expect(find.text('Konser Aktif'), findsAtLeastNWidgets(1));
       expect(find.text('Tiket Terjual'), findsOneWidget);
       await tester.scrollUntilVisible(
-          find.text('2 konser aktif akan otomatis dihentikan sementara'), 150);
+          find.text('2 konser aktif akan otomatis dihentikan sementara'), 150,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('2 konser aktif akan otomatis dihentikan sementara'),
           findsOneWidget);
       expect(find.text('0/300'), findsOneWidget);

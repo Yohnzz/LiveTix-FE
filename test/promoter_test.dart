@@ -8,6 +8,12 @@ import 'package:livetix/screens/promoter/verification/producer_verification_flow
 import 'package:livetix/services/promoter_data_service.dart';
 
 void main() {
+  setUp(() {
+    final service = PromoterDataService();
+    service.verificationStatusNotifier.value = 'approved';
+    service.promoterNameNotifier.value = 'Java Promotor';
+  });
+
   testWidgets('PromoterMainScreen renders correctly', (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(

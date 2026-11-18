@@ -194,12 +194,14 @@ class Step1ProducerProfileScreen extends StatelessWidget {
                           color: textColor,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          'Rekening Penerima Dana',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: textColor,
+                        Expanded(
+                          child: Text(
+                            'Rekening Penerima Dana',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: textColor,
+                            ),
                           ),
                         ),
                       ],

@@ -254,14 +254,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Default tema awal pada dummy data adalah Dark
-    expect(find.text('Dark'), findsOneWidget);
+    // Uji toggle mode tampilan (Switch)
+    final initialIsDark = dataService.isDarkModeNotifier.value;
+    expect(find.text(initialIsDark ? 'Dark' : 'Light'), findsOneWidget);
     await tester.tap(find.byType(Switch));
     await tester.pumpAndSettle();
-    expect(find.text('Light'), findsOneWidget);
+    expect(find.text(initialIsDark ? 'Light' : 'Dark'), findsOneWidget);
     await tester.tap(find.byType(Switch));
     await tester.pumpAndSettle();
-    expect(find.text('Dark'), findsOneWidget);
+    expect(find.text(initialIsDark ? 'Dark' : 'Light'), findsOneWidget);
 
     await tester.tap(find.text('Edit profil'));
     await tester.pumpAndSettle();

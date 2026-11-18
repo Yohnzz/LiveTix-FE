@@ -256,6 +256,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                             setSheetState(() {
                                               previewBytes = bytes;
                                             });
+                                            await _dataService.updateProfile(
+                                              profileImageBytes: bytes,
+                                            );
+                                            if (!mounted) return;
+                                            if (!ctx.mounted) return;
+                                            Navigator.pop(ctx);
+                                            _showSuccessFeedback(
+                                              'Foto profil berhasil diperbarui',
+                                            );
                                           }
                                         },
                                   icon: const Icon(
