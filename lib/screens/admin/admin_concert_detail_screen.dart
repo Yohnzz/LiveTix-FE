@@ -68,7 +68,7 @@ class AdminConcertDetailScreen extends StatelessWidget {
         listenable: service.concertsNotifier,
         builder: (context, _) {
           final item = service.concertById(concertId);
-          final canDecide = item?.approvalStatus == ApprovalStatus.pending;
+          final canDecide = item?.approvalStatus == AccountStatus.pending;
           return Scaffold(
             backgroundColor: AdminColors.bgOf(context),
             body: Column(
@@ -76,7 +76,7 @@ class AdminConcertDetailScreen extends StatelessWidget {
                 AdminHeader(
                   eyebrow: 'TINJAUAN PENGAJUAN KONSER',
                   title: 'Detail Konser',
-                  subtitle: item?.approvalStatus == ApprovalStatus.rejected
+                  subtitle: item?.approvalStatus == AccountStatus.rejected
                       ? 'Informasi pengajuan dan catatan penolakan Admin'
                       : 'Periksa detail konser yang diajukan oleh Produser',
                   onBack: () => Navigator.of(context).pop(),
@@ -266,10 +266,10 @@ class _Body extends StatelessWidget {
                 Divider(height: 1, color: border),
                 _buildMetaRow(
                   context,
-                  item.approvalStatus == ApprovalStatus.rejected
+                  item.approvalStatus == AccountStatus.rejected
                       ? 'Kapasitas Total'
                       : 'Total Kapasitas',
-                  item.approvalStatus == ApprovalStatus.rejected
+                  item.approvalStatus == AccountStatus.rejected
                       ? '${ApprovalFormat.thousands(item.totalCapacity).replaceAll(',', '.')} Kursi'
                       : '${ApprovalFormat.thousands(item.totalCapacity)} Kursi',
                 ),
@@ -277,7 +277,7 @@ class _Body extends StatelessWidget {
             ),
           ),
 
-          if (item.approvalStatus == ApprovalStatus.rejected &&
+          if (item.approvalStatus == AccountStatus.rejected &&
               (item.rejectionReason ?? '').isNotEmpty) ...[
             const SizedBox(height: 16),
             AdminCard(

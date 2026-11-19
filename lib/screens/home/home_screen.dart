@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/concert_model.dart';
-import '../../models/ticket_order_model.dart';
 import '../../models/user_model.dart';
 import '../../services/data_service.dart';
+import '../../widgets/notification_bell_button.dart';
 import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
 import '../concert/concert_detail_screen.dart';
@@ -144,8 +144,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_selectedCategoryIndex != 0) {
       final selectedCategory = _categories[_selectedCategoryIndex];
       list = list
-          .where((c) =>
-              c.category.toLowerCase() == selectedCategory.toLowerCase())
+          .where(
+              (c) => c.category.toLowerCase() == selectedCategory.toLowerCase())
           .toList();
     }
 
@@ -173,10 +173,10 @@ class _HomeScreenState extends State<HomeScreen> {
   List<ConcertModel> get _trendingConcerts {
     final sorted = List<ConcertModel>.from(_filteredConcerts);
     sorted.sort((a, b) {
-      final aLikes =
-          _dataService.getConcertLikesCount(a.id) + (_dataService.isFavorite(a.id) ? 1 : 0);
-      final bLikes =
-          _dataService.getConcertLikesCount(b.id) + (_dataService.isFavorite(b.id) ? 1 : 0);
+      final aLikes = _dataService.getConcertLikesCount(a.id) +
+          (_dataService.isFavorite(a.id) ? 1 : 0);
+      final bLikes = _dataService.getConcertLikesCount(b.id) +
+          (_dataService.isFavorite(b.id) ? 1 : 0);
       return bLikes.compareTo(aLikes);
     });
     return sorted.take(_maxTrendingDisplayCount).toList();
@@ -209,12 +209,10 @@ class _HomeScreenState extends State<HomeScreen> {
         final currentUser = _dataService.currentUser;
         return ProfileScreen(
           isGuest: widget.isGuest,
-          userName: widget.isGuest
-              ? 'Guest'
-              : (currentUser?.name ?? widget.userName),
-          userEmail: widget.isGuest
-              ? 'Belum masuk akun'
-              : (currentUser?.email ?? ''),
+          userName:
+              widget.isGuest ? 'Guest' : (currentUser?.name ?? widget.userName),
+          userEmail:
+              widget.isGuest ? 'Belum masuk akun' : (currentUser?.email ?? ''),
           userInitials: widget.isGuest
               ? 'G'
               : (currentUser?.initials ?? widget.userInitials),
@@ -245,7 +243,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final trendingList = _trendingConcerts;
 
     return SingleChildScrollView(
-      padding: EdgeInsets.only(left: 20, right: 20, top: topSpacing, bottom: 20),
+      padding:
+          EdgeInsets.only(left: 20, right: 20, top: topSpacing, bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -290,7 +289,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       'Memuat jadwal konser...',
                       style: TextStyle(
                         fontSize: 13,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.textGrey,
                       ),
                     ),
                   ],
@@ -347,7 +348,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   Icon(
                     Icons.search_off_rounded,
                     size: 40,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textGrey,
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -359,7 +362,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textGrey,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -373,7 +378,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       });
                     },
                     style: TextButton.styleFrom(
-                      foregroundColor: isDark ? AppColors.primaryDark : AppColors.primary,
+                      foregroundColor:
+                          isDark ? AppColors.primaryDark : AppColors.primary,
                       minimumSize: const Size(44, 44),
                     ),
                     child: const Text('Tampilkan Semua Konser'),
@@ -403,10 +409,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   setState(() => _currentNavIndex = 1);
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: isDark ? AppColors.primaryDark : AppColors.primary,
-                  backgroundColor: isDark ? AppColors.darkSurfaceVariant : const Color(0xFFF5F7FF),
+                  foregroundColor:
+                      isDark ? AppColors.primaryDark : AppColors.primary,
+                  backgroundColor: isDark
+                      ? AppColors.darkSurfaceVariant
+                      : const Color(0xFFF5F7FF),
                   side: BorderSide(
-                    color: isDark ? AppColors.darkBorder : const Color(0xFFDCE3F6),
+                    color:
+                        isDark ? AppColors.darkBorder : const Color(0xFFDCE3F6),
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -423,7 +433,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? AppColors.primaryDark : AppColors.primary,
+                          color: isDark
+                              ? AppColors.primaryDark
+                              : AppColors.primary,
                         ),
                       ),
                     ),
@@ -508,7 +520,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: isDark ? AppColors.darkText : AppColors.textDark,
+                          color:
+                              isDark ? AppColors.darkText : AppColors.textDark,
                           letterSpacing: -0.2,
                         ),
                       ),
@@ -520,7 +533,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w500,
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textGrey,
                         ),
                       ),
                     ],
@@ -581,7 +596,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: isDark ? const Color(0x33000000) : const Color(0x0A101828),
+                  color: isDark
+                      ? const Color(0x33000000)
+                      : const Color(0x0A101828),
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
@@ -623,7 +640,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: isDark ? AppColors.darkText : AppColors.textDark,
+                                color: isDark
+                                    ? AppColors.darkText
+                                    : AppColors.textDark,
                                 letterSpacing: -0.2,
                               ),
                             ),
@@ -635,20 +654,26 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w500,
-                                color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.textGrey,
                               ),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(width: 6),
-                      // Ikon Notifikasi dengan badge angka 1 2 3 di sebelah kiri tanda >
-                      _buildNotificationBadgeButton(isDark),
+                      if (!widget.isGuest && _dataService.currentUser != null)
+                        const NotificationBellButton()
+                      else
+                        const SizedBox(width: 44),
                       const SizedBox(width: 4),
                       Icon(
                         Icons.chevron_right_rounded,
                         size: 22,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.textGrey,
                       ),
                     ],
                   ),
@@ -658,298 +683,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
-    );
-  }
-
-  List<Map<String, dynamic>> _getRealNotifications() {
-    if (_dataService.isGuest || _dataService.currentUser == null) {
-      return const [];
-    }
-    final tickets = _dataService.userTicketsNotifier.value;
-    if (tickets.isEmpty) {
-      return const [];
-    }
-
-    final List<Map<String, dynamic>> items = [];
-    final activeTickets = tickets
-        .where((t) => t.status == 'Aktif' && !t.isCompleted && !t.isCancelled)
-        .toList();
-    final cancelledTickets =
-        tickets.where((t) => t.status == 'Reffund' || t.isCancelled).toList();
-
-    for (final ticket in activeTickets.take(3)) {
-      items.add({
-        'icon': Icons.confirmation_number_outlined,
-        'title': 'Tiket Konser Terbit',
-        'desc':
-            'E-tiket resmi dan QR Code gate ${ticket.concertTitle} (${ticket.category}) sudah aktif dan siap digunakan.',
-        'time': 'Aktif',
-      });
-      if (ticket.date.isNotEmpty &&
-          ticket.date != 'Jadwal Segera Diumumkan' &&
-          ticket.date != 'null') {
-        items.add({
-          'icon': Icons.event_available_rounded,
-          'title': 'Jadwal Konser',
-          'desc':
-              'Konser ${ticket.concertTitle} dijadwalkan pada ${ticket.date} di ${ticket.venue}.',
-          'time': ticket.daysLeft > 0 ? '${ticket.daysLeft} hari lagi' : 'Mendatang',
-        });
-      }
-    }
-
-    for (final ticket in cancelledTickets.take(2)) {
-      items.add({
-        'icon': Icons.replay_circle_filled_rounded,
-        'title': 'Pemberitahuan Refund',
-        'desc':
-            'Konser ${ticket.concertTitle} dibatalkan. Pengembalian dana tiket Anda sedang diproses oleh pihak penyelenggara.',
-        'time': 'Proses Refund',
-      });
-    }
-
-    return items;
-  }
-
-  /// Tombol notifikasi interaktif dengan badge penomoran di atas titik berdasarkan data real database
-  Widget _buildNotificationBadgeButton(bool isDark) {
-    return ValueListenableBuilder<List<UserTicketModel>>(
-      valueListenable: _dataService.userTicketsNotifier,
-      builder: (context, _, __) {
-        final notifs = _getRealNotifications();
-        final count = notifs.length;
-
-        return Semantics(
-          button: true,
-          label: count > 0 ? 'Notifikasi, $count pesan baru' : 'Notifikasi',
-          child: Tooltip(
-            message: 'Notifikasi',
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              child: InkWell(
-                onTap: _showNotificationsSheet,
-                borderRadius: BorderRadius.circular(12),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                  child: Padding(
-                    padding: const EdgeInsets.all(6),
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      alignment: Alignment.center,
-                      children: [
-                        Icon(
-                          Icons.notifications_outlined,
-                          size: 24,
-                          color: isDark ? AppColors.darkText : AppColors.textDark,
-                        ),
-                        if (count > 0)
-                          Positioned(
-                            top: 4,
-                            right: 4,
-                            child: Container(
-                              padding: const EdgeInsets.all(1.5),
-                              constraints: const BoxConstraints(
-                                minWidth: 16,
-                                minHeight: 16,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE11D48),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: isDark ? AppColors.darkSurface : Colors.white,
-                                  width: 1.5,
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                '$count',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.0,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// Membuka lembar notifikasi interaktif saat ikon lonceng diklik
-  void _showNotificationsSheet() {
-    final isDark = AppColors.isDark(context);
-    final notifs = _getRealNotifications();
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF475569) : const Color(0xFFD0D5DD),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Notifikasi',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? AppColors.darkText : AppColors.textDark,
-                      ),
-                    ),
-                    Text(
-                      notifs.isNotEmpty ? '${notifs.length} baru' : '0 baru',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.primaryDark : AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (notifs.isEmpty)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Text(
-                        'Belum ada notifikasi transaksi atau tiket.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  ...notifs.map((n) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildNotificationItem(
-                        icon: n['icon'] as IconData,
-                        title: n['title'] as String,
-                        desc: n['desc'] as String,
-                        time: n['time'] as String,
-                        isDark: isDark,
-                      ),
-                    );
-                  }),
-              ],
-            ),
-          ),
-        ),
-      );
-    },
-    );
-  }
-
-  Widget _buildNotificationItem({
-    required IconData icon,
-    required String title,
-    required String desc,
-    required String time,
-    required bool isDark,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceVariant : const Color(0xFFF8F9FC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.border,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE0EAFF),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              icon,
-              size: 20,
-              color: isDark ? AppColors.primaryDark : AppColors.primary,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? AppColors.darkText : AppColors.textDark,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      time,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  desc,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -991,7 +724,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   hintText: 'Cari artis atau venue',
                   hintStyle: TextStyle(
                     fontSize: 13,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textGrey,
                   ),
                   border: InputBorder.none,
                   isDense: true,
@@ -1013,7 +748,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icon(
                   Icons.close_rounded,
                   size: 18,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
+                  color:
+                      isDark ? AppColors.darkTextSecondary : AppColors.textGrey,
                 ),
               ),
           ],
@@ -1038,7 +774,9 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'Filter Disukai',
               child: Material(
                 color: _isFavoriteFilterActive
-                    ? (isDark ? const Color(0xFF831843) : const Color(0xFFFCE7F3))
+                    ? (isDark
+                        ? const Color(0xFF831843)
+                        : const Color(0xFFFCE7F3))
                     : (isDark ? AppColors.darkSurface : Colors.white),
                 borderRadius: BorderRadius.circular(22),
                 child: InkWell(
@@ -1060,7 +798,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       border: Border.all(
                         color: _isFavoriteFilterActive
                             ? AppColors.favoritePink
-                            : (isDark ? AppColors.darkBorder : AppColors.border),
+                            : (isDark
+                                ? AppColors.darkBorder
+                                : AppColors.border),
                         width: _isFavoriteFilterActive ? 1.5 : 1.0,
                       ),
                     ),
@@ -1074,7 +814,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           size: 16,
                           color: _isFavoriteFilterActive
                               ? AppColors.favoritePink
-                              : (isDark ? AppColors.darkTextSecondary : AppColors.textGrey),
+                              : (isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textGrey),
                         ),
                         const SizedBox(width: 6),
                         Text(
@@ -1085,8 +827,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ? FontWeight.w700
                                 : FontWeight.w500,
                             color: _isFavoriteFilterActive
-                                ? (isDark ? const Color(0xFFF472B6) : AppColors.favoritePink)
-                                : (isDark ? AppColors.darkText : AppColors.textDark),
+                                ? (isDark
+                                    ? const Color(0xFFF472B6)
+                                    : AppColors.favoritePink)
+                                : (isDark
+                                    ? AppColors.darkText
+                                    : AppColors.textDark),
                           ),
                         ),
                       ],
@@ -1171,9 +917,11 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             children: [
               Expanded(child: _buildNavItem(Icons.home_filled, 'Beranda', 0)),
-              Expanded(child: _buildNavItem(Icons.explore_outlined, 'Jelajah', 1)),
               Expanded(
-                child: _buildNavItem(Icons.confirmation_number_outlined, 'Tiket', 2),
+                  child: _buildNavItem(Icons.explore_outlined, 'Jelajah', 1)),
+              Expanded(
+                child: _buildNavItem(
+                    Icons.confirmation_number_outlined, 'Tiket', 2),
               ),
               Expanded(
                 child: _buildNavItem(Icons.person_outline_rounded, 'Akun', 3),
@@ -1189,7 +937,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final isDark = AppColors.isDark(context);
     final isSelected = _currentNavIndex == index;
     final activeColor = isDark ? AppColors.primaryDark : AppColors.primary;
-    final inactiveColor = isDark ? AppColors.darkTextSecondary : AppColors.textGrey;
+    final inactiveColor =
+        isDark ? AppColors.darkTextSecondary : AppColors.textGrey;
 
     return Semantics(
       button: true,

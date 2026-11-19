@@ -26,6 +26,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   void initState() {
     super.initState();
     _searchController.addListener(() => setState(() {}));
+    // Status akun harus selalu versi terbaru dari database saat halaman dibuka.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _service.load(force: true);
+    });
   }
 
   @override

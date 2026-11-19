@@ -7,6 +7,7 @@ import '../../services/data_service.dart';
 import '../../services/gate_crew_service.dart';
 import '../../services/promoter_data_service.dart';
 import '../../utils/file_picker_helper.dart';
+import '../../widgets/notification_bell_button.dart';
 import '../auth/login_screen.dart';
 import '../promoter/producer_customer_service_screen.dart';
 
@@ -758,9 +759,8 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
   @override
   Widget build(BuildContext context) {
     final UserModel? user = DataService().currentUser;
-    final String crewName = user?.name.isNotEmpty == true
-        ? user!.name
-        : 'Petugas Gate';
+    final String crewName =
+        user?.name.isNotEmpty == true ? user!.name : 'Petugas Gate';
 
     final crewService = GateCrewService();
 
@@ -807,13 +807,17 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                   ),
                 ),
                 const SizedBox(width: 6),
-                const Text(
-                  'GATE CREW',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                    color: Colors.white,
+                const Flexible(
+                  child: Text(
+                    'GATE CREW',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ],
@@ -830,6 +834,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
           ],
         ),
         actions: [
+          const NotificationBellButton(color: Colors.white),
           ValueListenableBuilder<bool>(
             valueListenable: DataService().isDarkModeNotifier,
             builder: (context, isDark, _) => IconButton(
@@ -1146,6 +1151,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
           ],
         ),
         actions: [
+          const NotificationBellButton(color: Colors.white),
           ValueListenableBuilder<bool>(
             valueListenable: DataService().isDarkModeNotifier,
             builder: (context, isDark, _) => IconButton(

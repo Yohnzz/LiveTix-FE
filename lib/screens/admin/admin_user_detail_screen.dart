@@ -6,24 +6,70 @@ import 'widgets/admin_widgets.dart';
 
 /// Layar Detail Pengguna (Image 5): Menampilkan profil, metrik tiket & konser,
 /// info akun, status aktif, riwayat transaksi, dan aksi nonaktifkan akun.
-class AdminUserDetailScreen extends StatelessWidget {
+class AdminUserDetailScreen extends StatefulWidget {
   final String userId;
 
   const AdminUserDetailScreen({super.key, required this.userId});
 
-  Future<void> _toggleStatus(BuildContext context, ManagedUserModel user) async {
-    final willDeactivate = user.isActive;
+  @override
+  State<AdminUserDetailScreen> createState() => _AdminUserDetailScreenState();
+}
+
+class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
+  final AdminService _service = AdminService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Status akun harus berasal dari database terbaru, bukan cache lama.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _service.load(force: true);
+    });
+  }
+
+  /// Menonaktifkan akun User. Alasan wajib diisi sebelum tombol aktif.
+  Future<void> _deactivateUser(
+      BuildContext context, ManagedUserModel user) async {
+    final reason = await _askDeactivationReason(context, user);
+    if (reason == null || !context.mounted) return;
+
+    final updated = _service.deactivateUser(user.id, reason);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          updated != null
+              ? 'Akun ${user.name} berhasil dinonaktifkan'
+              : 'Akun tidak dapat dinonaktifkan. Muat ulang data lalu coba lagi.',
+        ),
+        backgroundColor:
+            updated != null ? const Color(0xFF166534) : const Color(0xFFB91C1C),
+      ),
+    );
+  }
+
+  /// Dialog alasan penonaktifan. Mengembalikan null bila admin membatalkan.
+  Future<String?> _askDeactivationReason(
+      BuildContext context, ManagedUserModel user) async {
+    return showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => _DeactivateUserDialog(user: user),
+    );
+  }
+
+  Future<void> _activateUser(
+      BuildContext context, ManagedUserModel user) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(
-          willDeactivate ? 'Nonaktifkan Akun?' : 'Aktifkan Akun?',
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        title: const Text(
+          'Aktifkan Akun?',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         content: Text(
-          willDeactivate
-              ? 'Pengguna ${user.name} tidak akan dapat login atau bertransaksi selama akun dinonaktifkan.'
-              : 'Akun ${user.name} akan diaktifkan kembali.',
+          'Akun ${user.name} akan diaktifkan kembali, alasan penonaktifan '
+          'dikosongkan, dan pengguna dapat login serta bertransaksi seperti biasa.',
           style: const TextStyle(fontSize: 14),
         ),
         actions: [
@@ -36,27 +82,28 @@ class AdminUserDetailScreen extends StatelessWidget {
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(
               minimumSize: const Size(64, 44),
-              backgroundColor:
-                  willDeactivate ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+              backgroundColor: const Color(0xFF16A34A),
             ),
-            child: Text(willDeactivate ? 'Nonaktifkan' : 'Aktifkan'),
+            child: const Text('Aktifkan'),
           ),
         ],
       ),
     );
 
-    if (confirmed == true && context.mounted) {
-      AdminService().toggleUserActive(user.id);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            willDeactivate
-                ? 'Akun ${user.name} berhasil dinonaktifkan'
-                : 'Akun ${user.name} berhasil diaktifkan',
-          ),
+    if (confirmed != true || !context.mounted) return;
+    final updated = _service.activateUser(user.id);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          updated != null
+              ? 'Akun ${user.name} berhasil diaktifkan'
+              : 'Akun tidak dapat diaktifkan. Muat ulang data lalu coba lagi.',
         ),
-      );
-    }
+        backgroundColor:
+            updated != null ? const Color(0xFF166534) : const Color(0xFFB91C1C),
+      ),
+    );
   }
 
   Future<void> _showChangeNameDialog(
@@ -145,12 +192,11 @@ class AdminUserDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final service = AdminService();
     return AdminScope(
       child: ListenableBuilder(
-        listenable: service.usersNotifier,
+        listenable: _service.usersNotifier,
         builder: (context, _) {
-          final user = service.userById(userId);
+          final user = _service.userById(widget.userId);
           return Scaffold(
             backgroundColor: AdminColors.bgOf(context),
             body: Column(
@@ -378,46 +424,9 @@ class AdminUserDetailScreen extends StatelessWidget {
                       Expanded(
                         child: Align(
                           alignment: Alignment.centerRight,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: user.isActive
-                                  ? AdminColors.successBgOf(context)
-                                  : AdminColors.dangerBgOf(context),
-                              border: Border.all(
-                                color: user.isActive
-                                    ? AdminColors.successBorderOf(context)
-                                    : AdminColors.dangerBorderOf(context),
-                              ),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: user.isActive
-                                        ? AdminColors.successOf(context)
-                                        : AdminColors.dangerOf(context),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  user.isActive ? 'Aktif' : 'Nonaktif',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: user.isActive
-                                        ? AdminColors.successOf(context)
-                                        : AdminColors.dangerOf(context),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          child: StatusBadge(
+                            status: user.approvalStatus,
+                            label: user.approvalStatus.userLabel,
                           ),
                         ),
                       ),
@@ -427,6 +436,45 @@ class AdminUserDetailScreen extends StatelessWidget {
               ],
             ),
           ),
+
+          if (user.statusReason != null) ...[
+            const SizedBox(height: 16),
+            AdminCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        user.approvalStatus.icon,
+                        size: 18,
+                        color: user.approvalStatus.color,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Alasan Penonaktifan',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: textPri,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    user.statusReason!,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: textSec,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           const SizedBox(height: 20),
 
@@ -585,7 +633,9 @@ class AdminUserDetailScreen extends StatelessWidget {
     final toggleButton = SizedBox(
       height: 48,
       child: OutlinedButton(
-        onPressed: () => _toggleStatus(context, user),
+        onPressed: () => willDeactivate
+            ? _deactivateUser(context, user)
+            : _activateUser(context, user),
         style: OutlinedButton.styleFrom(
           backgroundColor: willDeactivate
               ? AdminColors.dangerBgOf(context)
@@ -603,7 +653,7 @@ class AdminUserDetailScreen extends StatelessWidget {
           ),
         ),
         child: Text(
-          willDeactivate ? 'Nonaktifkan Akun' : 'Aktifkan Akun',
+          willDeactivate ? 'Nonaktifkan Akun' : 'Aktifkan Akun User',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
@@ -650,6 +700,99 @@ class AdminUserDetailScreen extends StatelessWidget {
               )
             : toggleButton,
       ),
+    );
+  }
+}
+
+/// Dialog alasan penonaktifan yang memiliki controller sendiri, sehingga
+/// controller tidak dibuang saat animasi dialog masih berjalan.
+class _DeactivateUserDialog extends StatefulWidget {
+  final ManagedUserModel user;
+
+  const _DeactivateUserDialog({required this.user});
+
+  @override
+  State<_DeactivateUserDialog> createState() => _DeactivateUserDialogState();
+}
+
+class _DeactivateUserDialogState extends State<_DeactivateUserDialog> {
+  final TextEditingController _controller = TextEditingController();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.of(context).pop(_controller.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'Nonaktifkan Akun?',
+        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+      ),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Pengguna ${widget.user.name} tidak akan dapat login atau '
+              'bertransaksi selama akun dinonaktifkan. Alasan wajib diisi dan '
+              'akan ditampilkan kepada pengguna.',
+              style: const TextStyle(fontSize: 13.5, height: 1.45),
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              key: const Key('admin_user_deactivate_reason_input'),
+              controller: _controller,
+              autofocus: true,
+              minLines: 3,
+              maxLines: 5,
+              maxLength: 300,
+              textInputAction: TextInputAction.newline,
+              decoration: InputDecoration(
+                labelText: 'Alasan Penonaktifan',
+                hintText: 'Contoh: pelanggaran ketentuan pembelian tiket.',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              validator: (value) {
+                final text = value?.trim() ?? '';
+                if (text.isEmpty) return 'Alasan wajib diisi';
+                if (text.length < 5) return 'Alasan minimal 5 karakter';
+                return null;
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: TextButton.styleFrom(minimumSize: const Size(64, 44)),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          key: const Key('admin_user_deactivate_confirm_button'),
+          onPressed: _submit,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(64, 44),
+            backgroundColor: const Color(0xFFDC2626),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Nonaktifkan'),
+        ),
+      ],
     );
   }
 }

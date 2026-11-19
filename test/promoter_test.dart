@@ -357,7 +357,7 @@ void main() {
     bool contactAdminCalled = false;
     bool logoutCalled = false;
 
-    PromoterDataService().rejectionReasonNotifier.value =
+    PromoterDataService().deactivationReasonNotifier.value =
         'Pelanggaran syarat dan ketentuan promotor';
 
     await tester.pumpWidget(

@@ -245,7 +245,7 @@ class PaymentGatewayService {
         qrString: qrStr,
         deeplinkUrl: deepUrl,
         vaNumber: va,
-        expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+        expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 15)),
       );
     }
 
@@ -258,7 +258,7 @@ class PaymentGatewayService {
       final sanitizedUid =
           (rawUid != null && uuidRegex.hasMatch(rawUid)) ? rawUid : null;
       final expIso =
-          (authoritativeExpiry ?? DateTime.now().toUtc().add(const Duration(hours: 1)))
+          (authoritativeExpiry ?? DateTime.now().toUtc().add(const Duration(minutes: 15)))
               .toUtc()
               .toIso8601String();
 

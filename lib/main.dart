@@ -8,6 +8,7 @@ import 'screens/gate_crew/gate_crew_main_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/data_service.dart';
 import 'services/network_status_service.dart';
+import 'services/notification_service.dart';
 import 'services/supabase_service.dart';
 import 'utils/local_storage.dart';
 
@@ -36,6 +37,8 @@ void main() async {
   } catch (e) {
     debugPrint('Gagal memulihkan sesi Supabase: $e');
   }
+
+  await NotificationService().initialize();
 
   // Sembunyikan status bar atas jika didukung platform agar tampilan lebih bersih
   SystemChrome.setEnabledSystemUIMode(

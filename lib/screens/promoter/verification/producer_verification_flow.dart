@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/account_status.dart';
 import '../../../services/data_service.dart';
 import '../../../services/promoter_data_service.dart';
 import '../../../utils/file_picker_helper.dart';
@@ -916,14 +917,18 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
                 .verificationStatusNotifier
                 .value
                 .toLowerCase();
-            if (currentStatus == 'approved') {
+            if (currentStatus == AccountStatus.approved.value) {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
                   builder: (_) => const PromoterPinLockScreen(),
                 ),
               );
-            } else if (currentStatus == 'rejected') {
+            } else if (currentStatus == AccountStatus.nonaktif.value) {
+              setState(() {
+                _currentStage = ProducerVerificationStage.akunDinonaktifkan;
+              });
+            } else if (currentStatus == AccountStatus.rejected.value) {
               setState(() {
                 _currentStage = ProducerVerificationStage.approvalDitolak;
               });

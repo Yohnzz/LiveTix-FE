@@ -37,7 +37,13 @@ Future<void> _pumpAdmin(
 }
 
 Future<void> _tapTab(WidgetTester tester, String label) async {
-  final finder = find.text(label);
+  // Tab boleh menampilkan jumlah di belakang label, mis. "Ditolak (1)".
+  final finder = find
+      .byWidgetPredicate((widget) =>
+          widget is Text &&
+          (widget.data == label ||
+              (widget.data?.startsWith('$label (') ?? false)))
+      .first;
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
   await tester.tap(finder);
@@ -455,8 +461,8 @@ void main() {
       await tester.tap(find.text('Tolak Konser'));
       await tester.pumpAndSettle();
       expect(find.text('Tinjau Konser'), findsOneWidget);
-      expect(find.text('Periksa pengajuan dan berikan keputusan'),
-          findsOneWidget);
+      expect(
+          find.text('Periksa pengajuan dan berikan keputusan'), findsOneWidget);
       expect(find.text('Kapasitas Total'), findsOneWidget);
       expect(find.text('5.000 Kursi'), findsOneWidget);
       expect(find.text('Alasan Penolakan'), findsOneWidget);
@@ -728,24 +734,32 @@ void main() {
       await tester.tap(find.text('Nonaktifkan Akun'));
       await tester.pumpAndSettle();
 
-      // Dialog Konfirmasi
+      // Dialog Konfirmasi: alasan wajib diisi sebelum akun dinonaktifkan
       expect(find.text('Nonaktifkan Akun?'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('admin_user_deactivate_reason_input')),
+        'Pelanggaran ketentuan pembelian tiket.',
+      );
       await tester.tap(find.text('Nonaktifkan'));
       await tester.pumpAndSettle();
 
-      // Status berubah menjadi Nonaktif dan tombol berubah menjadi Aktifkan Akun
+      // Status berubah menjadi Nonaktif, alasan tampil, tombol menjadi Aktifkan
       expect(find.text('Nonaktif'), findsOneWidget);
-      expect(find.text('Aktifkan Akun'), findsOneWidget);
+      expect(find.text('Alasan Penonaktifan'), findsOneWidget);
+      expect(
+          find.text('Pelanggaran ketentuan pembelian tiket.'), findsOneWidget);
+      expect(find.text('Aktifkan Akun User'), findsOneWidget);
       expect(AdminService().userById('usr-001')?.isActive, false);
 
       // Aktifkan kembali
-      await tester.tap(find.text('Aktifkan Akun'));
+      await tester.tap(find.text('Aktifkan Akun User'));
       await tester.pumpAndSettle();
       expect(find.text('Aktifkan Akun?'), findsOneWidget);
       await tester.tap(find.text('Aktifkan'));
       await tester.pumpAndSettle();
 
       expect(find.text('Aktif'), findsOneWidget);
+      expect(find.text('Alasan Penonaktifan'), findsNothing);
       expect(find.text('Nonaktifkan Akun'), findsOneWidget);
       expect(AdminService().userById('usr-001')?.isActive, true);
 
@@ -824,8 +838,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('btn_tambah_gatecrew')));
       await tester.pumpAndSettle();
       expect(find.text('Tambah Gate Crew'), findsOneWidget);
-      await tester.enterText(
-          find.widgetWithText(TextFormField, 'Nama Petugas'),
+      await tester.enterText(find.widgetWithText(TextFormField, 'Nama Petugas'),
           'Test Crew Alpha');
       await tester.enterText(
           find.widgetWithText(TextFormField, 'Email Petugas'),
@@ -847,7 +860,8 @@ void main() {
       );
 
       // 5. Hapus Gate Crew langsung lewat ikon hapus pada kartu pengguna
-      await tester.tap(find.byKey(ValueKey('btn_delete_gatecrew_${alphaCrew.id}')));
+      await tester
+          .tap(find.byKey(ValueKey('btn_delete_gatecrew_${alphaCrew.id}')));
       await tester.pumpAndSettle();
       expect(find.text('Hapus Gate Crew?'), findsOneWidget);
       await tester.tap(find.widgetWithText(FilledButton, 'Hapus'));
@@ -873,8 +887,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('btn_tambah_gatecrew')));
       await tester.pumpAndSettle();
       await tester.enterText(
-          find.widgetWithText(TextFormField, 'Nama Petugas'),
-          'Test Crew Beta');
+          find.widgetWithText(TextFormField, 'Nama Petugas'), 'Test Crew Beta');
       await tester.enterText(
           find.widgetWithText(TextFormField, 'Email Petugas'),
           'test.beta@livetix.com');
@@ -1123,12 +1136,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Akun Nonaktif'), findsOneWidget);
-      expect(find.text('Penonaktifan Akun User'), findsOneWidget);
+      expect(find.text('Penonaktifan Akun Produser'), findsOneWidget);
       expect(find.text('Nama Produser'), findsOneWidget);
       expect(find.text('CV Musik Nusantara'), findsOneWidget);
-      expect(find.text('Tanggal Penolakan'), findsOneWidget);
-      expect(find.text('Ditolak'), findsOneWidget);
-      expect(find.text('Alasan Penolakan'), findsOneWidget);
+      expect(find.text('Tanggal Penonaktifan'), findsOneWidget);
+      expect(find.text('Nonaktif'), findsOneWidget);
+      expect(find.text('Alasan Penonaktifan'), findsOneWidget);
       expect(
           find.text(
               'Akun terindikasi menjual tiket di luar sistem resmi dan menerima 6 laporan pembeli dalam 30 hari terakhir. Akun dinonaktifkan sementara menunggu klarifikasi produser.'),
@@ -1141,14 +1154,15 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Detail Produser'), findsOneWidget);
-      expect(find.text('Profil produser yang telah disetujui'), findsOneWidget);
-      expect(find.text('Nonaktif · 24 Okt 2026'), findsOneWidget);
+      expect(find.text('Profil produser yang dinonaktifkan'), findsOneWidget);
+      expect(find.text('Nonaktif'), findsOneWidget);
       expect(find.text('Statistik Produser'), findsOneWidget);
       expect(find.text('Konser Diajukan'), findsOneWidget);
       expect(find.text('Konser Dihentikan'), findsOneWidget);
       expect(find.text('Tiket Terjual'), findsOneWidget);
       expect(find.text('12,450'), findsOneWidget);
       expect(find.text('Nonaktifkan Produser'), findsNothing);
+      expect(find.text('Aktifkan Akun Produser'), findsOneWidget);
     });
 
     testWidgets(
@@ -1185,7 +1199,7 @@ void main() {
     });
 
     testWidgets(
-        'Layar Notifikasi Super Admin (Image 3): tab Semua (5), Approval, Sistem, badge belum dibaca, dan klik item',
+        'Layar Notifikasi Super Admin tidak menampilkan notifikasi dummy',
         (tester) async {
       await _pumpAdmin(tester);
 
@@ -1199,46 +1213,31 @@ void main() {
       expect(find.text('Notifikasi'), findsOneWidget);
       expect(find.text('Aktivitas dan log sistem terbaru'), findsOneWidget);
 
-      // Tab bar Semua (5), Approval, Sistem
-      expect(find.text('Semua (5)'), findsOneWidget);
+      // Tab categories remain available; database-backed local state is empty.
+      expect(find.text('Semua'), findsOneWidget);
       expect(find.text('Approval'), findsOneWidget);
       expect(find.text('Sistem'), findsOneWidget);
+      expect(find.text('Semua (5)'), findsNothing);
+      expect(find.text('Tidak ada notifikasi'), findsOneWidget);
+      expect(find.text('Pendaftaran Produser Baru'), findsNothing);
+      expect(find.text('Pengguna Baru'), findsNothing);
 
-      // 5 Notifikasi awal di tab Semua
-      expect(find.text('Pendaftaran Produser Baru'), findsOneWidget);
-      expect(find.text('Konser Baru Diajukan'), findsOneWidget);
-      expect(find.text('Approval Berhasil'), findsOneWidget);
-      expect(find.text('Pengguna Baru'), findsOneWidget);
-      expect(find.text('Laporan Mingguan'), findsOneWidget);
-
-      // Filter tab Approval -> 3 item
       await tester.tap(find.text('Approval'));
       await tester.pumpAndSettle();
-      expect(find.text('Pendaftaran Produser Baru'), findsOneWidget);
-      expect(find.text('Konser Baru Diajukan'), findsOneWidget);
-      expect(find.text('Approval Berhasil'), findsOneWidget);
-      expect(find.text('Pengguna Baru'), findsNothing);
-      expect(find.text('Laporan Mingguan'), findsNothing);
+      expect(find.text('Tidak ada notifikasi'), findsOneWidget);
 
-      // Filter tab Sistem -> 2 item
       await tester.tap(find.text('Sistem'));
       await tester.pumpAndSettle();
-      expect(find.text('Pengguna Baru'), findsOneWidget);
-      expect(find.text('Laporan Mingguan'), findsOneWidget);
       expect(find.text('Pendaftaran Produser Baru'), findsNothing);
+      expect(find.text('Tidak ada notifikasi'), findsOneWidget);
 
-      // Kembali ke tab Semua dan klik Pendaftaran Produser Baru -> buka Detail Produser
-      await tester.tap(find.text('Semua (5)'));
+      await tester.tap(find.text('Semua'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Pendaftaran Produser Baru'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Detail Produser'), findsOneWidget);
-      expect(find.text('PT Harmony Entertainment'), findsOneWidget);
+      expect(find.text('Tidak ada notifikasi'), findsOneWidget);
     });
 
     testWidgets(
-        'Detail Produser nonaktif (Image 1): status Nonaktif · 24 Okt 2026, Statistik Produser (Konser Dihentikan: 5), dan tanpa tombol aksi',
+        'Detail Produser nonaktif (Image 1): status Nonaktif, Statistik Produser (Konser Dihentikan: 5), alasan nonaktif, dan tombol aktifkan kembali',
         (tester) async {
       final service = AdminService();
       await service.load();
@@ -1258,14 +1257,19 @@ void main() {
 
       // Image 1: Header
       expect(find.text('Detail Produser'), findsOneWidget);
-      expect(find.text('Profil produser yang telah disetujui'), findsOneWidget);
+      expect(find.text('Profil produser yang dinonaktifkan'), findsOneWidget);
 
       // Kartu info produser
       expect(find.text('PT Harmony Entertainment'), findsOneWidget);
       expect(find.text('harmony@email.com'), findsOneWidget);
-      expect(find.text('Nonaktif · 24 Okt 2026'), findsOneWidget);
+      expect(find.text('Nonaktif'), findsOneWidget);
       expect(find.text('0812 3456 7890'), findsOneWidget);
       expect(find.text('Jl. Sudirman No. 45, Jakarta'), findsOneWidget);
+
+      // Alasan penonaktifan dari admin ikut tampil
+      expect(find.text('Alasan Penonaktifan'), findsOneWidget);
+      expect(
+          find.text('Pelanggaran kebijakan penjualan tiket.'), findsOneWidget);
 
       // Statistik Produser
       expect(find.text('Statistik Produser'), findsOneWidget);
@@ -1276,7 +1280,8 @@ void main() {
       expect(find.text('5'), findsOneWidget);
       expect(find.text('12,450'), findsOneWidget);
 
-      // Tanpa tombol aksi di bottomBar
+      // Aksi yang tersedia hanya mengaktifkan kembali akun
+      expect(find.text('Aktifkan Akun Produser'), findsOneWidget);
       expect(find.text('Nonaktifkan Produser'), findsNothing);
       expect(find.text('Setujui Produser'), findsNothing);
     });
@@ -1289,8 +1294,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Approval Konser'), findsOneWidget);
-      expect(find.text('Verifikasi pengajuan tayang konser baru'),
-          findsOneWidget);
+      expect(
+          find.text('Verifikasi pengajuan tayang konser baru'), findsOneWidget);
       expect(find.text('Menunggu (3)'), findsOneWidget);
 
       // Avatar Inisial dua huruf (Image 2)
@@ -1388,7 +1393,8 @@ void main() {
       expect(find.text('Soundwave Fest 2026'), findsOneWidget);
       expect(find.text('Dibatalkan'), findsOneWidget);
       expect(find.text('1,860 orang · Rp2.115.000.000'), findsOneWidget);
-      expect(find.text('Pembeli dan produser sudah dinotifikasi.'), findsOneWidget);
+      expect(find.text('Pembeli dan produser sudah dinotifikasi.'),
+          findsOneWidget);
       expect(find.text('Lihat Pantau Refund'), findsOneWidget);
       expect(find.text('Kembali ke Beranda'), findsOneWidget);
       expect(AdminService().concertById('cnc-001')?.status, 'cancelled');
@@ -1398,7 +1404,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Monitoring Refund'), findsOneWidget);
-      expect(find.text('Pantau pengembalian dana konser dibatalkan'), findsOneWidget);
+      expect(find.text('Pantau pengembalian dana konser dibatalkan'),
+          findsOneWidget);
       expect(find.text('Total dikembalikan'), findsOneWidget);
       expect(find.text('Rp1,74 M'), findsOneWidget);
       expect(find.text('Perlu tindakan'), findsOneWidget);
@@ -1435,8 +1442,10 @@ void main() {
       expect(find.text('Belum ada'), findsOneWidget);
       expect(find.text('Tiket terjual'), findsOneWidget);
       expect(find.text('0 / 5,000'), findsOneWidget);
-      expect(find.text('Tidak ada pembeli, jadi tidak ada refund.'), findsOneWidget);
-      expect(find.text('Konser langsung ditutup setelah disetujui.'), findsOneWidget);
+      expect(find.text('Tidak ada pembeli, jadi tidak ada refund.'),
+          findsOneWidget);
+      expect(find.text('Konser langsung ditutup setelah disetujui.'),
+          findsOneWidget);
 
       // Bottom bar
       expect(find.text('Tolak Pembatalan'), findsOneWidget);
@@ -1470,7 +1479,8 @@ void main() {
 
       // Image 2: Monitoring Refund
       expect(find.text('Monitoring Refund'), findsOneWidget);
-      expect(find.text('Pantau pengembalian dana konser dibatalkan'), findsOneWidget);
+      expect(find.text('Pantau pengembalian dana konser dibatalkan'),
+          findsOneWidget);
       expect(find.text('Total dikembalikan'), findsOneWidget);
       expect(find.text('Rp1,74 M'), findsOneWidget);
       expect(find.text('Perlu tindakan'), findsOneWidget);
@@ -1567,7 +1577,8 @@ void main() {
 
       // Form
       expect(find.text('Alasan Penolakan'), findsOneWidget);
-      expect(find.text('Wajib diisi, akan dikirim ke produser'), findsOneWidget);
+      expect(
+          find.text('Wajib diisi, akan dikirim ke produser'), findsOneWidget);
       expect(find.text('Bukti kurang'), findsOneWidget);
       expect(find.text('Dokumen tidak valid'), findsOneWidget);
       expect(find.text('0/500'), findsOneWidget);

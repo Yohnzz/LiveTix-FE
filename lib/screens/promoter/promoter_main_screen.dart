@@ -7,6 +7,7 @@ import 'promoter_dashboard_screen.dart';
 import 'promoter_finance_screen.dart';
 import 'promoter_profile_screen.dart';
 import 'promoter_team_screen.dart';
+import 'promoter_pin_lock_screen.dart';
 
 class PromoterMainScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -19,11 +20,45 @@ class PromoterMainScreen extends StatefulWidget {
 
 class _PromoterMainScreenState extends State<PromoterMainScreen> {
   late int _currentIndex;
+  final PromoterDataService _promoterService = PromoterDataService();
+  bool _isRedirecting = false;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialTabIndex;
+    // Pastikan status akun selalu versi terbaru dari database saat dasbor dibuka.
+    _promoterService.verificationStatusNotifier.addListener(_onStatusChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _promoterService.loadProducerProfileFromSupabase();
+      _onStatusChanged();
+    });
+  }
+
+  @override
+  void dispose() {
+    _promoterService.verificationStatusNotifier.removeListener(_onStatusChanged);
+    super.dispose();
+  }
+
+  /// Jika admin menonaktifkan akun saat produser sedang memakai dasbor,
+  /// seluruh fitur produser langsung ditutup.
+  void _onStatusChanged() {
+    if (!mounted || _isRedirecting) return;
+    final status = _promoterService.verificationStatusNotifier.value;
+    // Hanya status terminal yang menutup dasbor. Status pending/unverified
+    // sudah ditangani layar masuk produser dan tidak boleh memantulkan
+    // produser yang sedang mengajukan perubahan profil.
+    if (status != 'nonaktif' &&
+        status != 'deactivated' &&
+        status != 'rejected') {
+      return;
+    }
+    _isRedirecting = true;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => resolveProducerEntryScreen()),
+      (route) => false,
+    );
   }
 
   void _onTabTapped(int index) {

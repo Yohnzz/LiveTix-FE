@@ -186,42 +186,33 @@ class AdminHeader extends StatelessWidget {
 }
 
 class StatusBadge extends StatelessWidget {
-  final ApprovalStatus status;
+  final AccountStatus status;
 
-  const StatusBadge({super.key, required this.status});
+  /// Label alternatif (mis. "Aktif" untuk akun User). Warna tetap mengikuti
+  /// pemetaan status terpusat.
+  final String? label;
+
+  const StatusBadge({super.key, required this.status, this.label});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AdminColors.isDark(context);
-    final (Color bg, Color fg) = switch (status) {
-      ApprovalStatus.pending => (
-          AdminColors.warningBgOf(context),
-          AdminColors.warningOf(context),
-        ),
-      ApprovalStatus.approved => (
-          AdminColors.successBgOf(context),
-          isDark ? const Color(0xFF86EFAC) : const Color(0xFF166534),
-        ),
-      ApprovalStatus.rejected => (
-          AdminColors.dangerBgOf(context),
-          isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
-        ),
-      ApprovalStatus.deactivated => (
-          AdminColors.dangerBgOf(context),
-          isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
-        ),
-    };
+    final statusColor = status.color;
+    final statusBg = status.backgroundColor;
     return MediaQuery.withClampedTextScaling(
       maxScaleFactor: _maxTextScale,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: bg,
+          color: statusBg,
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text(
-          status.label,
-          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: fg),
+          label ?? status.label,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: statusColor,
+          ),
         ),
       ),
     );

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../models/approval_models.dart';
+import '../../models/app_notification_model.dart';
 import '../../services/admin_service.dart';
 import 'admin_concert_detail_screen.dart';
 import 'admin_producer_detail_screen.dart';
@@ -22,10 +22,19 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
   final AdminService _service = AdminService();
   _NotificationTab _selectedTab = _NotificationTab.all;
 
-  void _onNotificationTap(AdminNotificationModel notif) {
-    _service.markNotificationAsRead(notif.id);
+  Future<void> _onNotificationTap(AppNotificationModel notif) async {
+    try {
+      await _service.markNotificationAsRead(notif.id);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memperbarui notifikasi: $error')),
+        );
+      }
+    }
 
-    if (notif.targetKind == ApprovalKind.producer &&
+    if (!mounted) return;
+    if (notif.targetKind == 'producer' &&
         notif.targetId != null &&
         notif.targetId!.isNotEmpty) {
       Navigator.of(context).push(
@@ -34,7 +43,7 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
               AdminProducerDetailScreen(producerId: notif.targetId!),
         ),
       );
-    } else if (notif.targetKind == ApprovalKind.concert &&
+    } else if (notif.targetKind == 'concert' &&
         notif.targetId != null &&
         notif.targetId!.isNotEmpty) {
       Navigator.of(context).push(
@@ -126,7 +135,7 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
   }
 
   Widget _buildNotificationCard(
-      BuildContext context, AdminNotificationModel notif) {
+      BuildContext context, AppNotificationModel notif) {
     final textPri = AdminColors.textPrimaryOf(context);
     final textSec = AdminColors.textSecondaryOf(context);
     final infoBg = AdminColors.infoBgOf(context);

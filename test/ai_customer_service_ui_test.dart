@@ -51,7 +51,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('AI 24/7'), findsOneWidget);
-      expect(find.text('Ketentuan potongan fee platform 3%'), findsOneWidget);
+      expect(find.text('Ketentuan potongan fee platform 2%'), findsOneWidget);
       expect(
         find.text('Syarat dokumen KTP & Lembar Penanggung Jawab'),
         findsOneWidget,

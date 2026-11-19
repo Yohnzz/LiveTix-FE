@@ -5,26 +5,15 @@
 /// sebelum integrasi Supabase. Kolom lain mengikuti nama kolom ERD.
 library;
 
+import '../core/account_status.dart';
+
+export '../core/account_status.dart';
+
+/// Alias lama: kode dan pengujian yang masih memakai [ApprovalStatus] tetap
+/// memakai pemetaan status yang sama dengan [AccountStatus].
+typedef ApprovalStatus = AccountStatus;
+
 enum ApprovalKind { producer, concert, gatecrew }
-
-enum ApprovalStatus {
-  pending('pending', 'Menunggu'),
-  approved('approved', 'Disetujui'),
-  rejected('rejected', 'Ditolak'),
-  deactivated('deactivated', 'Nonaktif');
-
-  const ApprovalStatus(this.value, this.label);
-
-  final String value;
-  final String label;
-
-  static ApprovalStatus fromValue(String? raw) {
-    for (final status in ApprovalStatus.values) {
-      if (status.value == raw) return status;
-    }
-    return ApprovalStatus.pending;
-  }
-}
 
 class ApprovalFormat {
   ApprovalFormat._();
@@ -195,8 +184,9 @@ class ProducerApplicationModel {
   final String bankAccountNumber;
   final String bankAccountName;
   final bool isVerified;
-  final ApprovalStatus approvalStatus;
+  final AccountStatus approvalStatus;
   final String? rejectionReason;
+  final String? deactivationReason;
   final DateTime? rejectedAt;
   final DateTime submittedAt;
   final List<ProducerDocumentModel> legalDocuments;
@@ -222,8 +212,9 @@ class ProducerApplicationModel {
     this.bankAccountNumber = '',
     this.bankAccountName = '',
     this.isVerified = false,
-    this.approvalStatus = ApprovalStatus.pending,
+    this.approvalStatus = AccountStatus.pending,
     this.rejectionReason,
+    this.deactivationReason,
     this.rejectedAt,
     required this.submittedAt,
     this.legalDocuments = const [],
@@ -259,8 +250,9 @@ class ProducerApplicationModel {
       bankAccountName: (json['bank_account_name'] ?? '') as String,
       isVerified: (json['is_verified'] ?? false) as bool,
       approvalStatus:
-          ApprovalStatus.fromValue(json['approval_status'] as String?),
+          AccountStatus.fromValue(json['approval_status'] as String?),
       rejectionReason: json['rejection_reason'] as String?,
+      deactivationReason: json['deactivation_reason'] as String?,
       rejectedAt: json['rejected_at'] != null
           ? DateTime.tryParse(json['rejected_at'].toString())
           : null,
@@ -286,6 +278,12 @@ class ProducerApplicationModel {
     );
   }
 
+  /// Alasan yang relevan dengan status saat ini (lihat [AccountStatus.reasonFrom]).
+  String? get statusReason => approvalStatus.reasonFrom(
+        rejectionReason: rejectionReason,
+        deactivationReason: deactivationReason,
+      );
+
   /// Hanya kolom milik `promoter_profiles`. `email` dan `phone` milik `users`.
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -297,6 +295,7 @@ class ProducerApplicationModel {
         'is_verified': isVerified,
         'approval_status': approvalStatus.value,
         'rejection_reason': rejectionReason,
+        'deactivation_reason': deactivationReason,
         if (rejectedAt != null) 'rejected_at': rejectedAt!.toIso8601String(),
         'submitted_at': submittedAt.toIso8601String(),
       };
@@ -307,8 +306,11 @@ class ProducerApplicationModel {
     String? phone,
     String? address,
     bool? isVerified,
-    ApprovalStatus? approvalStatus,
+    AccountStatus? approvalStatus,
     String? rejectionReason,
+    bool clearRejectionReason = false,
+    String? deactivationReason,
+    bool clearDeactivationReason = false,
     DateTime? rejectedAt,
     List<ProducerDocumentModel>? legalDocuments,
     List<ProducerDocumentModel>? submissionDocuments,
@@ -337,7 +339,11 @@ class ProducerApplicationModel {
       bankAccountName: bankAccountName,
       isVerified: isVerified ?? this.isVerified,
       approvalStatus: approvalStatus ?? this.approvalStatus,
-      rejectionReason: rejectionReason ?? this.rejectionReason,
+      rejectionReason:
+          clearRejectionReason ? null : (rejectionReason ?? this.rejectionReason),
+      deactivationReason: clearDeactivationReason
+          ? null
+          : (deactivationReason ?? this.deactivationReason),
       rejectedAt: rejectedAt ?? this.rejectedAt,
       submittedAt: submittedAt,
       legalDocuments: legalDocuments ?? this.legalDocuments,
@@ -422,7 +428,7 @@ class ConcertSubmissionModel {
   /// Nilai kolom ERD `concerts.status`: draft, published, completed, cancelled.
   final String status;
   final String? bannerUrl;
-  final ApprovalStatus approvalStatus;
+  final AccountStatus approvalStatus;
   final String? rejectionReason;
   final DateTime? rejectedAt;
   final DateTime submittedAt;
@@ -451,7 +457,7 @@ class ConcertSubmissionModel {
     this.totalCapacity = 5000,
     this.status = 'draft',
     this.bannerUrl,
-    this.approvalStatus = ApprovalStatus.pending,
+    this.approvalStatus = AccountStatus.pending,
     this.rejectionReason,
     this.rejectedAt,
     required this.submittedAt,
@@ -502,7 +508,7 @@ class ConcertSubmissionModel {
       status: (json['status'] ?? 'draft') as String,
       bannerUrl: json['banner_url'] as String?,
       approvalStatus:
-          ApprovalStatus.fromValue(json['approval_status'] as String?),
+          AccountStatus.fromValue(json['approval_status'] as String?),
       rejectionReason: json['rejection_reason'] as String?,
       rejectedAt: json['rejected_at'] != null
           ? DateTime.tryParse(json['rejected_at'].toString())
@@ -559,7 +565,7 @@ class ConcertSubmissionModel {
     int? totalCapacity,
     String? status,
     String? bannerUrl,
-    ApprovalStatus? approvalStatus,
+    AccountStatus? approvalStatus,
     String? rejectionReason,
     DateTime? rejectedAt,
     List<SubmissionTierModel>? tiers,
@@ -713,32 +719,48 @@ class ManagedUserModel {
   final String role; // 'User', 'Produser', 'Admin'
   final String phone;
   final String joinedAt;
-  final bool isActive;
+  final AccountStatus approvalStatus;
+  final String? deactivationReason;
   final int ticketsBought;
   final int concertsAttended;
   final bool hasFavorite;
   final List<UserTransactionModel> transactions;
   final String password;
 
-  const ManagedUserModel({
+  ManagedUserModel({
     required this.id,
     required this.name,
     required this.email,
     required this.role,
     this.phone = '',
     this.joinedAt = '',
-    this.isActive = true,
+    bool? isActive,
+    AccountStatus? approvalStatus,
+    this.deactivationReason,
     this.ticketsBought = 0,
     this.concertsAttended = 0,
     this.hasFavorite = false,
     this.transactions = const [],
     this.password = 'password123',
-  });
+  }) : approvalStatus = approvalStatus ??
+            (isActive == null
+                ? AccountStatus.approved
+                : (isActive
+                    ? AccountStatus.approved
+                    : AccountStatus.nonaktif));
+
+  bool get isActive => approvalStatus == AccountStatus.approved;
+
+  /// Alasan yang relevan dengan status akun saat ini.
+  String? get statusReason => approvalStatus.reasonFrom(
+        deactivationReason: deactivationReason,
+      );
 
   String get initials => ApprovalFormat.initialsOf(name);
 
   factory ManagedUserModel.fromJson(Map<String, dynamic> json) {
     final rawTx = json['transactions'];
+    final rawApproval = json['approval_status'];
     return ManagedUserModel(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -746,7 +768,12 @@ class ManagedUserModel {
       role: (json['role'] ?? 'User') as String,
       phone: (json['phone'] ?? '') as String,
       joinedAt: (json['joined_at'] ?? '') as String,
-      isActive: (json['is_active'] ?? true) as bool,
+      approvalStatus: rawApproval != null
+          ? AccountStatus.fromValue(rawApproval as String?)
+          : ((json['is_active'] ?? true) as bool
+              ? AccountStatus.approved
+              : AccountStatus.nonaktif),
+      deactivationReason: json['deactivation_reason'] as String?,
       ticketsBought: (json['tickets_bought'] as num?)?.toInt() ?? 0,
       concertsAttended: (json['concerts_attended'] as num?)?.toInt() ?? 0,
       hasFavorite: (json['has_favorite'] ?? false) as bool,
@@ -767,6 +794,8 @@ class ManagedUserModel {
         'role': role,
         'phone': phone,
         'joined_at': joinedAt,
+        'approval_status': approvalStatus.value,
+        'deactivation_reason': deactivationReason,
         'is_active': isActive,
         'tickets_bought': ticketsBought,
         'concerts_attended': concertsAttended,
@@ -782,6 +811,9 @@ class ManagedUserModel {
     String? phone,
     String? joinedAt,
     bool? isActive,
+    AccountStatus? approvalStatus,
+    String? deactivationReason,
+    bool clearDeactivationReason = false,
     int? ticketsBought,
     int? concertsAttended,
     bool? hasFavorite,
@@ -795,7 +827,15 @@ class ManagedUserModel {
       role: role ?? this.role,
       phone: phone ?? this.phone,
       joinedAt: joinedAt ?? this.joinedAt,
-      isActive: isActive ?? this.isActive,
+      approvalStatus: approvalStatus ??
+          (isActive == null
+              ? this.approvalStatus
+              : (isActive
+                  ? AccountStatus.approved
+                  : AccountStatus.nonaktif)),
+      deactivationReason: clearDeactivationReason
+          ? null
+          : (deactivationReason ?? this.deactivationReason),
       ticketsBought: ticketsBought ?? this.ticketsBought,
       concertsAttended: concertsAttended ?? this.concertsAttended,
       hasFavorite: hasFavorite ?? this.hasFavorite,

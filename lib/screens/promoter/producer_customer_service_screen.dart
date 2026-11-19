@@ -45,7 +45,7 @@ class _ProducerCustomerServiceScreenState
     'Cek status verifikasi konser saya',
     'Syarat dokumen KTP & Lembar Penanggung Jawab',
     'Berapa lama proses pencairan dana & minimal saldo?',
-    'Ketentuan potongan fee platform 3%',
+    'Ketentuan potongan fee platform 2%',
     'Bagaimana cara menambah dan menugaskan Gate Crew?',
   ];
 

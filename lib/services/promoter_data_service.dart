@@ -52,8 +52,7 @@ class PromoterDataService {
       ValueNotifier<String?>(null);
   final ValueNotifier<String?> pendingResponsibilityLetterNotifier =
       ValueNotifier<String?>(null);
-  final ValueNotifier<String?> avatarUrlNotifier =
-      ValueNotifier<String?>(null);
+  final ValueNotifier<String?> avatarUrlNotifier = ValueNotifier<String?>(null);
 
   ValueNotifier<String?> get pendingNameChangeNotifier =>
       pendingPromoterNameNotifier;
@@ -89,6 +88,10 @@ class PromoterDataService {
 
   /// Alasan penolakan akun produser dari Admin (diambil langsung dari database)
   final ValueNotifier<String?> rejectionReasonNotifier =
+      ValueNotifier<String?>(null);
+
+  /// Alasan penonaktifan akun produser (kolom `deactivation_reason`)
+  final ValueNotifier<String?> deactivationReasonNotifier =
       ValueNotifier<String?>(null);
 
   /// Waktu penolakan akun produser untuk countdown "Ajukan Ulang" real-time
@@ -136,6 +139,7 @@ class PromoterDataService {
 
   /// Reset state verifikasi saat akun Produser baru dibuat / berganti akun
   void resetProducerVerificationStateForNewAccount(String name) {
+    stopRealtimeStatusSync();
     promoterNameNotifier.value = name.trim();
     verificationStatusNotifier.value = 'unverified';
     bankNameNotifier.value = '';
@@ -143,7 +147,11 @@ class PromoterDataService {
     bankAccountHolderNotifier.value = '';
     pinCodeNotifier.value = '';
     rejectionReasonNotifier.value = null;
+    deactivationReasonNotifier.value = null;
     rejectedAtNotifier.value = null;
+    LocalStorage.remove('livetix_producer_rejection_reason');
+    LocalStorage.remove('livetix_producer_deactivation_reason');
+    LocalStorage.remove('livetix_producer_rejected_at');
     isPinUnlockedThisSession = false;
   }
 
@@ -156,14 +164,41 @@ class PromoterDataService {
       _uuidPattern.hasMatch(userId) ? userId : 'promoter-$userId';
 
   String get promoterName => promoterNameNotifier.value;
-  String get verificationBadge =>
-      verificationStatusNotifier.value == 'approved'
-          ? 'TERVERIFIKASI'
-          : (verificationStatusNotifier.value == 'pending'
-              ? 'MENUNGGU APPROVAL'
-              : (verificationStatusNotifier.value == 'deactivated'
-                  ? 'NONAKTIF'
-                  : 'BELUM VERIFIKASI'));
+  String get verificationBadge {
+    // Label mengikuti pemetaan status terpusat (AccountStatus), bukan teks
+    // yang ditulis ulang di tiap layar.
+    final status = AccountStatus.fromValue(verificationStatusNotifier.value);
+    switch (status) {
+      case AccountStatus.approved:
+        return 'TERVERIFIKASI';
+      case AccountStatus.pending:
+        return verificationStatusNotifier.value.trim().toLowerCase() ==
+                'pending'
+            ? 'MENUNGGU APPROVAL'
+            : 'BELUM VERIFIKASI';
+      case AccountStatus.nonaktif:
+        return 'NONAKTIF';
+      case AccountStatus.rejected:
+        return 'DITOLAK';
+    }
+  }
+
+  /// Menormalkan nilai status lama agar selalu memakai salah satu dari
+  /// `pending | approved | rejected | nonaktif`. Nilai `unverified` tetap
+  /// dipertahankan karena berarti data diri belum dilengkapi.
+  static String normalizeStatusValue(String raw) {
+    switch (raw.trim().toLowerCase()) {
+      case 'deactivated':
+      case 'inactive':
+        return AccountStatus.nonaktif.value;
+      case 'ditolak':
+        return AccountStatus.rejected.value;
+      case 'disetujui':
+        return AccountStatus.approved.value;
+      default:
+        return raw.trim().toLowerCase();
+    }
+  }
 
   String get promoterInitials {
     final parts = promoterName
@@ -481,6 +516,7 @@ class PromoterDataService {
     }
     final targetId = userId ?? currentUser?.id;
     if (targetId == null || targetId.isEmpty) return;
+    _statusTargetUserId = targetId;
 
     bankNameNotifier.value = '';
     bankAccountNumberNotifier.value = '';
@@ -494,7 +530,8 @@ class PromoterDataService {
           .maybeSingle();
 
       if (profileRow != null) {
-        final name = (profileRow['name'] ?? profileRow['full_name'])?.toString();
+        final name =
+            (profileRow['name'] ?? profileRow['full_name'])?.toString();
         if (name != null && name.trim().isNotEmpty) {
           promoterNameNotifier.value = name.trim();
         }
@@ -504,7 +541,7 @@ class PromoterDataService {
         }
         final verStatus = profileRow['verification_status']?.toString();
         if (verStatus != null && verStatus.trim().isNotEmpty) {
-          verificationStatusNotifier.value = verStatus.trim().toLowerCase();
+          verificationStatusNotifier.value = normalizeStatusValue(verStatus);
         }
         final pBank = profileRow['bank_name']?.toString().trim() ?? '';
         final pNum = profileRow['bank_account_number']?.toString().trim() ?? '';
@@ -538,7 +575,7 @@ class PromoterDataService {
         }
         final appStatus = promoterRow['approval_status']?.toString();
         if (appStatus != null && appStatus.trim().isNotEmpty) {
-          verificationStatusNotifier.value = appStatus.trim().toLowerCase();
+          verificationStatusNotifier.value = normalizeStatusValue(appStatus);
         }
         final rBank = promoterRow['bank_name']?.toString().trim() ?? '';
         final rNum =
@@ -574,7 +611,16 @@ class PromoterDataService {
         final rejReason = promoterRow['rejection_reason']?.toString();
         if (rejReason != null && rejReason.trim().isNotEmpty) {
           rejectionReasonNotifier.value = rejReason.trim();
-          LocalStorage.setString('livetix_producer_rejection_reason', rejReason.trim());
+          LocalStorage.setString(
+              'livetix_producer_rejection_reason', rejReason.trim());
+        }
+        final deactReason = promoterRow['deactivation_reason']?.toString();
+        if (deactReason != null && deactReason.trim().isNotEmpty) {
+          deactivationReasonNotifier.value = deactReason.trim();
+          LocalStorage.setString(
+            'livetix_producer_deactivation_reason',
+            deactReason.trim(),
+          );
         }
         final rejAtRaw = promoterRow['rejected_at']?.toString();
         if (rejAtRaw != null && rejAtRaw.isNotEmpty) {
@@ -610,12 +656,89 @@ class PromoterDataService {
         rejectionReasonNotifier.value = savedReason;
       }
     }
+    if (deactivationReasonNotifier.value == null) {
+      final savedReason =
+          LocalStorage.getString('livetix_producer_deactivation_reason');
+      if (savedReason != null && savedReason.isNotEmpty) {
+        deactivationReasonNotifier.value = savedReason;
+      }
+    }
     if (rejectedAtNotifier.value == null) {
       final savedAt = LocalStorage.getString('livetix_producer_rejected_at');
       if (savedAt != null && savedAt.isNotEmpty) {
         rejectedAtNotifier.value = DateTime.tryParse(savedAt);
       }
     }
+
+    // Alasan hanya berlaku untuk status yang sesuai. Saat akun diaktifkan lagi,
+    // alasan lama tidak boleh tetap tampil.
+    final status = verificationStatusNotifier.value;
+    if (status != 'rejected') {
+      rejectionReasonNotifier.value = null;
+      LocalStorage.remove('livetix_producer_rejection_reason');
+      rejectedAtNotifier.value = null;
+      LocalStorage.remove('livetix_producer_rejected_at');
+    }
+    if (AccountStatus.fromValue(status) != AccountStatus.nonaktif) {
+      deactivationReasonNotifier.value = null;
+      LocalStorage.remove('livetix_producer_deactivation_reason');
+    }
+
+    _ensureStatusRealtime();
+  }
+
+  String? _statusTargetUserId;
+  RealtimeChannel? _statusRealtimeChannel;
+  bool _isStatusRealtimeSubscribed = false;
+
+  /// Langganan realtime status akun Produser. Perubahan `approval_status` atau
+  /// alasan oleh Admin langsung diterapkan tanpa menunggu pembukaan halaman.
+  void _ensureStatusRealtime() {
+    if (!SupabaseService.isInitialized ||
+        _isStatusRealtimeSubscribed ||
+        _statusTargetUserId == null) {
+      return;
+    }
+    _isStatusRealtimeSubscribed = true;
+    final target = _statusTargetUserId!;
+
+    void reloadIfMine(Map<String, dynamic> record) {
+      final rowId = record['id']?.toString() ?? '';
+      final rowUser = record['user_id']?.toString() ?? '';
+      if (rowId != target && rowUser != target) return;
+      unawaited(loadProducerProfileFromSupabase(target));
+    }
+
+    try {
+      _statusRealtimeChannel = SupabaseService.client
+          .channel('promoter_realtime_status')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'promoter_profiles',
+            callback: (payload) => reloadIfMine(payload.newRecord),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'profiles',
+            callback: (payload) => reloadIfMine(payload.newRecord),
+          )
+          .subscribe();
+    } catch (e) {
+      _isStatusRealtimeSubscribed = false;
+      debugPrint('Error subscribe promoter status realtime: $e');
+    }
+  }
+
+  /// Menghentikan langganan realtime status (dipanggil saat logout/reset).
+  void stopRealtimeStatusSync() {
+    if (_statusRealtimeChannel != null && SupabaseService.isInitialized) {
+      SupabaseService.client.removeChannel(_statusRealtimeChannel!);
+    }
+    _statusRealtimeChannel = null;
+    _isStatusRealtimeSubscribed = false;
+    _statusTargetUserId = null;
   }
 
   RealtimeChannel? _stockRealtimeChannel;
@@ -670,8 +793,7 @@ class PromoterDataService {
       try {
         await SupabaseService.client
             .from('concerts')
-            .update({'gates': gates})
-            .eq('id', concertId);
+            .update({'gates': gates}).eq('id', concertId);
       } catch (e) {
         debugPrint('Error updateConcertGates Supabase: $e');
       }
@@ -698,12 +820,14 @@ class PromoterDataService {
       try {
         final paidOrders = await SupabaseService.client
             .from('orders')
-            .select('concert_id, quantity, gross_amount, total_amount, created_at')
+            .select(
+                'concert_id, quantity, gross_amount, total_amount, created_at')
             .eq('payment_status', 'PAID');
         for (final o in paidOrders) {
           final cid = o['concert_id']?.toString() ?? '';
           final qty = (o['quantity'] as num?)?.toInt() ?? 1;
-          final rev = ((o['gross_amount'] ?? o['total_amount']) as num?)?.toInt() ?? 0;
+          final rev =
+              ((o['gross_amount'] ?? o['total_amount']) as num?)?.toInt() ?? 0;
           if (cid.isNotEmpty) {
             actualSoldMap[cid] = (actualSoldMap[cid] ?? 0) + qty;
             actualRevenueMap[cid] = (actualRevenueMap[cid] ?? 0) + rev;
@@ -810,11 +934,14 @@ class PromoterDataService {
             final cid = parsed.id;
 
             // Hubungkan penjualan aktual dari database (gunakan nilai tertinggi antara orders/tickets & tier soldCount)
-            final tierSold = parsed.tiers.fold<int>(0, (s, t) => s + t.soldCount);
+            final tierSold =
+                parsed.tiers.fold<int>(0, (s, t) => s + t.soldCount);
             final rawActualSold = actualSoldMap[cid] ?? 0;
-            final actualSold = rawActualSold > tierSold ? rawActualSold : tierSold;
+            final actualSold =
+                rawActualSold > tierSold ? rawActualSold : tierSold;
             final actualRev = actualRevenueMap[cid] ??
-                (actualSold * (parsed.tiers.isNotEmpty ? parsed.tiers.first.price : 0));
+                (actualSold *
+                    (parsed.tiers.isNotEmpty ? parsed.tiers.first.price : 0));
             parsed = parsed.copyWith(
               ticketsSold: actualSold,
               grossRevenue: actualRev,
@@ -838,8 +965,8 @@ class PromoterDataService {
             }
             final cachedHighlights =
                 LocalStorage.getStringList('livetix_concert_highlights_$cid');
-            final cachedHighlightNames =
-                LocalStorage.getStringList('livetix_concert_highlight_names_$cid');
+            final cachedHighlightNames = LocalStorage.getStringList(
+                'livetix_concert_highlight_names_$cid');
             if (cachedHighlights.isNotEmpty) {
               parsed = parsed.copyWith(
                 highlights: cachedHighlights,
@@ -987,6 +1114,7 @@ class PromoterDataService {
           'is_verified': false,
           'verification_status': 'pending',
           'approval_status': 'pending',
+          'role_verification_status': 'pending',
           'updated_at': nowIso,
         }).select();
       } catch (e) {
@@ -1111,7 +1239,7 @@ class PromoterDataService {
       address: address.trim().isNotEmpty
           ? address.trim()
           : 'Jl. Kayutangan No. 45, Malang',
-      approvalStatus: ApprovalStatus.pending,
+      approvalStatus: AccountStatus.pending,
       isVerified: false,
       submittedAt: DateTime.now(),
       submissionDocuments: [
@@ -1181,7 +1309,7 @@ class PromoterDataService {
       email: userEmail,
       phone: currentUser?.phone ?? '081234567890',
       address: 'Perubahan Data/Dokumen Produser',
-      approvalStatus: ApprovalStatus.pending,
+      approvalStatus: AccountStatus.pending,
       isVerified: false,
       submittedAt: DateTime.now(),
       pendingName: pendingPromoterNameNotifier.value,
@@ -1281,13 +1409,25 @@ class PromoterDataService {
 
   /// Dipanggil saat Admin menonaktifkan akun Produser
   void onAdminDeactivatedProducer(String reason) {
-    verificationStatusNotifier.value = 'deactivated';
-    rejectionReasonNotifier.value = reason.trim();
+    verificationStatusNotifier.value = 'nonaktif';
+    deactivationReasonNotifier.value = reason.trim();
     isPinUnlockedThisSession = false;
     LocalStorage.setString(
-      'livetix_producer_rejection_reason',
+      'livetix_producer_deactivation_reason',
       reason.trim(),
     );
+  }
+
+  /// Dipanggil saat Admin mengaktifkan kembali akun Produser.
+  void onAdminActivatedProducer() {
+    verificationStatusNotifier.value = 'approved';
+    deactivationReasonNotifier.value = null;
+    rejectionReasonNotifier.value = null;
+    rejectedAtNotifier.value = null;
+    isPinUnlockedThisSession = false;
+    LocalStorage.remove('livetix_producer_deactivation_reason');
+    LocalStorage.remove('livetix_producer_rejection_reason');
+    LocalStorage.remove('livetix_producer_rejected_at');
   }
 
   /// Dipanggil saat Admin menolak pengajuan Produser agar alasan & waktu penolakan sinkron
@@ -1371,12 +1511,16 @@ class PromoterDataService {
     LocalStorage.remove('livetix_concert_rej_at_$concertId');
 
     if (SupabaseService.isInitialized) {
-      SupabaseService.client.from('concerts').update({
-        'status': 'pending',
-        'approval_status': 'pending_create',
-        'rejection_reason': null,
-        'rejected_at': null,
-      }).eq('id', concertId).catchError((_) {});
+      SupabaseService.client
+          .from('concerts')
+          .update({
+            'status': 'pending',
+            'approval_status': 'pending_create',
+            'rejection_reason': null,
+            'rejected_at': null,
+          })
+          .eq('id', concertId)
+          .catchError((_) {});
     }
 
     _syncConcertToAdmin(updated, requestType: 'create');
@@ -1388,8 +1532,7 @@ class PromoterDataService {
     final idx = list.indexWhere((c) =>
         c.id == concertId ||
         (concertId == 'featured-1' &&
-            (c.id == '1' ||
-                c.title.toLowerCase().contains('soundwave fest'))));
+            (c.id == '1' || c.title.toLowerCase().contains('soundwave fest'))));
 
     if (idx != -1) {
       final currentLikes = list[idx].numericLikes;
@@ -1477,7 +1620,8 @@ class PromoterDataService {
             return publicUrl;
           }
         } catch (bucketErr) {
-          debugPrint('Upload media konser ke bucket "$bucket" gagal: $bucketErr');
+          debugPrint(
+              'Upload media konser ke bucket "$bucket" gagal: $bucketErr');
         }
       }
       return raw;
@@ -1613,9 +1757,7 @@ class PromoterDataService {
     final hasUploadedLogo =
         uploadedLogo != null && uploadedLogo.startsWith('http');
 
-    if (hasUploadedPoster ||
-        hasUploadedLogo ||
-        uploadedHighlights.isNotEmpty) {
+    if (hasUploadedPoster || hasUploadedLogo || uploadedHighlights.isNotEmpty) {
       resolvedConcert = concert.copyWith(
         posterFileName:
             hasUploadedPoster ? uploadedPoster : concert.posterFileName,
@@ -1711,8 +1853,7 @@ class PromoterDataService {
       );
     }
 
-    final previousList =
-        List<PromoterConcertItem>.from(concertsNotifier.value);
+    final previousList = List<PromoterConcertItem>.from(concertsNotifier.value);
     final previousQuota = quotaRemainingNotifier.value;
 
     final updatedList = List<PromoterConcertItem>.from(previousList);
@@ -1753,8 +1894,7 @@ class PromoterDataService {
     PromoterConcertItem updatedConcert, {
     bool requiresAdminApproval = true,
   }) async {
-    final previousList =
-        List<PromoterConcertItem>.from(concertsNotifier.value);
+    final previousList = List<PromoterConcertItem>.from(concertsNotifier.value);
     final list = List<PromoterConcertItem>.from(previousList);
     final idx = list.indexWhere((c) => c.id == updatedConcert.id);
     final finalConcert = requiresAdminApproval
@@ -1792,14 +1932,12 @@ class PromoterDataService {
           finalConcert.venuePlaceId!.isNotEmpty)
         'venue_place_id': finalConcert.venuePlaceId,
       'description': finalConcert.description,
-      'banner_image_url':
-          (finalConcert.posterDataUrl?.isNotEmpty == true)
-              ? finalConcert.posterDataUrl
-              : finalConcert.posterFileName,
-      'logo_image_url':
-          (finalConcert.squareLogoDataUrl?.isNotEmpty == true)
-              ? finalConcert.squareLogoDataUrl
-              : finalConcert.squareLogoFileName,
+      'banner_image_url': (finalConcert.posterDataUrl?.isNotEmpty == true)
+          ? finalConcert.posterDataUrl
+          : finalConcert.posterFileName,
+      'logo_image_url': (finalConcert.squareLogoDataUrl?.isNotEmpty == true)
+          ? finalConcert.squareLogoDataUrl
+          : finalConcert.squareLogoFileName,
       'total_capacity': finalConcert.totalCapacity,
       'price': finalConcert.tiers.isNotEmpty
           ? finalConcert.tiers
@@ -1816,8 +1954,7 @@ class PromoterDataService {
       final result = await _persistConcertAndTiersToSupabase(
         finalConcert,
         status: requiresAdminApproval ? 'pending' : 'published',
-        approvalStatus:
-            requiresAdminApproval ? 'pending_edit' : 'approved',
+        approvalStatus: requiresAdminApproval ? 'pending_edit' : 'approved',
         pendingEditPayload: requiresAdminApproval ? editPayload : null,
         clearPendingEditPayload: !requiresAdminApproval,
       );
@@ -1880,24 +2017,28 @@ class PromoterDataService {
     }
 
     if (SupabaseService.isInitialized) {
-      SupabaseService.client.from('concerts').update({
-        'status': 'cancellation_pending',
-        'approval_status': 'pending_cancel',
-        'cancellation_status': 'pending',
-        'cancellation_category': category,
-        'cancellation_reason': reason,
-        'cancellation_attachment': attachmentName,
-        'cancellation_date': '19 Okt 2026, 14:02',
-      }).eq('id', concertId).catchError((err) {
-        debugPrint('Error submit cancellation in Supabase: $err');
-      });
+      SupabaseService.client
+          .from('concerts')
+          .update({
+            'status': 'cancellation_pending',
+            'approval_status': 'pending_cancel',
+            'cancellation_status': 'pending',
+            'cancellation_category': category,
+            'cancellation_reason': reason,
+            'cancellation_attachment': attachmentName,
+            'cancellation_date': '19 Okt 2026, 14:02',
+          })
+          .eq('id', concertId)
+          .catchError((err) {
+            debugPrint('Error submit cancellation in Supabase: $err');
+          });
     }
 
     final adminService = AdminService();
     final current = adminService.concertById(concertId);
     if (current != null) {
       final updated = current.copyWith(
-        approvalStatus: ApprovalStatus.pending,
+        approvalStatus: AccountStatus.pending,
         requestType: 'cancellation',
         cancellationReason: reason,
         attachmentName: attachmentName,
@@ -1927,7 +2068,7 @@ class PromoterDataService {
       totalCapacity: item.totalCapacity,
       status: 'pending',
       bannerUrl: item.posterFileName,
-      approvalStatus: ApprovalStatus.pending,
+      approvalStatus: AccountStatus.pending,
       submittedAt: DateTime.now(),
       requestType: requestType,
       requestInfo: requestType == 'edit' ? 'Perubahan Data Konser' : null,

@@ -50,22 +50,22 @@ Untuk mendukung fitur unggah konser oleh role **Produser**, alur penempatan gamb
 
 ---
 
-## 4. Alur Pemesanan, Multi-Metode Pembayaran (1 Jam), QR Multi-Scan, & Refund
+## 4. Alur Pemesanan, Multi-Metode Pembayaran (15 Menit), QR Multi-Scan, & Refund
 1. **Detail Konser -> Pilih Tiket -> Ringkasan Pesanan (`SelectTicketScreen` -> `OrderSummaryScreen`)**:
    - Guest yang menekan *"Pesan tiket"* diarahkan lewat dialog *"Wajib Masuk"* ke halaman Login.
    - User terautentikasi memilih area panggung (VIP Lounge, Festival, Tribun A/B) dan jumlah tiket (**maksimal 4 tiket per transaksi**), lalu menekan **Pilih Metode** pada halaman Ringkasan Pesanan.
-2. **Pemilihan Metode Pembayaran (`PaymentMethodScreen`) & Batas Waktu 1 Jam (`PaymentScreen`)**:
-   - Pengguna diberikan 3 kategori metode pembayaran dengan batas waktu kedaluwarsa **1 Jam (`01:00:00`)**:
+2. **Pemilihan Metode Pembayaran (`PaymentMethodScreen`) & Batas Waktu 15 Menit (`PaymentScreen`)**:
+   - Pengguna diberikan 3 kategori metode pembayaran dengan batas waktu kedaluwarsa **15 Menit (`00:15:00`)**:
      - **QRIS (1 Jenis)**:
        - Menampilkan perkiraan biaya admin transaksi (contoh: `Rp1.000`) yang langsung ditambahkan ke total tagihan.
        - Masuk ke halaman **Barcode QRIS** (`assets/images/qrcode.png` untuk testing, siap diganti URL/byte backend), memperlihatkan rincian item, biaya layanan, biaya admin transaksi, dan total pembayaran -> konfirmasi pembayaran -> **Pembayaran Berhasil**.
      - **E-Wallet (Dropdown: `GoPay`, `DANA`, `ShopeePay`)**:
        - Menampilkan perkiraan biaya admin transaksi (contoh: `Rp1.500`) pada masing-masing provider yang langsung ditambahkan ke total pesanan.
-       - Masuk ke halaman **Detail Pembayaran** yang menampilkan harga total, rincian item tiket, biaya layanan, biaya admin platform, biaya admin transaksi provider, status **`Menunggu pembayaran`**, hitung mundur **1 Jam**, dan tombol **`Lanjut ke Aplikasi <GoPay / DANA / ShopeePay>`**.
+       - Masuk ke halaman **Detail Pembayaran** yang menampilkan harga total, rincian item tiket, biaya layanan, biaya admin platform, biaya admin transaksi provider, status **`Menunggu pembayaran`**, hitung mundur **15 Menit**, dan tombol **`Lanjut ke Aplikasi <GoPay / DANA / ShopeePay>`**.
        - Menekan **`Lanjut ke Aplikasi <Provider>`** mengarahkan ke halaman simulasi aplikasi E-Wallet (`EWalletPaymentAppScreen`) dengan nominal tagihan yang sudah terkunci otomatis, sehingga pengguna cukup memasukkan **6 digit PIN E-Wallet**.
        - **Catatan Arsitektur Midtrans**: Tampilan redirect ke aplikasi e-wallet ini (`EWalletPaymentAppScreen`) saat ini digunakan khusus untuk kebutuhan debug / simulasi testing frontend. Pada arsitektur backend produksi, integrasi akan menghubungkan Payment Gateway Midtrans dengan mengambil deeplink redirect langsung ke masing-masing aplikasi e-wallet di smartphone pengguna.
        - Saat pengguna kembali ke halaman Detail Pembayaran di LiveTix, tersedia **2 tombol**: **`Cek Pembayaran`** dan **`Lanjut ke Aplikasi`**.
-       - Apabila pembayaran sudah diselesaikan lewat PIN, menekan **`Cek Pembayaran`** langsung mengarahkan pengguna ke **Menu `Tiket`** (`HomeScreen(initialNavIndex: 2)`) dan memunculkan tiket yang baru terbeli. Apabila belum dibayar, status tetap **`Menunggu pembayaran`** mengikuti sisa waktu **1 Jam**.
+       - Apabila pembayaran sudah diselesaikan lewat PIN, menekan **`Cek Pembayaran`** langsung mengarahkan pengguna ke **Menu `Tiket`** (`HomeScreen(initialNavIndex: 2)`) dan memunculkan tiket yang baru terbeli. Apabila belum dibayar, status tetap **`Menunggu pembayaran`** mengikuti sisa waktu **15 Menit**.
      - **Bank (Dropdown: `BCA`, `Mandiri`, `BRI`, `SeaBank`)**:
        - Menampilkan perkiraan biaya admin transaksi (contoh: `Rp2.500`) yang langsung ditambahkan ke total tagihan.
        - Menampilkan kode/nomor Virtual Account dan panduan yang disesuaikan dengan aturan aplikasi masing-masing bank: **BCA** (`m-Transfer > BCA Virtual Account` kode `8808`), **Mandiri** (`Livin' by Mandiri > Bayar > Multipayment` kode penyedia jasa `89022`), **BRI** (`BRImo > Tagihan > BRIVA` kode `77889`), dan **SeaBank** (`Aplikasi SeaBank > Transfer > Virtual Account` kode `7821`).

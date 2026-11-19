@@ -51,6 +51,39 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
   void _submit() {
     if (!_isValid) return;
     final reason = _reasonController.text.trim();
+
+    if (!widget.isProducer) {
+      final updatedUser = _service.deactivateUser(widget.producer.id, reason);
+      if (updatedUser == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Akun tidak ditemukan atau sudah nonaktif.')),
+        );
+        Navigator.of(context).pop();
+        return;
+      }
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => AdminResultScreen(
+            kind: ApprovalKind.producer,
+            approved: false,
+            deactivation: true,
+            topTitle: 'Akun Nonaktif',
+            title: 'Penonaktifan Akun User',
+            message: '',
+            itemId: updatedUser.id,
+            decidedAt: DateTime.now(),
+            reason: reason,
+            rows: [
+              ('Pengguna', updatedUser.name),
+              ('Status', updatedUser.approvalStatus.label),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+
     final updated = _service.deactivateProducer(widget.producer.id, reason);
 
     if (updated == null) {
@@ -67,15 +100,16 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
         builder: (_) => AdminResultScreen(
           kind: ApprovalKind.producer,
           approved: false,
+          deactivation: true,
           topTitle: 'Akun Nonaktif',
-          title: 'Penonaktifan Akun User',
+          title: 'Penonaktifan Akun Produser',
           message: '',
           itemId: updated.id,
-          decidedAt: DateTime(2026, 10, 24),
+          decidedAt: DateTime.now(),
           reason: reason,
           rows: [
             ('Produser', updated.companyName),
-            ('Status', 'Ditolak'),
+            ('Status', updated.approvalStatus.label),
           ],
         ),
       ),
@@ -565,7 +599,7 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Wajib diisi. Alasan ini dikirim ke produser.',
+                      'Wajib diisi. Alasan ini dikirim ke pengguna.',
                       style: TextStyle(
                         fontSize: 12,
                         color: textSec,
@@ -609,7 +643,7 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
                   ),
                   decoration: InputDecoration(
                     hintText:
-                        'Tulis alasan akun produser ini dinonaktifkan...\nContoh: pelanggaran kebijakan penjualan tiket.',
+                        'Tulis alasan akun pengguna ini dinonaktifkan...\nContoh: pelanggaran ketentuan pembelian tiket.',
                     hintStyle: TextStyle(
                       fontSize: 13,
                       color: AdminColors.textMutedOf(context),

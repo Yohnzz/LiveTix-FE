@@ -358,53 +358,6 @@ class AdminDummy {
     },
   ];
 
-  static const List<Map<String, dynamic>> notifications = [
-    {
-      'id': 'notif-001',
-      'title': 'Pendaftaran Produser Baru',
-      'body': 'PT Harmony Entertainment mengajukan pendaftaran',
-      'time_ago': '2 jam lalu',
-      'category': 'approval',
-      'is_unread': true,
-      'target_id': 'prd-001',
-      'target_kind': 'producer',
-    },
-    {
-      'id': 'notif-002',
-      'title': 'Konser Baru Diajukan',
-      'body': 'Jazz Night 2026 menunggu persetujuan',
-      'time_ago': '3 jam lalu',
-      'category': 'approval',
-      'is_unread': true,
-      'target_id': 'cnc-001',
-      'target_kind': 'concert',
-    },
-    {
-      'id': 'notif-003',
-      'title': 'Approval Berhasil',
-      'body': 'Rock Revolution telah disetujui',
-      'time_ago': '5 jam lalu',
-      'category': 'approval',
-      'is_unread': false,
-    },
-    {
-      'id': 'notif-004',
-      'title': 'Pengguna Baru',
-      'body': '15 pengguna baru bergabung hari ini',
-      'time_ago': '6 jam lalu',
-      'category': 'system',
-      'is_unread': false,
-    },
-    {
-      'id': 'notif-005',
-      'title': 'Laporan Mingguan',
-      'body': 'Laporan aktivitas minggu ini tersedia',
-      'time_ago': '1 hari lalu',
-      'category': 'system',
-      'is_unread': false,
-    },
-  ];
-
   static const Map<String, dynamic> refundOverview = {
     'total_refunded_label': 'Rp1,74 M',
     'total_refunded_amount': 1742900000,

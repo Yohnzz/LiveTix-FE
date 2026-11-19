@@ -53,6 +53,11 @@ class AdminResultScreen extends StatelessWidget {
   final String? topTitle;
   final String? finishLabel;
 
+  /// TRUE bila layar hasil ini untuk penonaktifan akun, bukan penolakan
+  /// pengajuan. Mengubah chip status dan judul rincian agar tidak menampilkan
+  /// "Ditolak" pada akun yang hanya dinonaktifkan.
+  final bool deactivation;
+
   const AdminResultScreen({
     super.key,
     required this.kind,
@@ -65,6 +70,7 @@ class AdminResultScreen extends StatelessWidget {
     this.decidedAt,
     this.topTitle,
     this.finishLabel,
+    this.deactivation = false,
   });
 
   void _finish(BuildContext context) {
@@ -254,6 +260,11 @@ class AdminResultScreen extends StatelessWidget {
     final textPri = AdminColors.textPrimaryOf(context);
     final textSec = AdminColors.textSecondaryOf(context);
     final border = AdminColors.borderOf(context);
+    final status = deactivation ? AccountStatus.nonaktif : AccountStatus.rejected;
+    final dateLabel =
+        deactivation ? 'Tanggal Penonaktifan' : 'Tanggal Penolakan';
+    final reasonLabel =
+        deactivation ? 'Alasan Penonaktifan' : 'Alasan Penolakan';
 
     return AdminCard(
       padding: const EdgeInsets.all(18),
@@ -277,7 +288,7 @@ class AdminResultScreen extends StatelessWidget {
           Divider(height: 1, color: border),
           const SizedBox(height: 14),
           Text(
-            'Tanggal Penolakan',
+            dateLabel,
             style: TextStyle(fontSize: 12, color: textSec),
           ),
           const SizedBox(height: 4),
@@ -297,15 +308,15 @@ class AdminResultScreen extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AdminColors.dangerBgOf(context),
+                  color: status.backgroundColor,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  'Ditolak',
+                  status.label,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: AdminColors.dangerOf(context),
+                    color: status.color,
                   ),
                 ),
               ),
@@ -315,7 +326,7 @@ class AdminResultScreen extends StatelessWidget {
           Divider(height: 1, color: border),
           const SizedBox(height: 14),
           Text(
-            'Alasan Penolakan',
+            reasonLabel,
             style: TextStyle(fontSize: 12, color: textSec),
           ),
           const SizedBox(height: 4),

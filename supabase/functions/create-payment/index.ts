@@ -158,7 +158,7 @@ serve(async (req) => {
       },
       expiry: {
         unit: "minute",
-        duration: 60,
+        duration: 15,
       },
     };
 
@@ -203,7 +203,7 @@ serve(async (req) => {
     const sampleVa = cleanOrderId.length >= 8 ? cleanOrderId.substring(0, 8) : "12345678";
     const qrString = `00020101021226590014ID.LINKAJA.WWW011893600911002230467702150000000000000000303UMI51440014ID.CO.QRIS.WWW0215ID10260088912040303UMI5204581253033605802ID5916LIVETIX OFFICIAL6006MALANG61056514162190715${orderId}6304`;
     const vaNumber = `8808 1234 ${sampleVa}`;
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 60 menit
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 menit
 
     // 5. Simpan / Upsert Data ke Tabel transactions & orders
     const uuidRegex =

@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../core/account_status.dart';
+
 class UserModel {
   final String id;
   final String name;
@@ -17,6 +19,24 @@ class UserModel {
   final bool hasAcceptedAgreement;
   final String nik;
   final bool isVerified;
+  final AccountStatus accountStatus;
+  final String? deactivationReason;
+
+  /// ID identitas Google (provider_id/sub). Kosong untuk akun non-Google.
+  final String googleId;
+
+  /// Status persetujuan role: kosong = role belum dipilih, `pending`,
+  /// `approved`, atau `rejected`.
+  final String roleVerificationStatus;
+
+  /// Akun yang dinonaktifkan/ditolak tidak boleh memakai fitur apa pun.
+  bool get isBlocked => accountStatus.isBlocked;
+
+  /// Akun yang masuk melalui Google OAuth.
+  bool get isGoogleAccount => googleId.trim().isNotEmpty;
+
+  /// Pengguna sudah menentukan role User/Produser (bukan dugaan otomatis).
+  bool get hasSelectedRole => roleVerificationStatus.trim().isNotEmpty;
 
   bool get isIdentityVerified {
     final normalizedRole = role.trim().toLowerCase();
@@ -43,6 +63,10 @@ class UserModel {
     this.hasAcceptedAgreement = true,
     this.nik = '',
     this.isVerified = false,
+    this.accountStatus = AccountStatus.approved,
+    this.deactivationReason,
+    this.googleId = '',
+    this.roleVerificationStatus = '',
   });
 
   /// Menjamin ID pengguna selalu tepat 6 karakter alfanumerik/angka.
@@ -84,6 +108,11 @@ class UserModel {
     bool? hasAcceptedAgreement,
     String? nik,
     bool? isVerified,
+    AccountStatus? accountStatus,
+    String? deactivationReason,
+    bool clearDeactivationReason = false,
+    String? googleId,
+    String? roleVerificationStatus,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -95,13 +124,21 @@ class UserModel {
       ticketsBought: ticketsBought ?? this.ticketsBought,
       concertsAttended: concertsAttended ?? this.concertsAttended,
       reviewsCount: reviewsCount ?? this.reviewsCount,
-      profileImageBytes:
-          clearProfileImage ? null : (profileImageBytes ?? this.profileImageBytes),
+      profileImageBytes: clearProfileImage
+          ? null
+          : (profileImageBytes ?? this.profileImageBytes),
       avatarUrl: avatarUrl ?? this.avatarUrl,
       avatarColorIndex: avatarColorIndex ?? this.avatarColorIndex,
       hasAcceptedAgreement: hasAcceptedAgreement ?? this.hasAcceptedAgreement,
       nik: nik ?? this.nik,
       isVerified: isVerified ?? this.isVerified,
+      accountStatus: accountStatus ?? this.accountStatus,
+      deactivationReason: clearDeactivationReason
+          ? null
+          : (deactivationReason ?? this.deactivationReason),
+      googleId: googleId ?? this.googleId,
+      roleVerificationStatus:
+          roleVerificationStatus ?? this.roleVerificationStatus,
     );
   }
 
@@ -135,11 +172,16 @@ class UserModel {
       'nik': nik,
       'isVerified': isVerified,
       'is_verified': isVerified,
+      'approval_status': accountStatus.value,
+      'deactivation_reason': deactivationReason,
+      'google_id': googleId,
+      'role_verification_status': roleVerificationStatus,
     };
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    final avatar = (json['url_foto'] ?? json['avatarUrl'] ?? json['avatar_url']) as String?;
+    final avatar = (json['url_foto'] ?? json['avatarUrl'] ?? json['avatar_url'])
+        as String?;
     Uint8List? bytes;
     if (avatar != null && avatar.startsWith('data:image')) {
       try {
@@ -182,6 +224,13 @@ class UserModel {
       hasAcceptedAgreement: (json['hasAcceptedAgreement'] as bool?) ?? true,
       nik: rawNik,
       isVerified: resolvedVerified,
+      accountStatus: json['approval_status'] != null
+          ? AccountStatus.fromValue(json['approval_status'] as String?)
+          : AccountStatus.approved,
+      deactivationReason: json['deactivation_reason'] as String?,
+      googleId: (json['google_id'] as String?) ?? '',
+      roleVerificationStatus:
+          (json['role_verification_status'] as String?) ?? '',
     );
   }
 }

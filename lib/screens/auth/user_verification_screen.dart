@@ -8,11 +8,20 @@ import '../../widgets/auth_header.dart';
 import '../../widgets/offline_banner.dart';
 import '../../widgets/primary_button.dart';
 import '../home/home_screen.dart';
+import 'account_blocked_screen.dart';
 import 'login_screen.dart';
 
 /// Mengarahkan User ke Beranda bila NIK + Nama Lengkap sudah terverifikasi,
 /// atau ke [UserVerificationScreen] bila belum terverifikasi.
 Widget resolveUserEntryScreen(UserModel user) {
+  if (user.isBlocked) {
+    return AccountBlockedScreen(
+      accountName: user.name,
+      email: user.email,
+      status: user.accountStatus,
+      reason: user.deactivationReason,
+    );
+  }
   if (!user.isIdentityVerified) {
     return UserVerificationScreen(initialUser: user);
   }

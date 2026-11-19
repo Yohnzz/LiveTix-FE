@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../data/admin_dummy.dart';
 import '../models/approval_models.dart';
+import '../models/app_notification_model.dart';
 import '../models/promoter_models.dart';
 import '../utils/local_storage.dart';
 import 'data_service.dart';
 import 'gate_crew_service.dart';
+import 'notification_service.dart';
 import 'payment_gateway_service.dart';
 import 'promoter_data_service.dart';
 import 'supabase_service.dart';
@@ -29,8 +32,8 @@ class AdminService {
       ValueNotifier<List<ConcertSubmissionModel>>(const []);
   final ValueNotifier<List<ManagedUserModel>> usersNotifier =
       ValueNotifier<List<ManagedUserModel>>(const []);
-  final ValueNotifier<List<AdminNotificationModel>> notificationsNotifier =
-      ValueNotifier<List<AdminNotificationModel>>(const []);
+  final ValueNotifier<List<AppNotificationModel>> notificationsNotifier =
+      NotificationService().notificationsNotifier;
   final ValueNotifier<RefundOverviewModel> refundOverviewNotifier =
       ValueNotifier<RefundOverviewModel>(
     const RefundOverviewModel(
@@ -116,15 +119,15 @@ class AdminService {
         final rawRole = (raw['role'] ?? 'User').toString();
         final normalizedRole = _normalizeRoleLabel(rawRole);
         final email = (raw['email'] ?? '').toString();
-        final name =
-            (raw['name'] ?? raw['full_name'] ?? email.split('@').first)
-                .toString();
-        final approvalSt =
-            (raw['approval_status'] ?? raw['verification_status'] ?? 'approved')
-                .toString()
-                .toLowerCase();
-        final isActive =
-            approvalSt != 'deactivated' && approvalSt != 'rejected';
+        final name = (raw['name'] ?? raw['full_name'] ?? email.split('@').first)
+            .toString();
+        final rawApproval =
+            raw['approval_status'] ?? raw['verification_status'];
+        // 'unverified' hanya berarti NIK belum diverifikasi, bukan akun mati.
+        final approvalStatus = (rawApproval == null ||
+                rawApproval.toString().trim().toLowerCase() == 'unverified')
+            ? AccountStatus.approved
+            : AccountStatus.fromValue(rawApproval.toString());
         final createdAt =
             DateTime.tryParse((raw['created_at'] ?? '').toString()) ??
                 DateTime.now();
@@ -134,7 +137,11 @@ class AdminService {
           name: name,
           email: email,
           role: normalizedRole,
-          isActive: isActive,
+          approvalStatus: approvalStatus,
+          deactivationReason: approvalStatus.reasonFrom(
+            rejectionReason: (raw['rejection_reason'])?.toString(),
+            deactivationReason: (raw['deactivation_reason'])?.toString(),
+          ),
           joinedAt: ApprovalFormat.dayMonthYear(createdAt),
           phone: (raw['phone'] ?? '-').toString(),
           password: '••••••••',
@@ -267,34 +274,34 @@ class AdminService {
       } catch (_) {}
     }
 
-    ApprovalStatus approvalStatus = ApprovalStatus.pending;
+    AccountStatus approvalStatus = AccountStatus.pending;
     String requestType = 'create';
 
     if (cancelSt == 'pending' || appSt == 'pending_cancel') {
       requestType = 'cancellation';
-      approvalStatus = ApprovalStatus.pending;
+      approvalStatus = AccountStatus.pending;
     } else if (cancelSt == 'approved' || st == 'cancelled') {
       requestType = 'cancellation';
-      approvalStatus = ApprovalStatus.approved;
+      approvalStatus = AccountStatus.approved;
     } else if (cancelSt == 'rejected') {
       requestType = 'cancellation';
-      approvalStatus = ApprovalStatus.rejected;
+      approvalStatus = AccountStatus.rejected;
     } else if (appSt == 'pending_edit' || pendingEditPayload != null) {
       requestType = 'edit';
-      approvalStatus = ApprovalStatus.pending;
+      approvalStatus = AccountStatus.pending;
     } else if (appSt == 'pending' ||
         appSt == 'pending_create' ||
         st == 'pending') {
       requestType = 'create';
-      approvalStatus = ApprovalStatus.pending;
+      approvalStatus = AccountStatus.pending;
     } else if (appSt == 'rejected' || st == 'rejected' || st == 'ditolak') {
-      approvalStatus = ApprovalStatus.rejected;
+      approvalStatus = AccountStatus.rejected;
     } else if (appSt == 'approved' ||
         st == 'published' ||
         st == 'disetujui' ||
         st == 'approved' ||
         st == 'completed') {
-      approvalStatus = ApprovalStatus.approved;
+      approvalStatus = AccountStatus.approved;
     }
 
     final producerId = (row['producer_id'] ?? '').toString();
@@ -474,27 +481,16 @@ class AdminService {
 
     final rawApproval = (promRow?['approval_status'] ??
             profRow?['approval_status'] ??
-            profRow?['verification_status'] ??
-            'pending')
-        .toString()
-        .toLowerCase();
+            profRow?['verification_status'])
+        ?.toString();
 
     final isVerified = (promRow?['is_verified'] as bool?) ??
         (profRow?['is_verified'] as bool?) ??
-        (rawApproval == 'approved');
+        false;
 
-    ApprovalStatus approvalStatus;
-    if (rawApproval == 'deactivated') {
-      approvalStatus = ApprovalStatus.deactivated;
-    } else if (hasPendingProfileEdit) {
-      approvalStatus = ApprovalStatus.pending;
-    } else if (rawApproval == 'rejected') {
-      approvalStatus = ApprovalStatus.rejected;
-    } else if (rawApproval == 'approved' || isVerified) {
-      approvalStatus = ApprovalStatus.approved;
-    } else {
-      approvalStatus = ApprovalStatus.pending;
-    }
+    // Status akun HANYA dibaca dari kolom status database. `rejection_reason`
+    // yang terisi atau `is_verified` tidak boleh mengubah status tampilan.
+    final approvalStatus = AccountStatus.fromValue(rawApproval);
 
     final producerConcerts = allConcerts
         .where((c) =>
@@ -504,7 +500,7 @@ class AdminService {
 
     final activeConcertsList = producerConcerts
         .where((c) =>
-            c.approvalStatus == ApprovalStatus.approved &&
+            c.approvalStatus == AccountStatus.approved &&
             c.status.toLowerCase() != 'cancelled')
         .toList();
 
@@ -573,6 +569,14 @@ class AdminService {
       approvalStatus: approvalStatus,
       rejectionReason: (promRow?['rejection_reason'] ??
           profRow?['rejection_reason']) as String?,
+      deactivationReason: approvalStatus.reasonFrom(
+        rejectionReason:
+            (promRow?['rejection_reason'] ?? profRow?['rejection_reason'])
+                ?.toString(),
+        deactivationReason:
+            (promRow?['deactivation_reason'] ?? profRow?['deactivation_reason'])
+                ?.toString(),
+      ),
       submittedAt: submittedAt,
       legalDocuments: legalDocs,
       submissionDocuments: submissionDocs,
@@ -580,14 +584,12 @@ class AdminService {
       activeConcertsCount: activeConcertsList.length,
       ticketsSold: totalTicketsSold,
       ticketPurchases: 0,
-      pendingName:
-          (pendingName != null && pendingName.trim().isNotEmpty)
-              ? pendingName.trim()
-              : null,
-      pendingKtpUrl:
-          (pendingKtpUrl != null && pendingKtpUrl.trim().isNotEmpty)
-              ? pendingKtpUrl.trim()
-              : null,
+      pendingName: (pendingName != null && pendingName.trim().isNotEmpty)
+          ? pendingName.trim()
+          : null,
+      pendingKtpUrl: (pendingKtpUrl != null && pendingKtpUrl.trim().isNotEmpty)
+          ? pendingKtpUrl.trim()
+          : null,
       pendingResponsibilityLetterUrl:
           (pendingLetterUrl != null && pendingLetterUrl.trim().isNotEmpty)
               ? pendingLetterUrl.trim()
@@ -597,7 +599,8 @@ class AdminService {
         for (final c in activeConcertsList)
           <String, String>{
             'title': c.title,
-            'subtitle': '${ApprovalFormat.dayMonthYear(c.dateTime)} · ${c.venue}',
+            'subtitle':
+                '${ApprovalFormat.dayMonthYear(c.dateTime)} · ${c.venue}',
             if (c.bannerUrl != null) 'posterUrl': c.bannerUrl!,
           },
       ],
@@ -634,7 +637,8 @@ class AdminService {
         totalAmount: c.refundAmount,
         processingTickets: processingTickets,
         needDataTickets: 0,
-        deadlineDate: c.cancellationDate ?? ApprovalFormat.dayMonthYear(DateTime.now()),
+        deadlineDate:
+            c.cancellationDate ?? ApprovalFormat.dayMonthYear(DateTime.now()),
         remainingDays: isCancelledApproved ? 0 : 3,
         buyers: const [],
       ));
@@ -668,12 +672,12 @@ class AdminService {
   void _recomputeStats() {
     final totalUsers = usersNotifier.value.length;
     final activeProducers = producersNotifier.value
-        .where((p) =>
-            p.approvalStatus == ApprovalStatus.approved && p.isVerified)
+        .where(
+            (p) => p.approvalStatus == AccountStatus.approved && p.isVerified)
         .length;
     final activeConcerts = concertsNotifier.value
         .where((c) =>
-            c.approvalStatus == ApprovalStatus.approved &&
+            c.approvalStatus == AccountStatus.approved &&
             c.status.toLowerCase() != 'cancelled')
         .length;
 
@@ -685,69 +689,11 @@ class AdminService {
   }
 
   void _rebuildNotificationsFromDatabase() {
-    final List<AdminNotificationModel> items = [];
-
-    for (final p in producersNotifier.value) {
-      if (p.approvalStatus == ApprovalStatus.pending) {
-        final isEdit = p.requestType == 'profile_edit' ||
-            p.pendingName != null ||
-            p.pendingKtpUrl != null ||
-            p.pendingResponsibilityLetterUrl != null;
-        items.add(AdminNotificationModel(
-          id: 'notif-prod-${p.id}',
-          category: 'approval',
-          title: isEdit
-              ? 'Pengajuan Ubah Profil/Legalitas Produser'
-              : 'Pengajuan Produser Baru',
-          body: isEdit
-              ? '${p.companyName}${p.pendingName != null ? " → ${p.pendingName}" : ""} mengajukan perubahan data untuk ditinjau.'
-              : '${p.companyName} mengajukan verifikasi akun produser.',
-          timeAgo: 'Menunggu Review',
-          isUnread: true,
-          targetId: p.id,
-          targetKind: ApprovalKind.producer,
-        ));
-      }
+    if (!SupabaseService.isInitialized) {
+      notificationsNotifier.value = const [];
+      return;
     }
-
-    for (final c in concertsNotifier.value) {
-      if (c.approvalStatus == ApprovalStatus.pending) {
-        final isEdit = c.requestType == 'edit' || c.pendingEditPayload != null;
-        final isCancel = c.requestType == 'cancellation';
-        items.add(AdminNotificationModel(
-          id: 'notif-con-${c.id}',
-          category: 'approval',
-          title: isCancel
-              ? 'Pengajuan Pembatalan Konser'
-              : isEdit
-                  ? 'Pengajuan Edit Konser'
-                  : 'Pengajuan Konser Baru',
-          body:
-              '${c.title} oleh ${c.promoterName} menunggu persetujuan Admin.',
-          timeAgo: 'Menunggu Review',
-          isUnread: true,
-          targetId: c.id,
-          targetKind: ApprovalKind.concert,
-        ));
-      }
-    }
-
-    for (final crew in GateCrewService().teamCrewNotifier.value) {
-      if (crew.approvalStatus == 'pending') {
-        items.add(AdminNotificationModel(
-          id: 'notif-crew-${crew.id}',
-          category: 'approval',
-          title: 'Approval Akun Gate Crew',
-          body:
-              '${crew.name} (${crew.email}) menunggu persetujuan akun Gate Crew.',
-          timeAgo: 'Menunggu Review',
-          isUnread: true,
-          targetId: crew.id,
-        ));
-      }
-    }
-
-    notificationsNotifier.value = items;
+    unawaited(NotificationService().load());
   }
 
   void _seed() {
@@ -777,8 +723,7 @@ class AdminService {
       }
     }
     usersNotifier.value = seededUsers;
-    notificationsNotifier.value =
-        AdminDummy.notifications.map(AdminNotificationModel.fromJson).toList();
+    notificationsNotifier.value = const [];
     refundOverviewNotifier.value =
         RefundOverviewModel.fromJson(AdminDummy.refundOverview);
     refundMonitoringNotifier.value = AdminDummy.refundMonitoring
@@ -803,21 +748,20 @@ class AdminService {
   int get unreadNotificationCount =>
       notificationsNotifier.value.where((n) => n.isUnread).length;
 
-  void markNotificationAsRead(String id) {
-    final list = notificationsNotifier.value;
-    final index = list.indexWhere((n) => n.id == id);
-    if (index == -1 || !list[index].isUnread) return;
-    final updated = List<AdminNotificationModel>.from(list);
-    updated[index] = updated[index].copyWith(isUnread: false);
-    notificationsNotifier.value = updated;
+  Future<void> markNotificationAsRead(String id) {
+    return NotificationService().markAsRead(id);
   }
 
   int get pendingProducerCount => producersNotifier.value
-      .where((p) => p.approvalStatus == ApprovalStatus.pending)
+      .where((p) => p.approvalStatus == AccountStatus.pending)
       .length;
 
+  /// Jumlah produser per status (dipakai tab & badge di halaman admin).
+  int producerCountByStatus(AccountStatus status) =>
+      producersNotifier.value.where((p) => p.approvalStatus == status).length;
+
   int get pendingConcertCount => concertsNotifier.value
-      .where((c) => c.approvalStatus == ApprovalStatus.pending)
+      .where((c) => c.approvalStatus == AccountStatus.pending)
       .length;
 
   int get pendingGateCrewCount => GateCrewService()
@@ -833,7 +777,7 @@ class AdminService {
   List<ApprovalQueueItem> recentPending({int limit = 2}) {
     final items = <ApprovalQueueItem>[
       for (final p in producersNotifier.value)
-        if (p.approvalStatus == ApprovalStatus.pending)
+        if (p.approvalStatus == AccountStatus.pending)
           ApprovalQueueItem(
             kind: ApprovalKind.producer,
             id: p.id,
@@ -843,7 +787,7 @@ class AdminService {
             submittedAt: p.submittedAt,
           ),
       for (final c in concertsNotifier.value)
-        if (c.approvalStatus == ApprovalStatus.pending)
+        if (c.approvalStatus == AccountStatus.pending)
           ApprovalQueueItem(
             kind: ApprovalKind.concert,
             id: c.id,
@@ -907,11 +851,6 @@ class AdminService {
           u,
     ];
 
-    notificationsNotifier.value = [
-      for (final n in notificationsNotifier.value)
-        if (n.targetId != userId && n.id != 'notif-crew-$userId') n,
-    ];
-
     _recomputeStats();
 
     await GateCrewService().deleteGateCrewByAdmin(
@@ -921,34 +860,102 @@ class AdminService {
     return true;
   }
 
-  void toggleUserActive(String userId) {
+  /// Menonaktifkan akun User. Alasan wajib diisi dan disimpan pada kolom
+  /// `deactivation_reason`.
+  ManagedUserModel? deactivateUser(String userId, String reason) {
+    final trimmed = reason.trim();
+    if (trimmed.isEmpty) return null;
     final list = List<ManagedUserModel>.from(usersNotifier.value);
     final index = list.indexWhere((u) => u.id == userId);
-    if (index != -1) {
-      final newActive = !list[index].isActive;
-      list[index] = list[index].copyWith(isActive: newActive);
-      usersNotifier.value = list;
+    if (index == -1) return null;
 
-      if (SupabaseService.isInitialized) {
-        final newStatus = newActive ? 'approved' : 'deactivated';
-        SupabaseService.client
-            .from('profiles')
-            .update({
-              'approval_status': newStatus,
-              'verification_status': newStatus,
-            })
-            .eq('id', userId)
-            .catchError((_) {});
-        SupabaseService.client
-            .from('promoter_profiles')
-            .update({
-              'approval_status': newStatus,
-              'is_verified': newActive,
-            })
-            .eq('id', userId)
-            .catchError((_) {});
+    final updated = list[index].copyWith(
+      approvalStatus: AccountStatus.nonaktif,
+      deactivationReason: trimmed,
+    );
+    list[index] = updated;
+    usersNotifier.value = list;
+
+    _persistUserAccountStatus(
+      userId: updated.id,
+      status: AccountStatus.nonaktif,
+      deactivationReason: trimmed,
+    );
+    return updated;
+  }
+
+  /// Mengaktifkan kembali akun User dan mengosongkan alasan penonaktifan.
+  ManagedUserModel? activateUser(String userId) {
+    final list = List<ManagedUserModel>.from(usersNotifier.value);
+    final index = list.indexWhere((u) => u.id == userId);
+    if (index == -1) return null;
+
+    final updated = list[index].copyWith(
+      approvalStatus: AccountStatus.approved,
+      clearDeactivationReason: true,
+    );
+    list[index] = updated;
+    usersNotifier.value = list;
+
+    _persistUserAccountStatus(
+      userId: updated.id,
+      status: AccountStatus.approved,
+      deactivationReason: null,
+    );
+    return updated;
+  }
+
+  void _persistUserAccountStatus({
+    required String userId,
+    required AccountStatus status,
+    required String? deactivationReason,
+  }) {
+    if (!SupabaseService.isInitialized) return;
+
+    // Jangan pernah menimpa akun Admin lewat aksi manajemen user.
+    for (final u in usersNotifier.value) {
+      if (u.id == userId) {
+        if (u.role.toLowerCase() == 'admin') return;
+        break;
       }
     }
+
+    SupabaseService.client
+        .from('profiles')
+        .update({
+          'approval_status': status.value,
+          'verification_status': status.value,
+          'deactivation_reason': deactivationReason,
+          if (status == AccountStatus.approved) ...{
+            'rejection_reason': null,
+            'rejected_at': null,
+          },
+        })
+        .eq('id', userId)
+        .catchError((_) {});
+
+    final promoterUpdate = <String, dynamic>{
+      'approval_status': status.value,
+      'deactivation_reason': deactivationReason,
+      'is_verified': status == AccountStatus.approved,
+      if (status == AccountStatus.approved) ...{
+        'rejection_reason': null,
+        'rejected_at': null,
+      },
+    };
+
+    // `promoter_profiles.id` bisa berupa UUID profil atau kolom terpisah
+    // (`user_id`), jadi kedua kemungkinan tautan dicoba.
+    SupabaseService.client
+        .from('promoter_profiles')
+        .update(promoterUpdate)
+        .eq('user_id', userId)
+        .catchError((_) {});
+    SupabaseService.client
+        .from('promoter_profiles')
+        .update(promoterUpdate)
+        .eq('id', userId)
+        .catchError((_) {});
   }
 
   ManagedUserModel? updateUserName(String userId, String newName) {
@@ -1129,7 +1136,7 @@ class AdminService {
   /// maupun pembaruan dokumen legalitas) dan menyimpannya ke database.
   ProducerApplicationModel? approveProducer(String id) {
     final current = producerById(id);
-    if (current == null || current.approvalStatus != ApprovalStatus.pending) {
+    if (current == null || current.approvalStatus != AccountStatus.pending) {
       return null;
     }
 
@@ -1140,12 +1147,13 @@ class AdminService {
 
     final updated = current.copyWith(
       companyName: approvedName,
-      approvalStatus: ApprovalStatus.approved,
+      approvalStatus: AccountStatus.approved,
       isVerified: true,
       requestType: 'registration',
       clearPendingName: true,
       clearPendingKtp: true,
       clearPendingLetter: true,
+      clearDeactivationReason: true,
     );
     _replaceProducer(updated);
 
@@ -1187,6 +1195,7 @@ class AdminService {
         'pending_ktp_url': null,
         'pending_responsibility_letter_url': null,
         'rejection_reason': null,
+        'deactivation_reason': null,
       };
       if (current.pendingKtpUrl != null &&
           current.pendingKtpUrl!.trim().isNotEmpty) {
@@ -1214,6 +1223,8 @@ class AdminService {
         'pending_name': null,
         'pending_ktp_url': null,
         'pending_responsibility_letter_url': null,
+        'rejection_reason': null,
+        'deactivation_reason': null,
       };
       if (current.pendingKtpUrl != null &&
           current.pendingKtpUrl!.trim().isNotEmpty) {
@@ -1249,7 +1260,7 @@ class AdminService {
     final current = producerById(id);
     final trimmed = reason.trim();
     if (current == null ||
-        current.approvalStatus != ApprovalStatus.pending ||
+        current.approvalStatus != AccountStatus.pending ||
         trimmed.isEmpty) {
       return null;
     }
@@ -1261,13 +1272,14 @@ class AdminService {
     final now = DateTime.now();
     final updated = current.copyWith(
       approvalStatus:
-          isProfileEdit ? ApprovalStatus.approved : ApprovalStatus.rejected,
+          isProfileEdit ? AccountStatus.approved : AccountStatus.rejected,
       rejectionReason: trimmed,
       rejectedAt: now,
       requestType: 'registration',
       clearPendingName: true,
       clearPendingKtp: true,
       clearPendingLetter: true,
+      clearDeactivationReason: true,
     );
     _replaceProducer(updated);
 
@@ -1282,6 +1294,7 @@ class AdminService {
             'approval_status': isProfileEdit ? 'approved' : 'rejected',
             'rejection_reason': trimmed,
             'rejected_at': now.toIso8601String(),
+            'deactivation_reason': null,
             'is_verified': isProfileEdit ? current.isVerified : false,
             'profile_change_status': 'rejected',
             'pending_name': null,
@@ -1296,6 +1309,10 @@ class AdminService {
           .update({
             'approval_status': isProfileEdit ? 'approved' : 'rejected',
             'verification_status': isProfileEdit ? 'approved' : 'rejected',
+            // Trigger database mewajibkan rejection_reason saat status rejected.
+            'rejection_reason': isProfileEdit ? null : trimmed,
+            'rejected_at': isProfileEdit ? null : now.toIso8601String(),
+            'deactivation_reason': null,
             'is_verified': isProfileEdit ? current.isVerified : false,
             'profile_change_status': 'rejected',
             'pending_name': null,
@@ -1317,9 +1334,11 @@ class AdminService {
     if (current == null || trimmed.isEmpty) {
       return null;
     }
+    if (current.approvalStatus == AccountStatus.nonaktif) return null;
+
     final updated = current.copyWith(
-      approvalStatus: ApprovalStatus.deactivated,
-      rejectionReason: trimmed,
+      approvalStatus: AccountStatus.nonaktif,
+      deactivationReason: trimmed,
       isVerified: false,
     );
     _replaceProducer(updated);
@@ -1334,8 +1353,8 @@ class AdminService {
       SupabaseService.client
           .from('promoter_profiles')
           .update({
-            'approval_status': 'deactivated',
-            'rejection_reason': trimmed,
+            'approval_status': 'nonaktif',
+            'deactivation_reason': trimmed,
             'is_verified': false,
           })
           .eq('id', id)
@@ -1344,9 +1363,68 @@ class AdminService {
       SupabaseService.client
           .from('profiles')
           .update({
-            'approval_status': 'deactivated',
-            'verification_status': 'deactivated',
+            'approval_status': 'nonaktif',
+            'verification_status': 'nonaktif',
+            'deactivation_reason': trimmed,
             'is_verified': false,
+          })
+          .eq('id', id)
+          .catchError((_) {});
+    }
+
+    return updated;
+  }
+
+  /// Mengaktifkan kembali akun Produser yang nonaktif.
+  /// Status kembali `approved` dan `deactivation_reason` dikosongkan.
+  ProducerApplicationModel? activateProducer(String id) {
+    final current = producerById(id);
+    if (current == null || current.approvalStatus != AccountStatus.nonaktif) {
+      return null;
+    }
+
+    final updated = current.copyWith(
+      approvalStatus: AccountStatus.approved,
+      isVerified: true,
+      clearDeactivationReason: true,
+    );
+    _replaceProducer(updated);
+
+    final stats = statsNotifier.value;
+    statsNotifier.value =
+        stats.copyWith(activeProducers: stats.activeProducers + 1);
+
+    final userList = List<ManagedUserModel>.from(usersNotifier.value);
+    final uIdx = userList.indexWhere((u) =>
+        u.id == id || u.email.toLowerCase() == updated.email.toLowerCase());
+    if (uIdx != -1) {
+      userList[uIdx] = userList[uIdx].copyWith(
+        approvalStatus: AccountStatus.approved,
+        clearDeactivationReason: true,
+      );
+      usersNotifier.value = userList;
+    }
+
+    PromoterDataService().onAdminActivatedProducer();
+
+    if (SupabaseService.isInitialized) {
+      SupabaseService.client
+          .from('promoter_profiles')
+          .update({
+            'approval_status': 'approved',
+            'deactivation_reason': null,
+            'is_verified': true,
+          })
+          .eq('id', id)
+          .catchError((_) {});
+
+      SupabaseService.client
+          .from('profiles')
+          .update({
+            'approval_status': 'approved',
+            'verification_status': 'approved',
+            'deactivation_reason': null,
+            'is_verified': true,
           })
           .eq('id', id)
           .catchError((_) {});
@@ -1360,7 +1438,7 @@ class AdminService {
   /// diterapkan ke tabel `concerts` dan `ticket_tiers` di Supabase.
   ConcertSubmissionModel? approveConcert(String id) {
     final current = concertById(id);
-    if (current == null || current.approvalStatus != ApprovalStatus.pending) {
+    if (current == null || current.approvalStatus != AccountStatus.pending) {
       return null;
     }
 
@@ -1393,22 +1471,19 @@ class AdminService {
       }
       final rawEditedTiers = editPayload['ticket_tiers'];
       if (rawEditedTiers is List && rawEditedTiers.isNotEmpty) {
-        newTiers = rawEditedTiers
-            .whereType<Map<String, dynamic>>()
-            .map((t) {
-              final quotaVal =
-                  ((t['total_quota'] ?? t['quota'] ?? 0) as num).toInt();
-              return SubmissionTierModel(
-                id: (t['id'] ?? '').toString(),
-                concertId: id,
-                name: (t['name'] ?? '').toString(),
-                description: (t['description'] ?? '').toString(),
-                price: (t['price'] as num?)?.toInt() ?? 0,
-                totalQuota: quotaVal,
-                remainingQuota: quotaVal,
-              );
-            })
-            .toList();
+        newTiers = rawEditedTiers.whereType<Map<String, dynamic>>().map((t) {
+          final quotaVal =
+              ((t['total_quota'] ?? t['quota'] ?? 0) as num).toInt();
+          return SubmissionTierModel(
+            id: (t['id'] ?? '').toString(),
+            concertId: id,
+            name: (t['name'] ?? '').toString(),
+            description: (t['description'] ?? '').toString(),
+            price: (t['price'] as num?)?.toInt() ?? 0,
+            totalQuota: quotaVal,
+            remainingQuota: quotaVal,
+          );
+        }).toList();
       }
     }
 
@@ -1420,7 +1495,7 @@ class AdminService {
       bannerUrl: newBanner,
       dateTime: newDateTime,
       tiers: newTiers,
-      approvalStatus: ApprovalStatus.approved,
+      approvalStatus: AccountStatus.approved,
       status: 'published',
       requestType: 'create',
       clearPendingEdit: true,
@@ -1535,13 +1610,11 @@ class AdminService {
         title: newTitle,
         dateAndVenue: newSubtitle,
         venueName: newVenue,
-        venueAddress: (editPayload?['venue_address'] ??
-                pList[pIdx].venueAddress)
-            .toString(),
-        venueLatitude:
-            (editPayload?['venue_latitude'] as num?)?.toDouble(),
-        venueLongitude:
-            (editPayload?['venue_longitude'] as num?)?.toDouble(),
+        venueAddress:
+            (editPayload?['venue_address'] ?? pList[pIdx].venueAddress)
+                .toString(),
+        venueLatitude: (editPayload?['venue_latitude'] as num?)?.toDouble(),
+        venueLongitude: (editPayload?['venue_longitude'] as num?)?.toDouble(),
         venuePlaceId: editPayload?['venue_place_id']?.toString(),
         status: ConcertStatus.disetujui,
       );
@@ -1558,7 +1631,7 @@ class AdminService {
     final current = concertById(id);
     final trimmed = reason.trim();
     if (current == null ||
-        current.approvalStatus != ApprovalStatus.pending ||
+        current.approvalStatus != AccountStatus.pending ||
         trimmed.isEmpty) {
       return null;
     }
@@ -1566,8 +1639,7 @@ class AdminService {
     final isEdit =
         current.requestType == 'edit' || current.pendingEditPayload != null;
     final updated = current.copyWith(
-      approvalStatus:
-          isEdit ? ApprovalStatus.approved : ApprovalStatus.rejected,
+      approvalStatus: isEdit ? AccountStatus.approved : AccountStatus.rejected,
       rejectionReason: trimmed,
       rejectedAt: now,
       status: isEdit ? 'published' : 'rejected',
@@ -1622,7 +1694,7 @@ class AdminService {
     if (current == null) return null;
     final updated = current.copyWith(
       status: 'cancelled',
-      approvalStatus: ApprovalStatus.approved,
+      approvalStatus: AccountStatus.approved,
     );
     _replaceConcert(updated);
     final stats = statsNotifier.value;
@@ -1646,7 +1718,7 @@ class AdminService {
           });
       _recomputeRefundsFromConcerts(concertsNotifier.value);
       _rebuildNotificationsFromDatabase();
-      // Kunci dana dan balikkan biaya admin 3% di ledger keuangan
+      // Kunci dana dan balikkan biaya admin 2% di ledger keuangan
       PaymentGatewayService().cancelConcertAndLockFunds(
         concertId: id,
         reason: 'Pembatalan konser disetujui oleh admin',
@@ -1669,7 +1741,7 @@ class AdminService {
     final trimmed = reason.trim();
     if (current == null || trimmed.isEmpty) return null;
     final updated = current.copyWith(
-      approvalStatus: ApprovalStatus.rejected,
+      approvalStatus: AccountStatus.rejected,
       rejectionReason: trimmed,
       cancellationReviewReason: trimmed,
     );
@@ -1780,8 +1852,9 @@ class AdminService {
     final created = ConcertSubmissionModel(
       id: newId,
       promoterId: promoterId ?? '',
-      promoterName:
-          promoterName.trim().isEmpty ? 'LiveTix Official' : promoterName.trim(),
+      promoterName: promoterName.trim().isEmpty
+          ? 'LiveTix Official'
+          : promoterName.trim(),
       title: title.trim(),
       subtitle: subtitle.trim(),
       genre: genre.trim().isEmpty ? 'Pop' : genre.trim(),
@@ -1790,7 +1863,7 @@ class AdminService {
       totalCapacity: totalCapacity,
       status: 'published',
       bannerUrl: bannerUrl,
-      approvalStatus: ApprovalStatus.approved,
+      approvalStatus: AccountStatus.approved,
       submittedAt: DateTime.now(),
       tiers: effectiveTiers,
       requestType: 'create',
@@ -1826,9 +1899,7 @@ class AdminService {
 
     final updatedTiers = tiers ?? current.tiers;
     final minPrice = updatedTiers.isNotEmpty
-        ? updatedTiers
-            .map((t) => t.price)
-            .reduce((a, b) => a < b ? a : b)
+        ? updatedTiers.map((t) => t.price).reduce((a, b) => a < b ? a : b)
         : 150000;
 
     final updated = current.copyWith(
@@ -1840,7 +1911,7 @@ class AdminService {
       totalCapacity: totalCapacity,
       bannerUrl: bannerUrl ?? current.bannerUrl,
       tiers: updatedTiers,
-      approvalStatus: ApprovalStatus.approved,
+      approvalStatus: AccountStatus.approved,
       status: 'published',
       clearPendingEdit: true,
     );
@@ -1848,24 +1919,21 @@ class AdminService {
 
     if (SupabaseService.isInitialized) {
       try {
-        await SupabaseService.client
-            .from('concerts')
-            .update({
-              'title': title.trim(),
-              'subtitle': subtitle.trim(),
-              'description': subtitle.trim(),
-              'category': genre.trim(),
-              'date': dateLabel.trim(),
-              'time': timeLabel.trim(),
-              'venue': venue.trim(),
-              'total_capacity': totalCapacity,
-              'price': minPrice,
-              'banner_image_url': bannerUrl ?? current.bannerUrl,
-              'status': 'published',
-              'approval_status': 'approved',
-              'pending_edit_payload': null,
-            })
-            .eq('id', concertId);
+        await SupabaseService.client.from('concerts').update({
+          'title': title.trim(),
+          'subtitle': subtitle.trim(),
+          'description': subtitle.trim(),
+          'category': genre.trim(),
+          'date': dateLabel.trim(),
+          'time': timeLabel.trim(),
+          'venue': venue.trim(),
+          'total_capacity': totalCapacity,
+          'price': minPrice,
+          'banner_image_url': bannerUrl ?? current.bannerUrl,
+          'status': 'published',
+          'approval_status': 'approved',
+          'pending_edit_payload': null,
+        }).eq('id', concertId);
 
         if (tiers != null && tiers.isNotEmpty) {
           for (final t in tiers) {

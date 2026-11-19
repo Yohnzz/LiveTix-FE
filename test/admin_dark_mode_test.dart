@@ -89,7 +89,8 @@ void main() {
   });
 
   group('Mode Gelap Admin & Pengguna - Kontras WCAG AA >= 4.5:1', () {
-    testWidgets('AdminDashboardScreen & AdminProfileScreen terbaca jelas di mode gelap dan toggle terang/gelap bekerja',
+    testWidgets(
+        'AdminDashboardScreen & AdminProfileScreen terbaca jelas di mode gelap dan toggle terang/gelap bekerja',
         (tester) async {
       await _pumpWithDarkTheme(tester, const AdminShell());
       expect(find.byType(AdminDashboardScreen), findsOneWidget);
@@ -149,7 +150,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('AdminUsersScreen & dialog serta AdminUserDetailScreen bebas teks gelap pada latar gelap',
+    testWidgets(
+        'AdminUsersScreen & dialog serta AdminUserDetailScreen bebas teks gelap pada latar gelap',
         (tester) async {
       await _pumpWithDarkTheme(tester, const AdminShell());
       await tester.tap(find.bySemanticsLabel('Kelola User').last);
@@ -188,8 +190,7 @@ void main() {
       );
       expect(scaffold.backgroundColor, AdminColors.darkBackground);
 
-      final nameText =
-          tester.widget<Text>(find.text('Rafi Firmansyah').first);
+      final nameText = tester.widget<Text>(find.text('Rafi Firmansyah').first);
       expect(
         _contrastRatio(nameText.style!.color!, AdminColors.darkSurface),
         greaterThanOrEqualTo(4.5),
@@ -197,18 +198,15 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('AdminNotificationScreen, AdminReviewConcertScreen, dan AdminRejectScreen memakai permukaan & teks mode gelap',
+    testWidgets(
+        'AdminNotificationScreen, AdminReviewConcertScreen, dan AdminRejectScreen memakai permukaan & teks mode gelap',
         (tester) async {
       // 1. AdminNotificationScreen
       await _pumpWithDarkTheme(tester, const AdminNotificationScreen());
       final notifScaffold = tester.widget<Scaffold>(find.byType(Scaffold));
       expect(notifScaffold.backgroundColor, AdminColors.darkBackground);
-      final notifTitle =
-          tester.widget<Text>(find.text('Pendaftaran Produser Baru').first);
-      expect(
-        _contrastRatio(notifTitle.style!.color!, AdminColors.darkSurface),
-        greaterThanOrEqualTo(4.5),
-      );
+      expect(find.text('Tidak ada notifikasi'), findsOneWidget);
+      expect(find.text('Pendaftaran Produser Baru'), findsNothing);
 
       // 2. AdminReviewConcertScreen
       await _pumpWithDarkTheme(
@@ -240,7 +238,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('Layar Monitoring Refund & Pembatalan Admin terbungkus latar dan teks mode gelap',
+    testWidgets(
+        'Layar Monitoring Refund & Pembatalan Admin terbungkus latar dan teks mode gelap',
         (tester) async {
       await _pumpWithDarkTheme(tester, const AdminRefundMonitoringScreen());
       expect(
@@ -295,7 +294,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('ExploreScreen empty state & TicketScreen empty state kontras jelas di mode gelap',
+    testWidgets(
+        'ExploreScreen empty state & TicketScreen empty state kontras jelas di mode gelap',
         (tester) async {
       await _pumpWithDarkTheme(tester, const TicketScreen(isGuest: true));
       final emptyTicketTitle =

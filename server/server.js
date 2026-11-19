@@ -24,7 +24,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Inisialisasi Gemini API
 const geminiApiKey = process.env.GEMINI_API_KEY || '';
 const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
-const fallbackModels = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-latest'];
+const fallbackModels = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-flash-lite-latest'];
 
 /**
  * Helper untuk memanggil Google Generative Language (Gemini) API

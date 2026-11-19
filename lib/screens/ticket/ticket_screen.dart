@@ -256,7 +256,7 @@ class _TicketScreenState extends State<TicketScreen> {
       paymentProvider: ticket.paymentMethod,
       qrString: ticket.qrData,
       qrCodeUrl: ticket.qrCodeUrl,
-      expiresAt: DateTime.now().add(const Duration(minutes: 60)),
+      expiresAt: DateTime.now().add(const Duration(minutes: 15)),
     );
   }
 
@@ -1041,7 +1041,7 @@ class _TicketScreenState extends State<TicketScreen> {
                           children: [
                             Text(
                               isPending
-                                  ? 'Batas waktu 1 jam · ${ticket.paymentMethod}'
+                                  ? 'Batas waktu 15 menit · ${ticket.paymentMethod}'
                                   : isRefund
                                       ? '${ticket.daysLeft} hari lagi'
                                       : '${ticket.daysLeft} hari lagi · ${ticket.qrScanQuota}x scan',

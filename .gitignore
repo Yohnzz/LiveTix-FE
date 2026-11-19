@@ -16,9 +16,12 @@ supabase/.temp/
 .env.*
 !.env.example
 *.local
+*-firebase-adminsdk-*.json
+livetix-*.json
 
 # Kredensial lokal Android
 android/local.properties
+android/app/google-services.json
 
 # AI Assistants, Agent configurations, and Anti-Slop files
 .agents/

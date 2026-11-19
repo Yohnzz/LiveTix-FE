@@ -21,14 +21,46 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
   final AdminService _service = AdminService();
   final GateCrewService _gateCrewService = GateCrewService();
   final TextEditingController _searchController = TextEditingController();
-  ApprovalStatus _status = ApprovalStatus.pending;
+  AccountStatus _status = AccountStatus.pending;
   String _query = '';
   int _month = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Selalu ambil status terbaru dari database saat halaman dibuka.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _service.load(force: true);
+      _gateCrewService.loadTeam();
+    });
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  int _statusCount(ApprovalKind kind, AccountStatus status) {
+    switch (kind) {
+      case ApprovalKind.producer:
+        return _service.producerCountByStatus(status);
+      case ApprovalKind.concert:
+        return _service.concertsNotifier.value
+            .where((c) => c.approvalStatus == status)
+            .length;
+      case ApprovalKind.gatecrew:
+        return _gateCrewService.teamCrewNotifier.value
+            .where((c) => c.approvalStatus.toLowerCase() == status.value)
+            .length;
+    }
+  }
+
+  String _statusTabLabel(ApprovalKind kind, AccountStatus status) {
+    final count = _statusCount(kind, status);
+    final label = status.shortLabel;
+    return count > 0 ? '$label ($count)' : label;
   }
 
   bool get _hasConcertFilter => _query.trim().isNotEmpty || _month != 0;
@@ -67,12 +99,6 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
     final pendingProdCount = _service.pendingProducerCount;
     final pendingConCount = _service.pendingConcertCount;
     final pendingCrewCount = _service.pendingGateCrewCount;
-
-    final int activePendingCount = switch (kind) {
-      ApprovalKind.producer => pendingProdCount,
-      ApprovalKind.concert => pendingConCount,
-      ApprovalKind.gatecrew => pendingCrewCount,
-    };
 
     final (String headerTitle, String headerSubtitle) = switch (kind) {
       ApprovalKind.producer => (
@@ -115,18 +141,33 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
             ),
           ],
           selected: kind,
-          onChanged: (value) => AdminNavigation.approvalKind.value = value,
+          onChanged: (value) {
+            if (value != ApprovalKind.producer &&
+                _status == AccountStatus.nonaktif) {
+              _status = AccountStatus.pending;
+            }
+            AdminNavigation.approvalKind.value = value;
+          },
         ),
-        AdminTextTabs<ApprovalStatus>(
+        AdminTextTabs<AccountStatus>(
           items: [
             AdminTabItem(
-              activePendingCount > 0
-                  ? 'Menunggu ($activePendingCount)'
-                  : 'Menunggu',
-              ApprovalStatus.pending,
+              _statusTabLabel(kind, AccountStatus.pending),
+              AccountStatus.pending,
             ),
-            const AdminTabItem('Disetujui', ApprovalStatus.approved),
-            const AdminTabItem('Ditolak', ApprovalStatus.rejected),
+            AdminTabItem(
+              _statusTabLabel(kind, AccountStatus.approved),
+              AccountStatus.approved,
+            ),
+            AdminTabItem(
+              _statusTabLabel(kind, AccountStatus.rejected),
+              AccountStatus.rejected,
+            ),
+            if (kind == ApprovalKind.producer)
+              AdminTabItem(
+                _statusTabLabel(kind, AccountStatus.nonaktif),
+                AccountStatus.nonaktif,
+              ),
           ],
           selected: _status,
           onChanged: (value) => setState(() => _status = value),
@@ -479,7 +520,7 @@ class _ProducerCrewGroup {
 ///    - [Gatecrew]
 class _ProducerGatecrewGroupCard extends StatelessWidget {
   final _ProducerCrewGroup group;
-  final ApprovalStatus statusFilter;
+  final AccountStatus statusFilter;
   final ValueChanged<GateCrewMemberModel> onApproveCrew;
   final ValueChanged<GateCrewMemberModel> onRejectCrew;
   final ValueChanged<GateCrewMemberModel> onDeleteCrew;
@@ -682,7 +723,7 @@ class _ProducerGatecrewGroupCard extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              if (statusFilter == ApprovalStatus.pending) ...[
+                              if (statusFilter == AccountStatus.pending) ...[
                                 TextButton(
                                   onPressed: () =>
                                       onRejectCrew(group.crews[i]),
@@ -802,6 +843,19 @@ class _ProducerRow extends StatelessWidget {
                       color: AdminColors.textSecondaryOf(context),
                     ),
                   ),
+                  if (item.statusReason != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Alasan: ${item.statusReason}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: item.approvalStatus.color,
+                      ),
+                    ),
+                  ],
                   if (hasPendingProfileEdit) ...[
                     const SizedBox(height: 4),
                     Text(

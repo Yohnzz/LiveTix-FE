@@ -28,9 +28,9 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  // Batas waktu pembayaran 1 jam (3600 detik)
-  static const int _initialExpirySeconds = 3600;
-  static const String _expiryWindowLabel = '1 jam';
+  // Batas waktu pembayaran 15 menit (900 detik)
+  static const int _initialExpirySeconds = 900;
+  static const String _expiryWindowLabel = '15 menit';
 
   late int _remainingSeconds;
   Timer? _timer;
@@ -132,7 +132,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'Batas waktu pembayaran 1 jam telah berakhir. Reservasi tiket dikembalikan ke stok.',
+          'Batas waktu pembayaran 15 menit telah berakhir. Reservasi tiket dikembalikan ke stok.',
         ),
         backgroundColor: Color(0xFFB91C1C),
       ),
@@ -364,7 +364,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'Waktu pembayaran 1 jam telah berakhir. Silakan ulangi pesanan.'),
+              'Waktu pembayaran 15 menit telah berakhir. Silakan ulangi pesanan.'),
           backgroundColor: Color(0xFFB91C1C),
         ),
       );
@@ -445,7 +445,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     if (_remainingSeconds <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Waktu pembayaran 1 jam telah habis. Silakan buat pesanan baru.'),
+          content: Text('Waktu pembayaran 15 menit telah habis. Silakan buat pesanan baru.'),
           backgroundColor: Color(0xFFB91C1C),
         ),
       );
@@ -734,8 +734,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
             spacing: 6,
             runSpacing: 6,
             children: [
-              _buildTimerBox(_formatNumber(hours), 'Jam'),
-              const Text(':', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              if (hours > 0) ...[
+                _buildTimerBox(_formatNumber(hours), 'Jam'),
+                const Text(':', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              ],
               _buildTimerBox(_formatNumber(minutes), 'Menit'),
               const Text(':', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
               _buildTimerBox(_formatNumber(seconds), 'Detik'),
@@ -1640,7 +1642,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Selesaikan transaksi sebelum batas waktu 1 jam berakhir agar pesanan tiket tidak dibatalkan otomatis.',
+              'Selesaikan transaksi sebelum batas waktu 15 menit berakhir agar pesanan tiket tidak dibatalkan otomatis.',
               style: TextStyle(
                 fontSize: 11.5,
                 color: Color(0xFF92400E),

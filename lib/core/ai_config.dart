@@ -18,15 +18,15 @@ class AiConfig {
     );
   }
 
-  /// Model utama yang sangat cepat dan aktif
-  static const String primaryModel = 'gemini-3.1-flash-lite';
+  /// Model utama: stabil, cepat, dan hemat untuk balasan chat customer service.
+  static const String primaryModel = 'gemini-3.5-flash-lite';
 
-  /// Daftar model cadangan jika model utama sibuk (503/429)
+  /// Daftar model cadangan jika model utama sibuk (503/429).
+  /// Semua nama di bawah adalah model stabil/alias resmi Gemini API.
   static const List<String> fallbackModels = [
-    'gemini-3.1-flash-lite',
-    'gemini-3.5-flash',
-    'gemini-3.8-flash',
-    'gemini-flash-latest',
+    'gemini-3.5-flash-lite',
+    'gemini-3.6-flash',
+    'gemini-flash-lite-latest',
   ];
 
   /// Base URL Google Generative Language API

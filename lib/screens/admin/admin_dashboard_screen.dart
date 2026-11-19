@@ -671,7 +671,7 @@ class _QueueCard extends StatelessWidget {
                         color: textPri,
                       ),
                     ),
-                    const StatusBadge(status: ApprovalStatus.pending),
+                    const StatusBadge(status: AccountStatus.pending),
                   ],
                 ),
                 const SizedBox(height: 4),

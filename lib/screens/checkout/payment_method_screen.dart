@@ -136,7 +136,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         category: category,
         provider: provider,
         transactionFee: fee,
-        expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+        expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 15)),
       );
       DataService().adjustLocalTierStock(
         widget.order.concert.id,

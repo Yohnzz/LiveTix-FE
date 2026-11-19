@@ -48,7 +48,7 @@ class ProducerDeactivatedScreen extends StatelessWidget {
         ? responsiblePersonName.trim()
         : (service.promoterName.isNotEmpty ? service.promoterName : 'Produser LiveTix');
 
-    final reason = service.rejectionReasonNotifier.value?.trim();
+    final reason = service.deactivationReasonNotifier.value?.trim();
 
     return ValueListenableBuilder<bool>(
       valueListenable: service.isDarkModeNotifier,

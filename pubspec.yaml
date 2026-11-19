@@ -24,6 +24,9 @@ dependencies:
   supabase_flutter: ^2.18.3
   url_launcher: ^6.3.2
   google_maps_flutter: ^2.18.1
+  firebase_core: ^5.2.0
+  firebase_messaging: ^17.1.0
+  flutter_local_notifications: 19.5.0
 
 dev_dependencies:
   flutter_test:

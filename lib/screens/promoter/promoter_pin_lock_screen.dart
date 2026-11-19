@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/account_status.dart';
 import '../../services/data_service.dart';
 import '../../services/promoter_data_service.dart';
 import '../home/home_screen.dart';
@@ -11,36 +12,38 @@ import 'widgets/responsive_promoter_wrapper.dart';
 /// - Belum verifikasi ('unverified') -> wajib isi data diri, unggah dokumen & buat PIN
 /// - Sedang ditinjau ('pending') -> tidak bisa masuk dasbor hingga disetujui Admin
 /// - Ditolak ('rejected') -> layar penolakan verifikasi
+/// - Dinonaktifkan ('nonaktif') -> layar akun dinonaktifkan + alasan
 /// - Disetujui ('approved') -> wajib memasukkan PIN 6 digit sebelum masuk ke Dasbor Produser
 Widget resolveProducerEntryScreen({String? name, String? phone}) {
   final service = PromoterDataService();
-  final status = service.verificationStatusNotifier.value.trim().toLowerCase();
+  final rawStatus = service.verificationStatusNotifier.value.trim().toLowerCase();
+  final status = AccountStatus.fromValue(rawStatus);
 
   // Guard ketat: hanya status 'approved' yang boleh masuk ke fitur produser.
   // 'pending' & 'rejected' tetap diblokir; status tak dikenal diperlakukan
   // sebagai belum verifikasi (tidak ada bypass ke dasbor).
-  if (status == 'deactivated') {
+  if (status == AccountStatus.nonaktif) {
     return ProducerVerificationFlow(
       initialStage: ProducerVerificationStage.akunDinonaktifkan,
       initialName: name,
       initialPhone: phone,
     );
   }
-  if (status == 'pending') {
-    return ProducerVerificationFlow(
-      initialStage: ProducerVerificationStage.approvalMenunggu,
-      initialName: name,
-      initialPhone: phone,
-    );
-  }
-  if (status == 'rejected') {
+  if (status == AccountStatus.rejected) {
     return ProducerVerificationFlow(
       initialStage: ProducerVerificationStage.approvalDitolak,
       initialName: name,
       initialPhone: phone,
     );
   }
-  if (status != 'approved') {
+  if (rawStatus == 'pending' || rawStatus == 'pending_create') {
+    return ProducerVerificationFlow(
+      initialStage: ProducerVerificationStage.approvalMenunggu,
+      initialName: name,
+      initialPhone: phone,
+    );
+  }
+  if (rawStatus != 'approved' && rawStatus != 'disetujui') {
     return ProducerVerificationFlow(
       initialStage: ProducerVerificationStage.lengkapiProfil,
       initialName: name,

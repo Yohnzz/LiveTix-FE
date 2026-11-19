@@ -26,6 +26,18 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
   final TextEditingController _notesController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // Muat ulang data terbaru saat halaman dibuka agar status & alasan
+    // yang ditampilkan selalu berasal dari database terkini.
+    // Ditunda satu frame agar notifyListeners tidak terjadi saat build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _service.load(force: true);
+    });
+  }
+
+  @override
   void dispose() {
     _notesController.dispose();
     super.dispose();
@@ -178,24 +190,24 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
           listenable: _service.producersNotifier,
           builder: (context, _) {
             final item = _service.producerById(widget.producerId);
-            final canDecide = item?.approvalStatus == ApprovalStatus.pending;
+            final canDecide = item?.approvalStatus == AccountStatus.pending;
             return Scaffold(
               backgroundColor: AdminColors.bgOf(context),
               body: Column(
                 children: [
                   AdminHeader(
                     title: item != null &&
-                            item.approvalStatus == ApprovalStatus.deactivated &&
+                            item.approvalStatus == AccountStatus.nonaktif &&
                             !_isProducerProfile(item)
                         ? 'Detail User'
                         : 'Detail Produser',
-                    subtitle: item?.approvalStatus == ApprovalStatus.rejected
+                    subtitle: item?.approvalStatus == AccountStatus.rejected
                         ? 'Profil produser yang pengajuannya ditolak'
-                        : (item?.approvalStatus == ApprovalStatus.approved ||
-                                item?.approvalStatus ==
-                                    ApprovalStatus.deactivated
-                            ? 'Profil produser yang telah disetujui'
-                            : 'Periksa kelengkapan dokumen dan data produser'),
+                        : (item?.approvalStatus == AccountStatus.nonaktif
+                            ? 'Profil produser yang dinonaktifkan'
+                            : (item?.approvalStatus == AccountStatus.approved
+                                ? 'Profil produser yang telah disetujui'
+                                : 'Periksa kelengkapan dokumen dan data produser')),
                     onBack: () => Navigator.of(context).pop(),
                   ),
                   Expanded(
@@ -212,11 +224,13 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
               bottomNavigationBar: item != null
                   ? (canDecide
                       ? _buildBottomBar(context, item)
-                      : (item.approvalStatus == ApprovalStatus.approved
+                      : (item.approvalStatus == AccountStatus.approved
                           ? _buildApprovedBottomBar(context, item)
-                          : (item.approvalStatus == ApprovalStatus.rejected
+                          : (item.approvalStatus == AccountStatus.rejected
                               ? _buildRejectedBottomBar(context)
-                              : null)))
+                              : (item.approvalStatus == AccountStatus.nonaktif
+                                  ? _buildNonaktifBottomBar(context, item)
+                                  : null))))
                   : null,
             );
           },
@@ -226,13 +240,13 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
   }
 
   Widget _buildBody(BuildContext context, ProducerApplicationModel item) {
-    if (item.approvalStatus == ApprovalStatus.approved) {
+    if (item.approvalStatus == AccountStatus.approved) {
       return _buildApprovedBody(context, item);
     }
-    if (item.approvalStatus == ApprovalStatus.deactivated) {
+    if (item.approvalStatus == AccountStatus.nonaktif) {
       return _buildDeactivatedBody(context, item);
     }
-    if (item.approvalStatus == ApprovalStatus.rejected) {
+    if (item.approvalStatus == AccountStatus.rejected) {
       return _buildRejectedBody(context, item);
     }
     return _buildPendingBody(context, item);
@@ -468,7 +482,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
           ),
         ),
 
-        if (item.approvalStatus == ApprovalStatus.rejected &&
+        if (item.approvalStatus == AccountStatus.rejected &&
             (item.rejectionReason ?? '').isNotEmpty) ...[
           const SizedBox(height: 20),
           const AdminSectionTitle('Alasan Penolakan'),
@@ -594,6 +608,114 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
           ),
           child: const Text('Kembali'),
         ),
+      ),
+    );
+  }
+
+  Widget _buildNonaktifBottomBar(
+      BuildContext context, ProducerApplicationModel item) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AdminColors.surfaceOf(context),
+        border: Border(top: BorderSide(color: AdminColors.borderOf(context))),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  foregroundColor: AdminColors.textPrimaryOf(context),
+                  side: BorderSide(color: AdminColors.borderOf(context)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                child: const Text('Kembali'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                key: const Key('admin_producer_activate_button'),
+                onPressed: () => _confirmActivateProducer(context, item),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  backgroundColor: const Color(0xFF15803D),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                child: const Text('Aktifkan Akun Produser'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmActivateProducer(
+    BuildContext context,
+    ProducerApplicationModel item,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text(
+          'Aktifkan Akun Produser?',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Akun ${item.companyName} akan kembali berstatus Disetujui dan '
+          'alasan penonaktifan dikosongkan. Produser dapat masuk kembali ke '
+          'dasbornya.',
+          style: const TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            style: TextButton.styleFrom(minimumSize: const Size(64, 44)),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(64, 44),
+              backgroundColor: const Color(0xFF15803D),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Aktifkan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final updated = _service.activateProducer(item.id);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          updated != null
+              ? 'Akun ${updated.companyName} berhasil diaktifkan kembali.'
+              : 'Akun tidak dapat diaktifkan. Muat ulang data lalu coba lagi.',
+        ),
+        backgroundColor:
+            updated != null ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
       ),
     );
   }
@@ -1288,16 +1410,17 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                   decoration: BoxDecoration(
-                    color: dangerBg,
-                    border: Border.all(color: dangerBorder),
+                    color: item.approvalStatus.backgroundColor,
+                    border:
+                        Border.all(color: item.approvalStatus.color),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    'Nonaktif · 24 Okt 2026',
+                    item.approvalStatus.label,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: dangerCol,
+                      color: item.approvalStatus.color,
                     ),
                   ),
                 ),
@@ -1310,6 +1433,42 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
               ],
             ),
           ),
+
+          if (item.statusReason != null) ...[
+            const SizedBox(height: 16),
+            AdminCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(item.approvalStatus.icon,
+                          size: 18, color: item.approvalStatus.color),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Alasan Penonaktifan',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: textPri,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    item.statusReason!,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: textSec,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           const SizedBox(height: 20),
           const AdminSectionTitle('Statistik Produser'),
@@ -1393,7 +1552,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  'Nonaktif · 24 Okt 2026',
+                  item.approvalStatus.label,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,

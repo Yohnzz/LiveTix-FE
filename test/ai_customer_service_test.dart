@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -8,6 +9,12 @@ import 'package:livetix/services/customer_service_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    dotenv.loadFromString(envString: '''
+GEMINI_API_KEY=AQ.Ab8RN6L0-mock-test-key
+''');
+  });
 
   group('AiConfig Tests', () {
     test('Gemini API key is configured and valid', () {

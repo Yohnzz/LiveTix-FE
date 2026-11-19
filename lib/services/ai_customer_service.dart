@@ -56,14 +56,15 @@ Anda adalah "LiveTix AI Producer Desk", asisten operasional resmi untuk promotor
 Tugas Anda adalah melayani mitra produser/promotor dengan profesional, taktis, dan solutif dalam Bahasa Indonesia.
 
 Informasi Resmi LiveTix untuk Produser:
-1. Pembuatan & Pengajuan Konser (Add Concert):
-   - Alur 4 langkah: (1) Informasi Konser, (2) Upload Media/Poster, (3) Pembuatan Tier Tiket & Kuota, (4) Jadwal, Venue & Lokasi Peta.
+1. Pembuatan & Pengajuan Konser (Tambah Konser):
+   - Alur 5 langkah: (1) Detail konser, logo persegi, poster, dan highlights, (2) Cari & tentukan lokasi venue lewat peta, (3) Tambah & atur kategori harga tiket beserta kuotanya, (4) Tentukan petugas gate crew untuk pemindaian QR, (5) Cek ulang ringkasan sebelum diajukan.
+   - Setelah diajukan, konser menunggu persetujuan Super Admin sebelum tiket dapat dibeli publik.
 2. Verifikasi Dokumen & Legalitas:
    - Promotor wajib mengunggah Foto KTP Penanggung Jawab, Lembar Surat Penanggung Jawab bermeterai, dan membuat 6-digit PIN Keamanan Penarikan.
    - Proses review dokumen oleh Super Admin LiveTix memakan waktu maksimal 1x24 jam kerja.
    - Status pengajuan konser: "Pending" (menunggu review), "Approved" (terbit & tiket dapat dibeli publik), atau "Rejected" (ditolak dengan catatan perbaikan).
 3. Fee Platform & Penarikan Dana (Withdrawal):
-   - Biaya layanan platform LiveTix adalah 3% dari total penjualan tiket konser.
+   - Biaya layanan platform LiveTix adalah 2% dari total penjualan tiket konser.
    - Saldo penjualan dapat ditarik dengan nominal minimal Rp 50.000 ke rekening bank terdaftar promotor (BCA, Mandiri, BRI, BNI).
    - Penarikan memerlukan konfirmasi 6-digit PIN Keamanan dan diproses 1-3 hari kerja.
 4. Manajemen Gate Crew:
@@ -372,8 +373,8 @@ Buatlah draf balasan langsung tanpa tanda kutip pembuka atau penjelas berlebih.
             '2. Penarikan memerlukan 6-digit PIN Keamanan Penarikan yang telah Anda atur.\n'
             '3. Dana akan ditransfer ke rekening bank terdaftar promotor dalam 1-3 hari kerja setelah pengajuan disetujui.';
       }
-      if (lower.contains('fee') || lower.contains('potongan') || lower.contains('3%')) {
-        return '$greeting! Ketentuan fee layanan LiveTix adalah sebesar 3% dari total penjualan tiket konser. Fee ini dipotong secara otomatis pada sistem ketika tiket berhasil dibayar oleh penonton.';
+      if (lower.contains('fee') || lower.contains('potongan') || lower.contains('persen') || lower.contains('%')) {
+        return '$greeting! Ketentuan fee layanan LiveTix adalah sebesar 2% dari total penjualan tiket konser. Fee ini dipotong secara otomatis pada sistem ketika tiket berhasil dibayar oleh penonton.';
       }
       if (lower.contains('gate') || lower.contains('crew') || lower.contains('kru')) {
         return '$greeting! Untuk pengelolaan Gate Crew konser:\n\n'

@@ -52,7 +52,8 @@ void main() {
     DataService().logout();
   });
 
-  testWidgets('ExploreScreen filters (Tanggal + Today, Harga ranges, Kota #C654C3 shadow)',
+  testWidgets(
+      'ExploreScreen filters (Tanggal + Today, Harga ranges, Kota #C654C3 shadow)',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(375, 812);
     tester.view.devicePixelRatio = 1.0;
@@ -154,7 +155,8 @@ void main() {
     expect(find.text('Harga'), findsOneWidget);
   });
 
-  testWidgets('ProfileScreen Guest hanya menampilkan Masuk ke Akun & ikon GuestAvatarIcon',
+  testWidgets(
+      'ProfileScreen Guest hanya menampilkan Masuk ke Akun & ikon GuestAvatarIcon',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(375, 812);
     tester.view.devicePixelRatio = 1.0;
@@ -188,7 +190,8 @@ void main() {
     expect(find.byType(LoginScreen), findsOneWidget);
   });
 
-  testWidgets('PaymentScreen tidak mengalami RenderFlex overflow pada layar sempit (320px & 358px)',
+  testWidgets(
+      'PaymentScreen tidak mengalami RenderFlex overflow pada layar sempit (320px & 358px)',
       (WidgetTester tester) async {
     final sampleConcert = DbDummy.concerts.first;
     final sampleOrder = OrderModel(
@@ -224,7 +227,8 @@ void main() {
 
     await tester.tap(find.text('Salin').first);
     await tester.pump();
-    expect(find.textContaining('berhasil disalin ke clipboard'), findsOneWidget);
+    expect(
+        find.textContaining('berhasil disalin ke clipboard'), findsOneWidget);
 
     tester.view.reset();
   });
@@ -238,7 +242,8 @@ void main() {
 
     PhotoPicker.testOverride = () async => _kSamplePngBytes;
     final dataService = DataService();
-    dataService.resetPasswordByEmail(email: 'rafi@email.com', newPassword: '123456');
+    dataService.resetPasswordByEmail(
+        email: 'rafi@email.com', newPassword: '123456');
     final loggedInUser = dataService.loginSync('rafi@email.com', '123456');
     expect(loggedInUser, isNotNull);
 
@@ -366,7 +371,8 @@ void main() {
     expect(find.text('Rafi Pratama'), findsOneWidget);
 
     dataService.updateProfile(name: 'Rafi Firmansyah', avatarColorIndex: -1);
-    dataService.resetPasswordByEmail(email: 'rafi@email.com', newPassword: '123456');
+    dataService.resetPasswordByEmail(
+        email: 'rafi@email.com', newPassword: '123456');
   });
 
   testWidgets(
@@ -454,17 +460,20 @@ void main() {
     expect(find.bySemanticsLabel('Slide highlight 1'), findsOneWidget);
 
     final indicatorRow = tester.widget<Row>(
-      find.ancestor(
-        of: find.bySemanticsLabel('Slide highlight 1'),
-        matching: find.byType(Row),
-      ).first,
+      find
+          .ancestor(
+            of: find.bySemanticsLabel('Slide highlight 1'),
+            matching: find.byType(Row),
+          )
+          .first,
     );
     expect(indicatorRow.mainAxisAlignment, equals(MainAxisAlignment.center));
 
     // Pastikan kelima titik indikator berjajar horizontal sebaris (inline, dy identik & dx naik)
     final dotCenters = List.generate(
       5,
-      (idx) => tester.getCenter(find.bySemanticsLabel('Slide highlight ${idx + 1}')),
+      (idx) =>
+          tester.getCenter(find.bySemanticsLabel('Slide highlight ${idx + 1}')),
     );
     for (int i = 1; i < dotCenters.length; i++) {
       expect(dotCenters[i].dy, equals(dotCenters[0].dy));
@@ -598,7 +607,8 @@ void main() {
     expect(find.text('ID : 123456'), findsOneWidget);
   });
 
-  testWidgets('Responsivitas tablet, zoom teks, dan penutupan dialog via Escape',
+  testWidgets(
+      'Responsivitas tablet, zoom teks, dan penutupan dialog via Escape',
       (WidgetTester tester) async {
     for (final size in [const Size(360, 780), const Size(768, 1024)]) {
       tester.view.physicalSize = size;
@@ -674,7 +684,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.byType(PaymentScreen), findsOneWidget);
     expect(find.text('Barcode QRIS'), findsOneWidget);
-    expect(find.text('01'), findsOneWidget); // Batas waktu awal 1 jam
+    expect(find.text('15'), findsOneWidget); // Batas waktu bayar 15 menit
     expect(find.byType(AppQrCodeView), findsOneWidget);
     expect(find.byKey(const Key('download_qris_button')), findsOneWidget);
     await tester.tap(find.byKey(const Key('download_qris_button')));
@@ -715,7 +725,8 @@ void main() {
     );
     expect(generatedPng, isNotNull);
     expect(generatedPng!.length, greaterThan(100));
-    expect(generatedPng.sublist(0, 4), equals([137, 80, 78, 71])); // Signature PNG
+    expect(
+        generatedPng.sublist(0, 4), equals([137, 80, 78, 71])); // Signature PNG
 
     // Klik Bagikan QR -> pratinjau kartu ber-watermark LiveTix -> kirim ke aplikasi HP
     await tester.ensureVisible(find.text('Bagikan QR'));
@@ -822,7 +833,8 @@ void main() {
     // 1. Verifikasi penegasan fungsi khusus penerimaan refund
     expect(find.text('Khusus Penerimaan Dana Refund'), findsOneWidget);
     expect(
-      find.textContaining('hanya digunakan untuk menerima pencairan dana refund tiket'),
+      find.textContaining(
+          'hanya digunakan untuk menerima pencairan dana refund tiket'),
       findsOneWidget,
     );
 
@@ -832,7 +844,8 @@ void main() {
     expect(find.textContaining('8808'), findsNothing);
 
     // 3. Verifikasi tombol simulasi developer telah dihapus
-    expect(find.byKey(const Key('simulate_cooldown_reset_button')), findsNothing);
+    expect(
+        find.byKey(const Key('simulate_cooldown_reset_button')), findsNothing);
 
     // 4. Tombol Daftarkan Rekening Refund aktif
     final registerBtn = tester.widget<ElevatedButton>(
@@ -871,7 +884,8 @@ void main() {
       find.byKey(const Key('save_refund_account_submit_button')),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('save_refund_account_submit_button')));
+    await tester
+        .tap(find.byKey(const Key('save_refund_account_submit_button')));
     await tester.pumpAndSettle();
 
     // 6. Modal tertutup, rekening terdaftar dan masa cooldown 1 minggu aktif
@@ -943,7 +957,7 @@ void main() {
   });
 
   testWidgets(
-      'Dashboard Beranda: Ikon notifikasi dengan badge 3 di sebelah kiri > membuka modal notifikasi',
+      'Dashboard Beranda: Ikon notifikasi tanpa badge dummy membuka feed database',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(375, 860);
     tester.view.devicePixelRatio = 1.0;
@@ -952,7 +966,7 @@ void main() {
     final dataService = DataService();
     dataService.loginSync('rafi@email.com', '123456');
 
-    // Berikan data tiket nyata pengguna untuk memicu notifikasi tiket
+    // Notifikasi berasal dari database, bukan dihitung dari tiket lokal.
     dataService.userTicketsNotifier.value = [
       const UserTicketModel(
         id: 'tkt-test-1',
@@ -984,26 +998,20 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
-    // 1. Verifikasi ikon notifikasi & badge angka hadir di header profil
+    // 1. Verifikasi ikon notifikasi hadir tanpa badge dummy.
     expect(find.byIcon(Icons.notifications_outlined), findsOneWidget);
-    expect(find.text('2'), findsOneWidget);
+    expect(find.text('2'), findsNothing);
 
     // 2. Ikon > tetap ada di sebelah kanan notifikasi
     expect(find.byIcon(Icons.chevron_right_rounded), findsWidgets);
 
-    // 3. Klik tombol notifikasi -> membuka lembar bottom sheet notifikasi
+    // 3. Klik tombol notifikasi -> membuka feed database yang kosong.
     await tester.tap(find.byTooltip('Notifikasi'), warnIfMissed: false);
     await tester.pumpAndSettle();
 
     expect(find.text('Notifikasi'), findsOneWidget);
-    expect(find.text('2 baru'), findsOneWidget);
-    expect(find.text('Tiket Konser Terbit'), findsOneWidget);
-    expect(find.text('Jadwal Konser'), findsOneWidget);
-
-    // Tutup modal notifikasi dengan tap area luar
-    await tester.tapAt(const Offset(20, 20));
-    await tester.pumpAndSettle();
-    expect(find.text('2 baru'), findsNothing);
+    expect(find.text('Belum ada notifikasi.'), findsOneWidget);
+    expect(find.text('Tiket Konser Terbit'), findsNothing);
   });
 
   testWidgets(

@@ -84,10 +84,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         final isDark = DataService().isDarkModeNotifier.value;
 
         final approvedProducers = adminService.producersNotifier.value
-            .where((p) => p.approvalStatus == ApprovalStatus.approved)
+            .where((p) => p.approvalStatus == AccountStatus.approved)
             .length;
         final approvedConcerts = adminService.concertsNotifier.value
-            .where((c) => c.approvalStatus == ApprovalStatus.approved)
+            .where((c) => c.approvalStatus == AccountStatus.approved)
             .length;
         final totalApproved = approvedProducers + approvedConcerts;
         final pendingTotal = adminService.pendingTotal;
@@ -359,14 +359,14 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                           ),
                           Divider(height: 1, color: border),
 
-                          // Menu 4: Penarikan Fee Admin (3%)
+                          // Menu 4: Penarikan Fee Admin (2%)
                           _ProfileMenuRow(
                             icon: Icons.payments_outlined,
                             iconBgColor: AdminColors.purpleBgOf(context),
                             iconColor: AdminColors.purpleOf(context),
                             title: 'Penarikan Fee Admin',
                             subtitle:
-                                'Kelola mutasi 3% & penarikan saldo fee platform',
+                                'Kelola mutasi 2% & penarikan saldo fee platform',
                             trailing: Icon(
                               Icons.chevron_right_rounded,
                               color: textSec,

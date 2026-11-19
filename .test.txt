@@ -1,0 +1,61 @@
+00:00 +0: loading D:/RPL Pride/12 KODING/PPB-R/LiveTixFE/livetix/test/admin_approval_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: Model approval ProducerApplicationModel fromJson dan toJson sinkron dengan promoter_profiles
+00:00 +1: Model approval ConcertSubmissionModel membaca ticket_tiers dan menulis kolom concerts saja
+00:00 +2: Model approval ApprovalStatus.fromValue memakai pending untuk nilai tak dikenal
+00:00 +3: Model approval format tanggal dan angka
+00:00 +4: AdminService jumlah menunggu dihitung dari daftar, bukan angka tetap
+00:00 +5: AdminService setujui produser menambah produser aktif dan tidak bisa diputuskan dua kali
+00:00 +6: AdminService tolak wajib beralasan dan menyimpan alasan
+00:00 +7: AdminService setujui konser mengubah status ERD menjadi published
+00:00 +8: AdminService load gagal menghasilkan state error lalu pulih setelah dicoba lagi
+00:00 +9: Layar Super Admin Dashboard menampilkan angka statistik dan approval terbaru
+00:01 +10: Layar Super Admin Dashboard menampilkan error lalu memuat ulang lewat Coba lagi
+00:02 +11: Layar Super Admin Bottom nav berpindah ke empat tab: Beranda, Approval, Kelola User, dan Profil
+00:02 +12: Layar Super Admin Approval Produser: tab status, hitungan, dan daftar sesuai data
+00:03 +13: Layar Super Admin Alur setujui produser: detail, konfirmasi, hasil, kembali ke daftar
+00:04 +14: Layar Super Admin Alur tinjau dan tolak produser (Image 3, 4, 5): dokumen legalitas, buka tinjau, validasi alasan 0/300, kirim penolakan
+00:05 +15: Layar Super Admin Alur tolak konser: Detail Konser, Tinjau Konser, validasi alasan, dan read-only view
+00:06 +16: Layar Super Admin Approval Konser (Image 2): 3 konser menunggu, cari, filter bulan, dan state kosong dengan reset
+00:07 +17: Layar Super Admin Keluar dari akun kembali ke beranda tamu
+00:08 +18: Layar Super Admin Layar kecil 320 px dengan teks 2x tidak overflow di semua layar
+
+Warning: A call to tap() with finder "Found 1 widget with text "Jazz Night 2026" descending from widget with type "AdminApprovalScreen": [
+  Text("Jazz Night 2026", inherit: true, color: Color(alpha: 1.0000, red: 0.0588, green: 0.0902, blue: 0.1647, colorSpace: ColorSpace.sRGB), size: 15.0, weight: 700, overflow: ellipsis, maxLines: 1, dependencies: [DefaultSelectionStyle, DefaultTextStyle, MediaQuery]),
+]" derived an Offset (Offset(131.5, 387.5)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+The finder corresponds to this RenderBox: RenderParagraph#f701d relayoutBoundary=up18
+The hit test result at that offset is: HitTestResult(_RenderDecoration#d430f@Offset(68.5, 41.5), RenderSemanticsAnnotations#a6ebc@Offset(68.5, 41.5), RenderPointerListener#e49da@Offset(68.5, 41.5), RenderSemanticsAnnotations#94904@Offset(68.5, 41.5), RenderIgnorePointer#cf16d@Offset(68.5, 41.5), RenderTapRegion#80c58@Offset(68.5, 41.5), RenderMouseRegion#5565d@Offset(68.5, 41.5), RenderFlex#c6cfd@Offset(96.5, 41.5), RenderPadding#b9ad8@Offset(111.5, 42.5), RenderDecoratedBox#8b31e@Offset(111.5, 42.5), RenderConstrainedBox#63130@Offset(111.5, 42.5), RenderFlex#74908@Offset(111.5, 42.5), RenderPadding#1e126@Offset(131.5, 58.5), RenderFlex#cbd2a@Offset(131.5, 58.5), RenderFlex#f88bc@Offset(131.5, 387.5), RenderIgnorePointer#1d2aa@Offset(131.5, 387.5), _RenderVisibility#92d72@Offset(131.5, 387.5), RenderIndexedStack#d275b@Offset(131.5, 387.5), RenderCustomMultiChildLayoutBox#2e7b5@Offset(131.5, 387.5), _RenderInkFeatures#a1000@Offset(131.5, 387.5), RenderPhysicalModel#f79f5@Offset(131.5, 387.5), RenderAnnotatedRegion<SystemUiOverlayStyle>#f6d25@Offset(131.5, 387.5), RenderSemanticsAnnotations#fca9e@Offset(131.5, 387.5), RenderRepaintBoundary#81d48@Offset(131.5, 387.5), RenderIgnorePointer#d6670@Offset(131.5, 387.5), RenderAnimatedOpacity#dc51a@Offset(131.5, 387.5), RenderAnimatedOpacity#dd735@Offset(131.5, 387.5), _RenderColoredBox#f0cbf@Offset(131.5, 387.5), RenderAnimatedOpacity#b87c9@Offset(131.5, 387.5), RenderIgnorePointer#283a4@Offset(131.5, 387.5), RenderAnimatedOpacity#eb727@Offset(131.5, 387.5), RenderRepaintBoundary#df91a@Offset(131.5, 387.5), RenderSemanticsAnnotations#38dcb@Offset(131.5, 387.5), RenderOffstage#745ef@Offset(131.5, 387.5), RenderSemanticsAnnotations#a100e@Offset(131.5, 387.5), _RenderTheater#663b3@Offset(131.5, 387.5), RenderAbsorbPointer#a63ed@Offset(131.5, 387.5), RenderPointerListener#c4455@Offset(131.5, 387.5), RenderSemanticsAnnotations#bf2ec@Offset(131.5, 387.5), RenderCustomPaint#5ed27@Offset(131.5, 387.5), RenderSemanticsAnnotations#c02b8@Offset(131.5, 387.5), RenderSemanticsAnnotations#966dc@Offset(131.5, 387.5), RenderSemanticsAnnotations#fe08b@Offset(131.5, 387.5), RenderTapRegionSurface#25bf1@Offset(131.5, 387.5), RenderSemanticsAnnotations#fc1e7@Offset(131.5, 387.5), RenderSemanticsAnnotations#54d9d@Offset(131.5, 387.5), HitTestEntry<HitTestTarget>#0f44a(_ReusableRenderView#c98a6), HitTestEntry<HitTestTarget>#41c5a(<AutomatedTestWidgetsFlutterBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      main.<anonymous closure>.<anonymous closure> (file:///D:/RPL%20Pride/12%20KODING/PPB-R/LiveTixFE/livetix/test/admin_approval_test.dart:617:20)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+#6      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+00:08 +19: Layar Super Admin Layar Kelola Pengguna (Image 4): filter chip role (Semua, User, Produser, Admin) dan pencarian pengguna
+00:09 +20: Layar Super Admin Layar Detail Pengguna (Image 5): metrik tiket & konser, info akun, riwayat transaksi, dan toggle status akun
+00:10 +21: Layar Super Admin AdminUsersScreen: Aksi menu popup Ganti Nama hadir dan fitur Ganti Password telah dihapus dari kelola user
+00:10 +22: Layar Super Admin AdminUsersScreen: Tombol Tambah Crew hanya muncul di chip Gatecrew dan fitur Tambah serta Hapus Gate Crew berfungsi
+00:11 +23: Layar Super Admin AdminUsersScreen & AdminApprovalScreen: Layar kecil 320px 2x textScale pada tab Gatecrew bebas overflow dan hapus lewat menu popup berfungsi
+00:12 +24: Layar Super Admin AdminApprovalScreen tab Gatecrew Disetujui mendukung Hapus Gate Crew
+00:12 +25: Layar Super Admin AdminProfileScreen: Mode Tampilan switch toggle langsung, Notifikasi, Customer Service, dan Keluar
+00:13 +26: Layar Super Admin Alur Penonaktifan Akun User / Produser (Image 1 - 5): Detail Produser, form Nonaktifkan User, Akun Nonaktif, dan Detail User
+00:13 +27: Layar Super Admin Layar Profil Super Admin (Image 3): gradien ungu, kartu stat 45 & 128, menu AKUN, PENGATURAN, dan LAINNYA
+00:13 +28: Layar Super Admin Layar Notifikasi Super Admin (Image 3): tab Semua (5), Approval, Sistem, badge belum dibaca, dan klik item
+00:14 +29: Layar Super Admin Detail Produser nonaktif (Image 1): status Nonaktif, Statistik Produser (Konser Dihentikan: 5), alasan nonaktif, dan tombol aktifkan kembali
+00:14 +30: Layar Super Admin Approval Konser (Image 2): inisial SO, HA, JA, badge Menunggu, pill Pembatalan / Perubahan, dan info tiket terjual
+00:14 +31: Layar Super Admin Alur Detail Pembatalan dan Modal Setujui Pembatalan (Image 3 & Image 5): info konser, alasan bergaris merah, dampak pembatalan, 4 poin otomatis, dan persetujuan
+00:14 +32: Layar Super Admin Detail Pembatalan dengan 0 tiket terjual (Image 4): Harmoni Nusantara 2026, status Belum ada, dan box tanpa refund
+00:15 +33: Layar Super Admin Monitoring Refund dan Detail Refund (Image 2 & Image 3): metrik 3 kartu, daftar pembeli, pengingat, dan ekspor
+00:15 +34: Layar Super Admin Alur Tinjau Pembatalan dan Penolakan Pembatalan (Image 4): quick chips, counter 500, dan kirim penolakan
+00:16 +35: Login admin@livetix.com otomatis masuk ke shell Super Admin
+00:16 +36: (tearDownAll)
+00:16 +36: All tests passed!

@@ -7,8 +7,11 @@ import '../screens/home/home_screen.dart';
 import '../screens/admin/admin_shell.dart';
 import '../screens/promoter/promoter_pin_lock_screen.dart';
 import '../screens/gate_crew/gate_crew_main_screen.dart';
+import '../screens/auth/google_verification_screen.dart';
 import '../screens/auth/user_verification_screen.dart';
+import '../screens/auth/account_blocked_screen.dart';
 import '../services/data_service.dart';
+import '../services/google_auth_service.dart';
 
 /// Layar pembuka (Splash Screen) LiveTix dengan desain modern, visual logo & tipografi menawan,
 /// serta transisi halus ke dasbor role (Admin, Produser, User) atau mode Tamu (Guest).
@@ -69,16 +72,48 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.wait([sessionFuture, delayFuture]);
     if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
 
+    // Akun Google harus disinkronkan ke profiles sebelum routing apa pun.
+    // Jangan anggap login berhasil bila sinkronisasi profil gagal.
+    GoogleProfileSyncResult? googleSync;
+    GoogleAccountInfo? googleAccount;
+    final googleService = GoogleAuthService();
+    if (googleService.currentGoogleAccount() != null) {
+      googleAccount = googleService.currentGoogleAccount();
+      googleSync = await googleService.syncSessionProfile();
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+    }
+
     final user = DataService().currentUserNotifier.value;
+    final blocked = DataService().blockedAccountNotifier.value;
     Widget targetScreen;
     RouteSettings? settings;
 
-    if (user != null) {
+    if (googleSync != null && !googleSync.success) {
+      targetScreen = GoogleAuthErrorScreen(
+        message: googleSync.errorMessage ??
+            'Sinkronisasi profil Google gagal. Silakan coba lagi.',
+        accountName: googleAccount?.name,
+        email: googleAccount?.email,
+      );
+    } else if (googleSync != null && googleSync.needsRoleSelection) {
+      targetScreen = GoogleVerificationScreen(
+        initialUser: DataService().currentUserNotifier.value,
+      );
+    } else if (blocked != null) {
+      targetScreen = AccountBlockedScreen(
+        accountName: blocked.name,
+        email: blocked.email,
+        status: blocked.accountStatus,
+        reason: blocked.deactivationReason,
+      );
+    } else if (user != null) {
       final role = user.role.trim().toLowerCase();
       if (role == 'admin') {
         targetScreen = const AdminShell();
         settings = const RouteSettings(name: AdminShell.routeName);
-      } else if (role == 'produser' || role == 'producer' || role == 'promoter') {
+      } else if (role == 'produser' ||
+          role == 'producer' ||
+          role == 'promoter') {
         targetScreen = resolveProducerEntryScreen(
           name: user.name,
           phone: user.phone,
@@ -158,7 +193,8 @@ class _SplashScreenState extends State<SplashScreen>
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF9333EA).withValues(alpha: 0.28),
+                              color: const Color(0xFF9333EA)
+                                  .withValues(alpha: 0.28),
                               blurRadius: 36,
                               spreadRadius: 4,
                             ),
