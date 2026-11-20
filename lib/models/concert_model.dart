@@ -155,6 +155,9 @@ class ConcertModel {
   /// Jumlah pengguna yang menyukai (Love) konser ini
   final int likesCount;
 
+  /// List nama pos gerbang / Gate masuk konser yang dikonfigurasi oleh produser
+  final List<String> gates;
+
   /// ID Produser pemilik konser
   final String? producerId;
 
@@ -175,6 +178,7 @@ class ConcertModel {
     this.iconBgColor = const Color(0xFFF7EEF8),
     this.iconColor = const Color(0xFFC2185B),
     this.ticketTiers = const [],
+    this.gates = const [],
     this.bannerImageUrl,
     this.bannerImageBytes,
     this.logoImageUrl,
@@ -202,6 +206,7 @@ class ConcertModel {
     Color? iconBgColor,
     Color? iconColor,
     List<TicketTierModel>? ticketTiers,
+    List<String>? gates,
     String? bannerImageUrl,
     Uint8List? bannerImageBytes,
     bool clearBannerImage = false,
@@ -228,6 +233,7 @@ class ConcertModel {
       iconBgColor: iconBgColor ?? this.iconBgColor,
       iconColor: iconColor ?? this.iconColor,
       ticketTiers: ticketTiers ?? this.ticketTiers,
+      gates: gates ?? this.gates,
       bannerImageUrl:
           clearBannerImage ? null : (bannerImageUrl ?? this.bannerImageUrl),
       bannerImageBytes:
@@ -250,6 +256,15 @@ class ConcertModel {
       tiers = (json['ticket_tiers'] as List)
           .whereType<Map<String, dynamic>>()
           .map((t) => TicketTierModel.fromJson(t))
+          .toList();
+    }
+
+    List<String> parsedGates = [];
+    if (json['gates'] is List) {
+      parsedGates = (json['gates'] as List)
+          .map((e) => e?.toString() ?? '')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
           .toList();
     }
 
@@ -285,6 +300,7 @@ class ConcertModel {
       iconBgColor: iconBg,
       iconColor: iconCol,
       ticketTiers: tiers,
+      gates: parsedGates,
       status: (json['status'] as String?) ?? 'published',
       totalCapacity: (json['total_capacity'] as num?)?.toInt() ?? 0,
       likesCount: (json['likes_count'] is num)
@@ -305,6 +321,7 @@ class ConcertModel {
       'price': price,
       'category': category,
       'tag': tag,
+      'gates': gates,
       'banner_image_url': bannerImageUrl,
       'logo_image_url': logoImageUrl,
       'status': status,

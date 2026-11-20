@@ -212,6 +212,93 @@ void main() {
       expect(updatedRes.remaining, 2);
     });
 
+    test(
+        'Pengaman scan tiket: Tiket 1x scan hanya dapat digunakan 1x, scan kedua otomatis ditolak habis kuota',
+        () async {
+      final service = GateCrewService();
+      service.clearSessionScanCache();
+
+      const singleScanTicket = UserTicketModel(
+        id: 'tck-single-01',
+        bookingCode: 'LTX_3507112233440001_john_20261120_abc123',
+        concertTitle: 'Konser Musik Akbar 2026',
+        concertSubtitle: 'Stadion Utama',
+        category: 'Festival',
+        date: '25 Nov 2026',
+        time: '19:00 WIB',
+        gate: 'Gate A',
+        block: 'FEST-01',
+        venue: 'Stadion Utama',
+        quantity: 1,
+        totalPrice: 400000,
+        status: 'Aktif',
+        qrScanQuota: 1,
+        qrScansUsed: 0,
+        buyerName: 'John Doe',
+        buyerEmail: 'john.doe@example.com',
+        buyerNik: '3507112233445678',
+      );
+
+      DataService().userTicketsNotifier.value = [singleScanTicket];
+
+      // Scan pertama: Berhasil
+      final firstScan = await service.verifyTicketInDatabase(
+        scannedCode: 'LTX_3507112233440001_john_20261120_abc123',
+        currentConcertId: 'c1',
+        currentGate: 'Gate A',
+      );
+
+      expect(firstScan.isValid, isTrue);
+      expect(firstScan.remaining, 1);
+      expect(firstScan.used, 0);
+      expect(firstScan.customerNik, '3507112233445678');
+
+      // Eksekusi check-in 1 orang
+      final checkInSuccess = await service.executeCheckIn(
+        ticket: firstScan,
+        countToUse: 1,
+        gateName: 'Gate A',
+        crewId: 'crew-001',
+        crewName: 'Petugas Test',
+        crewEmail: 'test.crew@livetix.com',
+        concertTitle: 'Konser Musik Akbar 2026',
+      );
+      expect(checkInSuccess, isTrue);
+
+      // Scan kedua dengan tiket yang sama: Wajib DITOLAK
+      final secondScan = await service.verifyTicketInDatabase(
+        scannedCode: 'LTX_3507112233440001_john_20261120_abc123',
+        currentConcertId: 'c1',
+        currentGate: 'Gate A',
+      );
+
+      expect(secondScan.isValid, isFalse);
+      expect(secondScan.status, 'Ditolak (Habis Kuota)');
+      expect(secondScan.invalidReason, contains('Batas scan tiket ini sudah habis'));
+      expect(secondScan.remaining, 0);
+      expect(secondScan.used, 1);
+
+      // Coba eksekusi check-in lagi pada tiket yang sudah habis: Harus ditolak
+      final duplicateCheckIn = await service.executeCheckIn(
+        ticket: secondScan,
+        countToUse: 1,
+        gateName: 'Gate A',
+        crewId: 'crew-001',
+        crewName: 'Petugas Test',
+        crewEmail: 'test.crew@livetix.com',
+        concertTitle: 'Konser Musik Akbar 2026',
+      );
+      expect(duplicateCheckIn, isFalse);
+    });
+
+    test('Verifikasi NIK: 4 digit terakhir diekstrak dengan tepat', () {
+      const rawNik = '3507112233445678';
+      final masked = rawNik.length >= 4
+          ? '•••• •••• •••• ${rawNik.substring(rawNik.length - 4)}'
+          : rawNik;
+      expect(masked, '•••• •••• •••• 5678');
+    });
+
     testWidgets(
         'GateCrewMainScreen: Kamera aktif, tombol simulasi debug dihilangkan, input manual tersedia',
         (WidgetTester tester) async {

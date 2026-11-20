@@ -13,6 +13,7 @@ import '../models/ticket_order_model.dart';
 import '../models/user_model.dart';
 import '../utils/local_storage.dart';
 import '../utils/uuid_utils.dart';
+import '../utils/ticket_code_generator.dart';
 
 /// Service akses data pusat aplikasi LiveTix.
 /// Bertindak sebagai lapisan abstraksi (Data Access Layer) di atas db_dummy.dart.
@@ -1933,8 +1934,16 @@ class DataService {
   /// Menyimpan pesanan tiket dalam status PENDING (Menunggu Pembayaran)
   /// agar user dapat melihatnya di tab Tiket Saya dan dapat melanjutkan pembayaran.
   UserTicketModel addPendingOrderTicket(OrderModel order) {
-    final cleanCode = order.orderId.replaceAll('ORD-', '');
-    final bookingCode = 'LTX-$cleanCode-2A';
+    final bookingCode = TicketCodeGenerator.generateSecureTicketCode(
+      nik: currentUser?.nik,
+      customerName: order.customerName,
+      purchaseDate: DateTime.now(),
+      orderId: order.orderId,
+    );
+    final allocatedGate = TicketCodeGenerator.resolveGateForTier(
+      gates: order.concert.gates,
+      tierName: order.tier.name,
+    );
     final existingIndex =
         userTicketsNotifier.value.indexWhere((t) => t.id == order.orderId);
 
@@ -1954,7 +1963,7 @@ class DataService {
       category: order.tier.name,
       date: order.concert.date,
       time: order.concert.time.isNotEmpty ? order.concert.time : '19.00 WIB',
-      gate: 'Gate B',
+      gate: allocatedGate,
       block: 'FEST-04',
       venue: order.concert.venue,
       quantity: order.quantity,
@@ -1972,6 +1981,9 @@ class DataService {
       qrScanQuota: order.quantity,
       paymentMethod: order.paymentMethod,
       pendingOrder: order,
+      buyerName: order.customerName,
+      buyerEmail: order.customerEmail,
+      buyerNik: currentUser?.nik,
     );
 
     final list = List<UserTicketModel>.from(userTicketsNotifier.value);
@@ -1988,11 +2000,24 @@ class DataService {
   /// Satu QR Code diterbitkan per pesanan dengan kuota scan sesuai jumlah tiket (maks 4x scan).
   UserTicketModel completeOrderPayment(OrderModel order) {
     _paidOrderIds.add(order.orderId);
-    final cleanCode = order.orderId.replaceAll('ORD-', '');
-    final bookingCode = 'LTX-$cleanCode-2A';
+    final allocatedGate = TicketCodeGenerator.resolveGateForTier(
+      gates: order.concert.gates,
+      tierName: order.tier.name,
+    );
 
     final existingIndex =
         userTicketsNotifier.value.indexWhere((t) => t.id == order.orderId);
+
+    final bookingCode = (existingIndex != -1 &&
+            userTicketsNotifier.value[existingIndex].bookingCode.startsWith('LTX_'))
+        ? userTicketsNotifier.value[existingIndex].bookingCode
+        : TicketCodeGenerator.generateSecureTicketCode(
+            nik: currentUser?.nik,
+            customerName: order.customerName,
+            purchaseDate: DateTime.now(),
+            orderId: order.orderId,
+          );
+
     if (existingIndex != -1) {
       final existing = userTicketsNotifier.value[existingIndex];
       if (existing.status == 'Aktif' && !existing.isPendingPayment) {
@@ -2006,6 +2031,9 @@ class DataService {
         qrCodeBytes: order.qrCodeBytes,
         qrData: bookingCode,
         pendingOrder: null,
+        buyerName: order.customerName,
+        buyerEmail: order.customerEmail,
+        buyerNik: currentUser?.nik,
       );
       final list = List<UserTicketModel>.from(userTicketsNotifier.value);
       list[existingIndex] = updatedTicket;
@@ -2020,7 +2048,12 @@ class DataService {
       );
       PromoterDataService().recordTicketSale(
           order.concert.id, order.quantity, order.totalAmount);
-      _syncTicketToSupabase(order, bookingCode, validUserId: currentUser?.id);
+      _syncTicketToSupabase(
+        order,
+        bookingCode,
+        validUserId: currentUser?.id,
+        gateName: allocatedGate,
+      );
       return updatedTicket;
     }
 
@@ -2040,7 +2073,7 @@ class DataService {
       category: order.tier.name,
       date: order.concert.date,
       time: order.concert.time.isNotEmpty ? order.concert.time : '19.00 WIB',
-      gate: 'Gate B',
+      gate: allocatedGate,
       block: 'FEST-04',
       venue: order.concert.venue,
       quantity: order.quantity,
@@ -2057,6 +2090,9 @@ class DataService {
       qrData: bookingCode,
       qrScanQuota: order.quantity,
       paymentMethod: order.paymentMethod,
+      buyerName: order.customerName,
+      buyerEmail: order.customerEmail,
+      buyerNik: currentUser?.nik,
     );
 
     addPurchasedTicket(newTicket);
@@ -2067,12 +2103,17 @@ class DataService {
     );
     PromoterDataService()
         .recordTicketSale(order.concert.id, order.quantity, order.totalAmount);
-    _syncTicketToSupabase(order, bookingCode, validUserId: currentUser?.id);
+    _syncTicketToSupabase(
+      order,
+      bookingCode,
+      validUserId: currentUser?.id,
+      gateName: allocatedGate,
+    );
     return newTicket;
   }
 
   void _syncTicketToSupabase(OrderModel order, String bookingCode,
-      {String? validUserId}) {
+      {String? validUserId, String? gateName}) {
     if (!SupabaseService.isInitialized) return;
     final rawUserId = validUserId ?? currentUser?.id;
     final uuidRegex = RegExp(
@@ -2085,6 +2126,12 @@ class DataService {
     final validConcertUuid =
         (uuidRegex.hasMatch(rawConcertId)) ? rawConcertId : null;
     final validTierUuid = UuidUtils.ensureValidUuid(order.tier.id);
+
+    final resolvedGate = gateName ??
+        TicketCodeGenerator.resolveGateForTier(
+          gates: order.concert.gates,
+          tierName: order.tier.name,
+        );
 
     final orderPayload = {
       'id': order.orderId,
@@ -2130,13 +2177,17 @@ class DataService {
       'ticket_code': bookingCode,
       'qr_token': 'LTX-${order.orderId}',
       'tier_name': order.tier.name,
-      'gate_name': 'Gate A',
+      'gate_name': resolvedGate,
+      'customer_name': order.customerName,
+      'customer_email': order.customerEmail,
+      if (currentUser?.nik.isNotEmpty == true)
+        'customer_nik': currentUser!.nik,
       'venue': order.concert.venue,
       'concert_title': order.concert.title,
       'concert_date': order.concert.date,
       'concert_time':
           order.concert.time.isNotEmpty ? order.concert.time : '19.00 WIB',
-      'status': 'ACTIVE',
+      'status': 'aktif',
       'is_active': true,
       'qr_scan_quota': order.quantity,
       'qr_scans_used': 0,
@@ -2157,6 +2208,24 @@ class DataService {
             .upsert(fallback)
             .then((_) => fetchUserTicketsFromSupabase())
             .catchError((e) => debugPrint('Retry fallback ticket error: $e'));
+      } else if (errStr.contains('23514') ||
+          errStr.contains('status') ||
+          errStr.contains('check constraint')) {
+        final fallbackStatus = Map<String, dynamic>.from(ticketPayload)
+          ..['status'] = 'aktif';
+        SupabaseService.client
+            .from('tickets')
+            .upsert(fallbackStatus)
+            .then((_) => fetchUserTicketsFromSupabase())
+            .catchError((e) {
+          final fallbackPaid = Map<String, dynamic>.from(ticketPayload)
+            ..['status'] = 'paid';
+          SupabaseService.client
+              .from('tickets')
+              .upsert(fallbackPaid)
+              .then((_) => fetchUserTicketsFromSupabase())
+              .catchError((_) {});
+        });
       }
     });
   }
@@ -2225,24 +2294,41 @@ class DataService {
         final List<UserTicketModel> fetched = [];
         for (final r in rows) {
           final quota = (r['qr_scan_quota'] as num?)?.toInt() ?? 1;
+          final scansUsedVal = (r['qr_scans_used'] as num?)?.toInt() ??
+              (r['scans_used'] as num?)?.toInt() ??
+              0;
           final statusStr = r['status']?.toString().toUpperCase() ?? 'ACTIVE';
-          final isCompleted = statusStr == 'SUDAH DIPAKAI' ||
-              statusStr == 'USED' ||
-              statusStr == 'HANGUS' ||
-              statusStr == 'EXPIRED' ||
-              statusStr == 'DIREFUND' ||
-              statusStr == 'REFUNDED' ||
-              statusStr == 'DIBATALKAN' ||
-              statusStr == 'CANCELLED';
           final isCancelled =
               statusStr == 'DIBATALKAN' || statusStr == 'CANCELLED';
-          final displayStatus = isCompleted
-              ? (statusStr == 'HANGUS' || statusStr == 'EXPIRED'
-                  ? 'Hangus'
-                  : 'Selesai')
-              : ((statusStr == 'DIREFUND' || statusStr == 'REFUNDED')
-                  ? 'Refund Selesai'
-                  : (isCancelled ? 'Reffund' : 'Aktif'));
+          final isRefund =
+              statusStr == 'DIREFUND' || statusStr == 'REFUNDED';
+          final isExpired =
+              statusStr == 'HANGUS' || statusStr == 'EXPIRED';
+          final isScanned = statusStr == 'SUDAH DIPAKAI' ||
+              statusStr == 'DIPAKAI' ||
+              statusStr == 'USED' ||
+              statusStr == 'TIKET SUDAH DIVALIDASI' ||
+              statusStr == 'SUDAH DIVALIDASI' ||
+              statusStr == 'DIVALIDASI' ||
+              scansUsedVal > 0;
+          final isCompleted = isScanned ||
+              isCancelled ||
+              isRefund ||
+              isExpired ||
+              (scansUsedVal >= quota && quota > 0);
+
+          final String displayStatus;
+          if (isCancelled) {
+            displayStatus = 'Reffund';
+          } else if (isRefund) {
+            displayStatus = 'Refund Selesai';
+          } else if (isExpired) {
+            displayStatus = 'Hangus';
+          } else if (isScanned) {
+            displayStatus = 'Tiket Sudah Divalidasi';
+          } else {
+            displayStatus = 'Aktif';
+          }
 
           final tCode = r['booking_code']?.toString() ??
               r['ticket_code']?.toString() ??
@@ -2314,7 +2400,17 @@ class DataService {
                 ? r['qr_payload'].toString()
                 : tCode,
             qrScanQuota: quota,
+            qrScansUsed: (r['qr_scans_used'] as num?)?.toInt() ??
+                (r['scans_used'] as num?)?.toInt() ??
+                0,
             paymentMethod: realPaymentMethod,
+            buyerName: r['customer_name']?.toString() ??
+                orderData?['customer_name']?.toString() ??
+                user?.name,
+            buyerEmail: r['customer_email']?.toString() ??
+                orderData?['customer_email']?.toString() ??
+                user?.email,
+            buyerNik: r['customer_nik']?.toString() ?? user?.nik,
           ));
         }
 
@@ -2337,12 +2433,14 @@ class DataService {
     }
   }
 
-  void _saveUserTicketsToLocalStorage() {
+  void saveUserTicketsToLocalStorage() {
     try {
       final list = userTicketsNotifier.value.map((t) => t.toJson()).toList();
       LocalStorage.setString('livetix_saved_user_tickets', jsonEncode(list));
     } catch (_) {}
   }
+
+  void _saveUserTicketsToLocalStorage() => saveUserTicketsToLocalStorage();
 
   /// Mengambil tiket pengguna yang aktif dan riwayat
   Future<List<UserTicketModel>> getUserTickets() async {

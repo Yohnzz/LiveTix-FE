@@ -203,7 +203,14 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
         return StatefulBuilder(
           builder: (context, setModalState) {
             final remainingQuota = result.quota - currentUsed;
-            final isFullyUsed = result.isValid && remainingQuota <= 0;
+            final isQuotaExhausted = !result.isValid &&
+                (result.status.toLowerCase().contains('habis') ||
+                    result.status.toLowerCase().contains('kuota') ||
+                    (result.invalidReason?.toLowerCase().contains('batas') == true) ||
+                    (result.invalidReason?.toLowerCase().contains('kuota') == true) ||
+                    currentUsed >= result.quota ||
+                    remainingQuota <= 0);
+            final isFullyUsed = (result.isValid && remainingQuota <= 0) || isQuotaExhausted;
             final isSuccess = result.isValid && !isFullyUsed;
 
             return Container(
@@ -238,7 +245,9 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                           ? Icons.check_circle_rounded
                           : result.isWrongGate
                               ? Icons.wrong_location_rounded
-                              : Icons.cancel_rounded,
+                              : isQuotaExhausted
+                                  ? Icons.block_rounded
+                                  : Icons.cancel_rounded,
                       color: isSuccess
                           ? const Color(0xFF16A34A)
                           : const Color(0xFFDC2626),
@@ -251,8 +260,8 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                         ? 'TIKET RESMI VALID'
                         : result.isWrongGate
                             ? 'SALAH POS GATE'
-                            : isFullyUsed
-                                ? 'KUOTA TIKET HABIS'
+                            : isQuotaExhausted
+                                ? 'BATAS SCAN TIKET HABIS'
                                 : 'TIKET TIDAK VALID',
                     textAlign: TextAlign.center,
                     style: TextStyle(
@@ -268,19 +277,77 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                   Text(
                     isSuccess
                         ? 'Pengunjung diizinkan masuk melalui $_selectedGate'
-                        : result.invalidReason ??
-                            'Tiket ini tidak dapat diverifikasi untuk akses masuk.',
+                        : isQuotaExhausted
+                            ? 'Batas scan tiket ini sudah habis. Pengunjung tidak diperbolehkan masuk lagi.'
+                            : result.invalidReason ??
+                                'Tiket ini tidak dapat diverifikasi untuk akses masuk.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: result.isWrongGate
+                      fontWeight: result.isWrongGate || isQuotaExhausted
                           ? FontWeight.w600
                           : FontWeight.w400,
-                      color: result.isWrongGate
+                      color: result.isWrongGate || isQuotaExhausted
                           ? const Color(0xFFB91C1C)
                           : AppColors.textGrey,
                     ),
                   ),
+                  if (isQuotaExhausted) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFEE2E2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.shield_outlined,
+                              color: Color(0xFFDC2626),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'PENGAMAN GATE AKTIF: KUOTA HABIS',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                    color: Color(0xFF991B1B),
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'Tiket ini hanya berlaku untuk ${result.quota}x scan dan seluruh kuota telah terpakai (${result.used} dari ${result.quota} tiket telah digunakan). Akses masuk ditolak oleh sistem.',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    height: 1.35,
+                                    color: Color(0xFFB91C1C),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -292,6 +359,22 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                     child: Column(
                       children: [
                         _buildDetailRow('Nama Pemegang', result.attendeeName),
+                        if (result.customerEmail != null &&
+                            result.customerEmail!.trim().isNotEmpty) ...[
+                          const Divider(height: 18, color: Color(0xFFE2E8F0)),
+                          _buildDetailRow('Email Pembeli', result.customerEmail!.trim()),
+                        ],
+                        if (result.customerNik != null &&
+                            result.customerNik!.trim().isNotEmpty) ...[
+                          const Divider(height: 18, color: Color(0xFFE2E8F0)),
+                          _buildDetailRow(
+                            'NIK (4 Digit Terakhir)',
+                            result.customerNik!.trim().length >= 4
+                                ? '•••• •••• •••• ${result.customerNik!.trim().substring(result.customerNik!.trim().length - 4)}'
+                                : result.customerNik!.trim(),
+                            isBold: true,
+                          ),
+                        ],
                         const Divider(height: 18, color: Color(0xFFE2E8F0)),
                         _buildDetailRow('Konser', assignment.concertTitle),
                         const Divider(height: 18, color: Color(0xFFE2E8F0)),
@@ -312,9 +395,11 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                         const Divider(height: 18, color: Color(0xFFE2E8F0)),
                         _buildDetailRow(
                           'Sisa Kuota Tiket',
-                          result.isValid
-                              ? '$remainingQuota dari ${result.quota} tiket tersisa'
-                              : '0 Kuota',
+                          isQuotaExhausted || remainingQuota <= 0
+                              ? '0 dari ${result.quota} tiket (Habis)'
+                              : result.isValid
+                                  ? '$remainingQuota dari ${result.quota} tiket tersisa'
+                                  : '0 Kuota',
                           isBold: true,
                           highlightColor: isSuccess
                               ? const Color(0xFF0D9488)
@@ -450,11 +535,16 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        child: const Text(
-                          'Tutup & Lanjutkan Scan',
+                        child: Text(
+                          isQuotaExhausted
+                              ? 'Tutup & Tolak Pengunjung'
+                              : 'Tutup & Lanjutkan Scan',
                           style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textDark),
+                            fontWeight: FontWeight.w700,
+                            color: isQuotaExhausted
+                                ? const Color(0xFFDC2626)
+                                : AppColors.textDark,
+                          ),
                         ),
                       ),
                     ),

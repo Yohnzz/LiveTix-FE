@@ -253,6 +253,11 @@ class UserTicketModel {
   /// Data order saat masih dalam mode pembayaran pending
   final OrderModel? pendingOrder;
 
+  /// Identitas resmi pembeli tiket (Nama, Email, NIK)
+  final String? buyerName;
+  final String? buyerEmail;
+  final String? buyerNik;
+
   /// Rincian komponen harga transparan sesuai rumus server LiveTix
   TransactionPricing get pricing {
     final unit = quantity > 0 ? (totalPrice ~/ quantity) : totalPrice;
@@ -288,6 +293,9 @@ class UserTicketModel {
     this.qrScansUsed = 0,
     this.paymentMethod = 'BCA Virtual Account',
     this.pendingOrder,
+    this.buyerName,
+    this.buyerEmail,
+    this.buyerNik,
   }) : qrScanQuota = qrScanQuota ?? quantity;
 
   bool get isPendingPayment =>
@@ -306,6 +314,20 @@ class UserTicketModel {
 
   int get remainingScans => (qrScanQuota - qrScansUsed).clamp(0, qrScanQuota);
 
+  /// Menandakan apakah tiket sudah pernah di-scan / divalidasi oleh Gate Crew
+  bool get isValidated =>
+      qrScansUsed > 0 ||
+      isCompleted ||
+      status.toLowerCase().contains('divalidasi') ||
+      status.toLowerCase() == 'selesai';
+
+  /// Menandakan apakah tiket telah divalidasi secara penuh sesuai kuota
+  bool get isFullyValidated =>
+      (qrScanQuota > 0 && qrScansUsed >= qrScanQuota) ||
+      isCompleted ||
+      status.toLowerCase().contains('divalidasi') ||
+      status.toLowerCase() == 'selesai';
+
   UserTicketModel copyWith({
     String? status,
     bool? isCompleted,
@@ -318,6 +340,9 @@ class UserTicketModel {
     int? qrScansUsed,
     String? paymentMethod,
     OrderModel? pendingOrder,
+    String? buyerName,
+    String? buyerEmail,
+    String? buyerNik,
   }) {
     return UserTicketModel(
       id: id,
@@ -348,6 +373,9 @@ class UserTicketModel {
       qrScansUsed: qrScansUsed ?? this.qrScansUsed,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       pendingOrder: pendingOrder ?? this.pendingOrder,
+      buyerName: buyerName ?? this.buyerName,
+      buyerEmail: buyerEmail ?? this.buyerEmail,
+      buyerNik: buyerNik ?? this.buyerNik,
     );
   }
 
@@ -387,6 +415,9 @@ class UserTicketModel {
       'qrScanQuota': qrScanQuota,
       'qrScansUsed': qrScansUsed,
       'paymentMethod': paymentMethod,
+      'buyerName': buyerName,
+      'buyerEmail': buyerEmail,
+      'buyerNik': buyerNik,
     };
   }
 
@@ -418,6 +449,9 @@ class UserTicketModel {
       qrScanQuota: (json['qrScanQuota'] as num?)?.toInt() ?? q,
       qrScansUsed: (json['qrScansUsed'] as num?)?.toInt() ?? 0,
       paymentMethod: json['paymentMethod']?.toString() ?? 'QRIS',
+      buyerName: json['buyerName']?.toString() ?? json['customer_name']?.toString(),
+      buyerEmail: json['buyerEmail']?.toString() ?? json['customer_email']?.toString(),
+      buyerNik: json['buyerNik']?.toString() ?? json['customer_nik']?.toString(),
     );
   }
 }

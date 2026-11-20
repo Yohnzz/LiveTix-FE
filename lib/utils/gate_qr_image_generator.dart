@@ -245,12 +245,28 @@ class GateQrImageGenerator {
       maxLines: 1,
     );
 
+    final buyerIdentityText = (ticket.buyerName != null &&
+            ticket.buyerName!.trim().isNotEmpty)
+        ? 'Pemilik: ${ticket.buyerName!.trim()}${(ticket.buyerEmail != null && ticket.buyerEmail!.trim().isNotEmpty) ? " · ${ticket.buyerEmail!.trim()}" : ""}'
+        : 'Tiket Resmi Terverifikasi LiveTix';
+
+    _drawText(
+      canvas,
+      text: buyerIdentityText,
+      offset: const ui.Offset(60, 836),
+      maxWidth: width - 120,
+      fontSize: 17,
+      fontWeight: ui.FontWeight.w600,
+      color: const ui.Color(0xFF334155),
+      maxLines: 1,
+    );
+
     _drawText(
       canvas,
       text: 'Diterbitkan resmi oleh LiveTix · Tunjukkan QR ini pada petugas gate',
-      offset: const ui.Offset(60, 862),
+      offset: const ui.Offset(60, 874),
       maxWidth: width - 120,
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: ui.FontWeight.w500,
       color: const ui.Color(0xFF475467),
       maxLines: 2,

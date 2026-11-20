@@ -78,13 +78,13 @@ class _TicketScreenState extends State<TicketScreen> {
           ),
         );
       }
-    } else if (_selectedTabIndex == 1 ||
-        ticket.isCompleted ||
-        ticket.status.toLowerCase() == 'selesai') {
-      // Tiket Riwayat / Selesai -> Tampilkan rincian transaksi tiket riwayat
+    } else if (_selectedTabIndex == 1 &&
+        (ticket.isCompleted || ticket.status.toLowerCase() == 'selesai') &&
+        !ticket.isValidated) {
+      // Tiket Riwayat / Selesai lama -> Tampilkan rincian transaksi tiket riwayat
       _showHistoryTicketModal(ticket);
     } else {
-      // Tiket Aktif normal -> Tampilkan modal E-Tiket Aktif
+      // Tiket Aktif & Tiket yang divalidasi -> Tampilkan modal E-Tiket Aktif / Status Divalidasi
       _showActiveTicketModal(ticket);
     }
   }
@@ -198,6 +198,36 @@ class _TicketScreenState extends State<TicketScreen> {
     );
   }
 
+  Widget _buildModalIdentityRow(String label, String value, {bool isCode = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              fontSize: isCode ? 11.5 : 12.5,
+              fontWeight: isCode ? FontWeight.w700 : FontWeight.w600,
+              fontFamily: isCode ? 'monospace' : null,
+              color: isCode ? const Color(0xFF1B2A8C) : const Color(0xFF0F172A),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   OrderModel _reconstructOrderFromTicket(UserTicketModel ticket) {
     final pricing = ticket.pricing;
     final price = pricing.hargaSatuan;
@@ -223,6 +253,7 @@ class _TicketScreenState extends State<TicketScreen> {
       iconBgColor: const Color(0xFFE0EAFF),
       iconColor: const Color(0xFF1B2A8C),
       ticketTiers: [tier],
+      gates: [ticket.gate],
     );
 
     PaymentCategory cat = PaymentCategory.qris;
@@ -250,8 +281,12 @@ class _TicketScreenState extends State<TicketScreen> {
       rounding: pricing.pembulatan,
       producerShare: pricing.produserShare,
       adminShare: pricing.adminShare,
-      customerName: DataService().currentUser?.name ?? 'Penonton LiveTix',
-      customerEmail: DataService().currentUser?.email ?? 'user@livetix.com',
+      customerName: ticket.buyerName ??
+          DataService().currentUser?.name ??
+          'Penonton LiveTix',
+      customerEmail: ticket.buyerEmail ??
+          DataService().currentUser?.email ??
+          'user@livetix.com',
       paymentCategory: cat,
       paymentProvider: ticket.paymentMethod,
       qrString: ticket.qrData,
@@ -290,6 +325,27 @@ class _TicketScreenState extends State<TicketScreen> {
               });
             }
 
+            final user = DataService().currentUser;
+            final buyerName = (ticket.buyerName != null &&
+                    ticket.buyerName!.trim().isNotEmpty)
+                ? ticket.buyerName!.trim()
+                : (user?.name.trim().isNotEmpty == true
+                    ? user!.name.trim()
+                    : 'Pengunjung LiveTix');
+            final buyerEmail = (ticket.buyerEmail != null &&
+                    ticket.buyerEmail!.trim().isNotEmpty)
+                ? ticket.buyerEmail!.trim()
+                : (user?.email.trim().isNotEmpty == true
+                    ? user!.email.trim()
+                    : '—');
+            final rawNik = (ticket.buyerNik != null &&
+                    ticket.buyerNik!.trim().isNotEmpty)
+                ? ticket.buyerNik!.trim()
+                : (user?.nik.trim() ?? '');
+            final maskedNik = rawNik.length >= 8
+                ? '${rawNik.substring(0, 4)}••••${rawNik.substring(rawNik.length - 4)}'
+                : (rawNik.isNotEmpty ? rawNik : '—');
+
             return SafeArea(
               top: false,
               child: SingleChildScrollView(
@@ -315,24 +371,54 @@ class _TicketScreenState extends State<TicketScreen> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFECFDF5),
+                            color: ticket.isValidated
+                                ? const Color(0xFFEFF6FF)
+                                : const Color(0xFFECFDF5),
                             borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'TIKET RESMI AKTIF',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF065F46),
+                            border: Border.all(
+                              color: ticket.isValidated
+                                  ? const Color(0xFFBFDBFE)
+                                  : const Color(0xFFA7F3D0),
                             ),
                           ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                ticket.isValidated
+                                    ? Icons.verified_rounded
+                                    : Icons.check_circle_outline_rounded,
+                                size: 13,
+                                color: ticket.isValidated
+                                    ? const Color(0xFF1D4ED8)
+                                    : const Color(0xFF065F46),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                ticket.isValidated
+                                    ? 'TIKET SUDAH DIVALIDASI'
+                                    : 'TIKET RESMI AKTIF',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: ticket.isValidated
+                                      ? const Color(0xFF1D4ED8)
+                                      : const Color(0xFF065F46),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        Text(
-                          ticket.bookingCode,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textDark,
+                        Flexible(
+                          child: Text(
+                            ticket.bookingCode,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textDark,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
                           ),
                         ),
                       ],
@@ -361,12 +447,201 @@ class _TicketScreenState extends State<TicketScreen> {
                       qrData: effectiveQr,
                       qrCodeUrl: ticket.qrCodeUrl,
                       qrCodeBytes: ticket.qrCodeBytes,
-                      size: 164,
+                      size: 220,
                       padding: 12,
                       showWatermark: true,
                       semanticLabel: 'Kode QR E-Tiket ${ticket.concertTitle}',
                     ),
-                    const SizedBox(height: 12),
+                    // Indikator Status Validasi Scan
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(top: 14, bottom: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 11),
+                      decoration: BoxDecoration(
+                        color: ticket.isValidated
+                            ? const Color(0xFFEFF6FF)
+                            : const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: ticket.isValidated
+                              ? const Color(0xFFBFDBFE)
+                              : const Color(0xFFA7F3D0),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            ticket.isValidated
+                                ? Icons.verified_rounded
+                                : Icons.qr_code_scanner_rounded,
+                            color: ticket.isValidated
+                                ? const Color(0xFF1D4ED8)
+                                : const Color(0xFF059669),
+                            size: 22,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  ticket.isValidated
+                                      ? 'TIKET SUDAH DIVALIDASI'
+                                      : 'TIKET AKTIF (BELUM DI-SCAN)',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: ticket.isValidated
+                                        ? const Color(0xFF1E40AF)
+                                        : const Color(0xFF065F46),
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  ticket.isValidated
+                                      ? 'Tiket ini telah berhasil di-scan oleh petugas di pos ${ticket.gate}. Akses masuk konser telah terpakai.'
+                                      : 'Tunjukkan kode QR ini ke petugas Gate Crew di pos ${ticket.gate} saat verifikasi masuk venue konser.',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: ticket.isValidated
+                                        ? const Color(0xFF2563EB)
+                                        : const Color(0xFF047857),
+                                    height: 1.35,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Pos Gate Masuk (Besar & Ter-highlight sesuai konfigurasi Produser)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF1B2A8C), Color(0xFF27389B)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF1B2A8C).withValues(alpha: 0.22),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.door_front_door_rounded,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'POS GATE MASUK',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFC7D2FE),
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  ticket.gate,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              ticket.category,
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1B2A8C),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Identitas Resmi Pemilik Tiket (Nama, Email, NIK sebagai bukti)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.badge_rounded,
+                                  size: 16, color: Color(0xFF475467)),
+                              SizedBox(width: 6),
+                              Text(
+                                'Identitas Pembeli (Bukti Resmi)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF334155),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                          _buildModalIdentityRow('Nama Pembeli', buyerName),
+                          const SizedBox(height: 6),
+                          _buildModalIdentityRow('Email Pembeli', buyerEmail),
+                          const SizedBox(height: 6),
+                          _buildModalIdentityRow('NIK', maskedNik),
+                          const SizedBox(height: 6),
+                          _buildModalIdentityRow(
+                              'Kode Tiket', ticket.bookingCode,
+                              isCode: true),
+                        ],
+                      ),
+                    ),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -792,8 +1067,24 @@ class _TicketScreenState extends State<TicketScreen> {
       valueListenable: DataService().userTicketsNotifier,
       builder: (context, tickets, _) {
         final filteredTickets = _selectedTabIndex == 0
-            ? tickets.where((t) => !t.isCompleted).toList()
-            : tickets.where((t) => t.isCompleted).toList();
+            ? tickets
+                .where((t) =>
+                    !t.isCancelled &&
+                    !t.status.toLowerCase().contains('refund') &&
+                    !t.status.toLowerCase().contains('hangus') &&
+                    !t.status.toLowerCase().contains('expired') &&
+                    !t.status.toLowerCase().contains('cancelled'))
+                .toList()
+            : tickets
+                .where((t) =>
+                    t.isValidated ||
+                    t.isCompleted ||
+                    t.isCancelled ||
+                    t.status.toLowerCase().contains('refund') ||
+                    t.status.toLowerCase().contains('hangus') ||
+                    t.status.toLowerCase().contains('expired') ||
+                    t.status.toLowerCase().contains('cancelled'))
+                .toList();
 
         return RefreshIndicator(
           color: AppColors.primary,
@@ -1000,6 +1291,31 @@ class _TicketScreenState extends State<TicketScreen> {
                                     color: isDark ? AppColors.primaryDark : stripeColor,
                                   ),
                                 ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                  decoration: BoxDecoration(
+                                    color: (isDark ? AppColors.primaryDark : stripeColor).withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.door_front_door_rounded,
+                                          size: 13,
+                                          color: isDark ? AppColors.primaryDark : stripeColor),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Pos: ${ticket.gate}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: isDark ? AppColors.primaryDark : stripeColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -1019,7 +1335,7 @@ class _TicketScreenState extends State<TicketScreen> {
                                   child: const Icon(Icons.star, size: 14, color: Colors.white),
                                 ),
                               // Status Pill Badge (Aktif vs Reffund)
-                              _buildStatusBadge(ticket.status),
+                              _buildStatusBadge(ticket),
                             ],
                           ),
                         ],
@@ -1175,27 +1491,39 @@ class _TicketScreenState extends State<TicketScreen> {
 );
   }
 
-  Widget _buildStatusBadge(String status) {
+  Widget _buildStatusBadge(UserTicketModel ticket) {
+    final status = ticket.status;
     Color bg;
     Color text;
+    IconData? icon;
 
-    if (status == 'Aktif') {
+    if (ticket.isValidated) {
+      bg = const Color(0xFFEFF6FF);
+      text = const Color(0xFF1D4ED8);
+      icon = Icons.verified_rounded;
+    } else if (status == 'Aktif') {
       bg = const Color(0xFFECFDF5);
       text = const Color(0xFF065F46);
+      icon = Icons.check_circle_outline_rounded;
     } else if (status.toLowerCase().contains('menunggu') ||
         status.toLowerCase().contains('pending')) {
       bg = const Color(0xFFFEF3C7);
       text = const Color(0xFF92400E);
+      icon = null;
     } else if (status == 'Reffund' ||
         status.toLowerCase().contains('refund') ||
         status.toLowerCase().contains('expired') ||
         status.toLowerCase().contains('cancelled')) {
       bg = const Color(0xFFFEE2E2);
       text = const Color(0xFF991B1B);
+      icon = null;
     } else {
       bg = const Color(0xFFF2F4F7);
       text = const Color(0xFF475467);
+      icon = null;
     }
+
+    final label = ticket.isValidated ? 'Sudah Divalidasi' : status;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1203,13 +1531,22 @@ class _TicketScreenState extends State<TicketScreen> {
         color: bg,
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(
-        status,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: text,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 11, color: text),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: text,
+            ),
+          ),
+        ],
       ),
     );
   }

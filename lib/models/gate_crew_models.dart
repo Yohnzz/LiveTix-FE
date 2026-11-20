@@ -184,6 +184,8 @@ class TicketScanValidationResult {
   final int quota;
   final int used;
   final bool isWrongGate;
+  final String? customerEmail;
+  final String? customerNik;
 
   const TicketScanValidationResult({
     required this.isValid,
@@ -200,6 +202,8 @@ class TicketScanValidationResult {
     this.quota = 1,
     this.used = 0,
     this.isWrongGate = false,
+    this.customerEmail,
+    this.customerNik,
   });
 
   int get remaining => (quota - used).clamp(0, quota);

@@ -3,10 +3,10 @@ import 'package:flutter/foundation.dart';
 import '../models/gate_crew_models.dart';
 import '../models/ticket_order_model.dart';
 import '../utils/local_storage.dart';
+import '../utils/uuid_utils.dart';
 import 'data_service.dart';
 import 'promoter_data_service.dart';
 import 'supabase_service.dart';
-import 'ticket_validator_service.dart';
 
 class AddGateCrewBatchResult {
   final bool isSuccess;
@@ -41,6 +41,13 @@ class GateCrewService {
 
   final ValueNotifier<List<GateCrewMemberModel>> teamCrewNotifier =
       ValueNotifier<List<GateCrewMemberModel>>([]);
+
+  /// Cache memori penghitung scan sesi lokal untuk mencegah kuota tembus
+  final Map<String, int> _sessionScansUsedMap = {};
+
+  void clearSessionScanCache() {
+    _sessionScansUsedMap.clear();
+  }
 
   static String _generateValidUuid(int seed) {
     final hex = seed.abs().toRadixString(16).padLeft(12, '0');
@@ -1321,70 +1328,106 @@ class GateCrewService {
 
     // 0. Validasi format HMAC-SHA256 Server (ticket_id.kode_tiket.signature)
     final parts = cleanCode.split('.');
+    String queryCode = cleanCode;
     if (parts.length == 3) {
-      final valResult = await TicketValidatorService().validateQrPayload(
-        qrPayload: cleanCode,
-        gateUserId: DataService().currentUser?.id,
-      );
-
-      if (!valResult.valid) {
-        return TicketScanValidationResult(
-          isValid: false,
-          status: 'Ditolak (${valResult.reason ?? "Tidak Valid"})',
-          invalidReason: valResult.reasonLabel,
-          ticketId: parts[0],
-          ticketCode: parts[1],
-          bookingCode: parts[1],
-        );
-      }
-
-      return TicketScanValidationResult(
-        isValid: true,
-        status: 'Resmi & Valid',
-        ticketId: valResult.ticketId ?? parts[0],
-        ticketCode: parts[1],
-        bookingCode: parts[1],
-        attendeeName: 'Pengunjung LiveTix',
-        category: valResult.tierName ?? 'Reguler',
-        gateName: currentGate,
-        concertId: currentConcertId,
-        concertTitle: 'Konser LiveTix',
-        quota: valResult.scanQuota,
-        used: valResult.scansUsed,
-      );
+      // Jika format 3-segmen, kode tiket inti ada di parts[1] dan ID di parts[0]
+      queryCode = parts[1];
     }
 
     Map<String, dynamic>? ticketRow;
     String customerName = 'Pengunjung LiveTix';
+    String? customerEmail;
+    String? customerNik;
 
     // 1. Cek langsung ke tabel tickets di Supabase
     if (SupabaseService.isInitialized) {
       try {
         final query = SupabaseService.client
             .from('tickets')
-            .select('*, orders(customer_name, customer_email, customer_phone)');
+            .select('*');
 
         List<dynamic> rows = [];
         try {
-          rows = await query.or(
-              'ticket_code.eq.$cleanCode,id.eq.$cleanCode,order_id.eq.$cleanCode');
+          final bool isQueryUuid = UuidUtils.isValidUuid(queryCode);
+          final bool isCleanUuid = UuidUtils.isValidUuid(cleanCode);
+
+          // Cari juga versi tanpa prefix LTX- jika ada
+          String strippedCode = '';
+          if (cleanCode.startsWith('LTX-') || cleanCode.startsWith('ltx-')) {
+            strippedCode = cleanCode.substring(4).trim();
+          } else if (cleanCode.startsWith('LTX_') || cleanCode.startsWith('ltx_')) {
+            strippedCode = cleanCode.substring(4).trim();
+          }
+          final bool isStrippedUuid =
+              strippedCode.isNotEmpty && UuidUtils.isValidUuid(strippedCode);
+
+          final orConditions = [
+            'ticket_code.eq.$queryCode',
+            'booking_code.eq.$queryCode',
+            if (isQueryUuid) 'id.eq.$queryCode',
+            if (isQueryUuid) 'order_id.eq.$queryCode',
+            'ticket_code.eq.$cleanCode',
+            'booking_code.eq.$cleanCode',
+            if (isCleanUuid) 'id.eq.$cleanCode',
+            if (isCleanUuid) 'order_id.eq.$cleanCode',
+            if (strippedCode.isNotEmpty) 'ticket_code.eq.$strippedCode',
+            if (strippedCode.isNotEmpty) 'booking_code.eq.$strippedCode',
+            if (isStrippedUuid) 'id.eq.$strippedCode',
+            if (isStrippedUuid) 'order_id.eq.$strippedCode',
+            if (parts.length == 3 && UuidUtils.isValidUuid(parts[0]))
+              'id.eq.${parts[0]}',
+            if (parts.length == 3) 'ticket_code.eq.${parts[1]}',
+          ].join(',');
+
+          rows = await query.or(orConditions);
         } catch (_) {}
 
         if (rows.isEmpty) {
           try {
             rows = await SupabaseService.client
                 .from('tickets')
-                .select(
-                    '*, orders(customer_name, customer_email, customer_phone)')
-                .ilike('ticket_code', '%$cleanCode%');
+                .select('*')
+                .ilike('ticket_code', '%$queryCode%');
+          } catch (_) {}
+        }
+
+        if (rows.isEmpty) {
+          try {
+            rows = await SupabaseService.client
+                .from('tickets')
+                .select('*')
+                .ilike('booking_code', '%$queryCode%');
           } catch (_) {}
         }
 
         if (rows.isNotEmpty) {
           ticketRow = rows.first as Map<String, dynamic>;
-          final rawOrder = ticketRow['orders'];
-          if (rawOrder is Map && rawOrder['customer_name'] != null) {
-            customerName = rawOrder['customer_name'].toString();
+          customerEmail = ticketRow['customer_email']?.toString();
+          customerNik = ticketRow['customer_nik']?.toString();
+
+          final directCustomer = ticketRow['customer_name']?.toString();
+          if (directCustomer != null && directCustomer.trim().isNotEmpty) {
+            customerName = directCustomer.trim();
+          } else {
+            final ordId = ticketRow['order_id']?.toString();
+            if (ordId != null && ordId.isNotEmpty && UuidUtils.isValidUuid(ordId)) {
+              try {
+                final ordRows = await SupabaseService.client
+                    .from('orders')
+                    .select('customer_name, customer_email')
+                    .eq('id', ordId)
+                    .limit(1);
+                if (ordRows.isNotEmpty) {
+                  if (ordRows.first['customer_name'] != null) {
+                    customerName = ordRows.first['customer_name'].toString();
+                  }
+                  if (customerEmail == null &&
+                      ordRows.first['customer_email'] != null) {
+                    customerEmail = ordRows.first['customer_email'].toString();
+                  }
+                }
+              } catch (_) {}
+            }
           }
         }
       } catch (e) {
@@ -1396,12 +1439,21 @@ class GateCrewService {
     if (ticketRow == null) {
       final userTickets = DataService().userTicketsNotifier.value;
       for (final t in userTickets) {
-        if (t.bookingCode.toLowerCase() == cleanCode.toLowerCase() ||
-            t.id.toLowerCase() == cleanCode.toLowerCase() ||
-            (t.qrData != null &&
-                t.qrData!.toLowerCase() == cleanCode.toLowerCase()) ||
-            cleanCode.contains(t.bookingCode) ||
-            cleanCode.contains(t.id)) {
+        final tBooking = t.bookingCode.toLowerCase();
+        final tId = t.id.toLowerCase();
+        final tQr = t.qrData?.toLowerCase() ?? '';
+        final cCode = cleanCode.toLowerCase();
+        final qCode = queryCode.toLowerCase();
+
+        final isMatch = tBooking == cCode ||
+            tBooking == qCode ||
+            tId == cCode ||
+            tId == qCode ||
+            (tQr.isNotEmpty && (tQr == cCode || tQr == qCode)) ||
+            (tBooking.length >= 6 && (cCode.contains(tBooking) || qCode.contains(tBooking))) ||
+            (tId.length >= 8 && (cCode.contains(tId) || qCode.contains(tId)));
+
+        if (isMatch) {
           ticketRow = {
             'id': t.id,
             'ticket_code': t.bookingCode,
@@ -1415,10 +1467,15 @@ class GateCrewService {
                 : (t.isCompleted ? 'SUDAH DIPAKAI' : 'AKTIF'),
             'qr_scan_quota': t.qrScanQuota,
             'qr_scans_used': t.qrScansUsed,
+            'customer_email': t.buyerEmail,
+            'customer_nik': t.buyerNik,
           };
-          customerName = DataService().currentUser?.name.isNotEmpty == true
-              ? DataService().currentUser!.name
-              : 'Pengunjung LiveTix';
+          customerName = t.buyerName ??
+              (DataService().currentUser?.name.isNotEmpty == true
+                  ? DataService().currentUser!.name
+                  : 'Pengunjung LiveTix');
+          customerEmail = t.buyerEmail ?? DataService().currentUser?.email;
+          customerNik = t.buyerNik ?? DataService().currentUser?.nik;
           break;
         }
       }
@@ -1443,9 +1500,23 @@ class GateCrewService {
     final concertTitle = (ticketRow['concert_title'] ?? 'Konser LiveTix').toString();
     final tierName = (ticketRow['tier_name'] ?? ticketRow['category'] ?? 'Reguler').toString();
     final gateName = (ticketRow['gate_name'] ?? 'Gate A').toString();
-    final status = (ticketRow['status'] ?? 'AKTIF').toString().toUpperCase();
-    final quota = (ticketRow['qr_scan_quota'] as num?)?.toInt() ?? 1;
-    final used = (ticketRow['qr_scans_used'] as num?)?.toInt() ?? 0;
+    final status = (ticketRow['status'] ?? 'AKTIF').toString().toUpperCase().trim();
+    final quota = (ticketRow['qr_scan_quota'] as num?)?.toInt() ??
+        (ticketRow['scan_quota'] as num?)?.toInt() ??
+        1;
+    int used = (ticketRow['qr_scans_used'] as num?)?.toInt() ??
+        (ticketRow['scans_used'] as num?)?.toInt() ??
+        0;
+
+    // Sinkronkan dengan memori sesi lokal scanner seketika
+    final cachedUsed = _sessionScansUsedMap[ticketId] ??
+        _sessionScansUsedMap[ticketCode] ??
+        _sessionScansUsedMap[bookingCode] ??
+        _sessionScansUsedMap[cleanCode] ??
+        _sessionScansUsedMap[queryCode];
+    if (cachedUsed != null && cachedUsed > used) {
+      used = cachedUsed;
+    }
 
     // 4. Validasi Konser
     if (currentConcertId.isNotEmpty &&
@@ -1468,6 +1539,8 @@ class GateCrewService {
         concertTitle: concertTitle,
         quota: quota,
         used: used,
+        customerEmail: customerEmail,
+        customerNik: customerNik,
       );
     }
 
@@ -1490,6 +1563,8 @@ class GateCrewService {
         concertTitle: concertTitle,
         quota: quota,
         used: used,
+        customerEmail: customerEmail,
+        customerNik: customerNik,
       );
     }
 
@@ -1524,17 +1599,27 @@ class GateCrewService {
         concertTitle: concertTitle,
         quota: quota,
         used: used,
+        customerEmail: customerEmail,
+        customerNik: customerNik,
       );
     }
 
-    // 7. Validasi Kuota Scan Tiket (Multi-scan)
+    // 7. Validasi Kuota Scan Tiket (Pengaman Batas Kuota Multi-scan)
     final remaining = quota - used;
-    if (remaining <= 0 || status == 'SUDAH DIPAKAI' || status == 'USED') {
+    final isStatusUsed = status == 'SUDAH DIPAKAI' ||
+        status == 'DIPAKAI' ||
+        status == 'USED' ||
+        status == 'SELESAI' ||
+        status == 'COMPLETED' ||
+        status == 'HANGUS' ||
+        status == 'EXPIRED';
+
+    if (remaining <= 0 || used >= quota || isStatusUsed) {
       return TicketScanValidationResult(
         isValid: false,
         status: 'Ditolak (Habis Kuota)',
         invalidReason:
-            'Seluruh kuota tiket ($quota tiket) sudah pernah digunakan untuk check-in.',
+            'Batas scan tiket ini sudah habis! Seluruh kuota ($quota tiket) telah digunakan untuk check-in. Tiket tidak dapat digunakan lagi.',
         ticketId: ticketId,
         ticketCode: ticketCode,
         bookingCode: bookingCode,
@@ -1544,7 +1629,9 @@ class GateCrewService {
         concertId: concertId,
         concertTitle: concertTitle,
         quota: quota,
-        used: used,
+        used: used >= quota ? used : quota,
+        customerEmail: customerEmail,
+        customerNik: customerNik,
       );
     }
 
@@ -1562,6 +1649,8 @@ class GateCrewService {
       concertTitle: concertTitle,
       quota: quota,
       used: used,
+      customerEmail: customerEmail,
+      customerNik: customerNik,
     );
   }
 
@@ -1575,45 +1664,90 @@ class GateCrewService {
     required String crewEmail,
     required String concertTitle,
   }) async {
+    // Pengaman: Jika sisa kuota sudah habis atau count tidak valid, tolak
+    if (ticket.remaining <= 0 || countToUse <= 0 || ticket.used >= ticket.quota) {
+      debugPrint('Check-in ditolak: Kuota scan tiket sudah habis.');
+      return false;
+    }
+
     final newUsed = ticket.used + countToUse;
     final isFullyUsed = newUsed >= ticket.quota;
-    final newStatus = isFullyUsed ? 'SUDAH DIPAKAI' : 'AKTIF';
+    // Status di database disesuaikan dengan constraint chk_ticket_status
+    final newStatus = isFullyUsed ? 'dipakai' : 'aktif';
 
-    // 1. Update Supabase tabel tickets
-    if (SupabaseService.isInitialized && ticket.ticketId.isNotEmpty) {
+    // Update session cache seketika
+    if (ticket.ticketId.isNotEmpty) _sessionScansUsedMap[ticket.ticketId] = newUsed;
+    if (ticket.ticketCode.isNotEmpty) _sessionScansUsedMap[ticket.ticketCode] = newUsed;
+    if (ticket.bookingCode.isNotEmpty) _sessionScansUsedMap[ticket.bookingCode] = newUsed;
+
+    // 1. Update Supabase tabel tickets secara menyeluruh
+    if (SupabaseService.isInitialized) {
+      final updateData = {
+        'qr_scans_used': newUsed,
+        'scans_used': newUsed,
+        'status': newStatus,
+        if (isFullyUsed) 'used_at': DateTime.now().toIso8601String(),
+      };
+
       try {
-        await SupabaseService.client.from('tickets').update({
-          'qr_scans_used': newUsed,
-          'status': newStatus,
-          if (isFullyUsed) 'used_at': DateTime.now().toIso8601String(),
-        }).eq('id', ticket.ticketId);
+        if (ticket.ticketId.isNotEmpty && UuidUtils.isValidUuid(ticket.ticketId)) {
+          await SupabaseService.client
+              .from('tickets')
+              .update(updateData)
+              .eq('id', ticket.ticketId);
+        }
       } catch (e) {
         debugPrint('Error updating ticket by id: $e');
+      }
+
+      try {
+        if (ticket.ticketCode.isNotEmpty) {
+          await SupabaseService.client
+              .from('tickets')
+              .update(updateData)
+              .or('ticket_code.eq.${ticket.ticketCode},booking_code.eq.${ticket.ticketCode}');
+        }
+      } catch (e) {
+        debugPrint('Error updating ticket by ticket_code: $e');
+      }
+
+      if (ticket.bookingCode.isNotEmpty && ticket.bookingCode != ticket.ticketCode) {
         try {
-          await SupabaseService.client.from('tickets').update({
-            'qr_scans_used': newUsed,
-            'status': newStatus,
-            if (isFullyUsed) 'used_at': DateTime.now().toIso8601String(),
-          }).eq('ticket_code', ticket.ticketCode);
+          await SupabaseService.client
+              .from('tickets')
+              .update(updateData)
+              .or('ticket_code.eq.${ticket.bookingCode},booking_code.eq.${ticket.bookingCode}');
         } catch (_) {}
       }
     }
 
-    // 2. Sinkronkan tiket di DataService userTickets (in-memory)
+    // 2. Sinkronkan tiket di DataService userTickets (in-memory & local storage)
     final userTickets =
         List<UserTicketModel>.from(DataService().userTicketsNotifier.value);
-    final idx = userTickets.indexWhere((t) =>
-        t.id == ticket.ticketId ||
-        t.bookingCode == ticket.ticketCode ||
-        t.bookingCode == ticket.bookingCode);
-    if (idx != -1) {
-      final old = userTickets[idx];
-      userTickets[idx] = old.copyWith(
-        qrScansUsed: newUsed,
-        isCompleted: isFullyUsed,
-        status: isFullyUsed ? 'Selesai' : old.status,
-      );
+    bool memoryUpdated = false;
+    for (var i = 0; i < userTickets.length; i++) {
+      final t = userTickets[i];
+      final match = (ticket.ticketId.isNotEmpty && t.id == ticket.ticketId) ||
+          (ticket.ticketCode.isNotEmpty &&
+              (t.bookingCode == ticket.ticketCode ||
+                  t.id == ticket.ticketCode ||
+                  t.qrData == ticket.ticketCode)) ||
+          (ticket.bookingCode.isNotEmpty &&
+              (t.bookingCode == ticket.bookingCode ||
+                  t.id == ticket.bookingCode ||
+                  t.qrData == ticket.bookingCode));
+      if (match) {
+        userTickets[i] = t.copyWith(
+          qrScansUsed: newUsed,
+          isCompleted: isFullyUsed,
+          status: 'Tiket Sudah Divalidasi',
+        );
+        memoryUpdated = true;
+      }
+    }
+    if (memoryUpdated) {
       DataService().userTicketsNotifier.value = userTickets;
+      DataService().saveUserTicketsToLocalStorage();
     }
 
     // 3. Catat transaksi check-in ke tabel ticket_checkins
