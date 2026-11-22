@@ -234,7 +234,7 @@ class _Body extends StatelessWidget {
                         context, 'Judul Baru', editPayload['title'].toString()),
                   if (editPayload['date'] != null)
                     _buildMetaRow(context, 'Tanggal Baru',
-                        editPayload['date'].toString()),
+                        _cleanDateString(editPayload['date'].toString())),
                   if (editPayload['time'] != null)
                     _buildMetaRow(
                         context, 'Waktu Baru', editPayload['time'].toString()),
@@ -340,66 +340,185 @@ class _Body extends StatelessWidget {
                 ],
               ),
             ),
-          ] else ...[
-            const SizedBox(height: 20),
+          ],
 
-            // 3. Bagian Kategori Tiket
-            const AdminSectionTitle('Kategori Tiket'),
-            if (item.tiers.isEmpty)
-              AdminCard(
-                child: Text(
-                  'Produser belum menambahkan kategori tiket.',
-                  style: TextStyle(fontSize: 13, color: textSec),
-                ),
-              )
-            else
-              Row(
+          const SizedBox(height: 20),
+
+          // 3. Bagian Kategori Tiket (Layout Responsif & Rapi untuk HP / Seluruh Layar)
+          const AdminSectionTitle('Kategori Tiket'),
+          if (item.tiers.isEmpty)
+            AdminCard(
+              padding: const EdgeInsets.all(16),
+              child: Row(
                 children: [
-                  for (var i = 0; i < item.tiers.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 12),
-                    Expanded(
-                      child: AdminCard(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.tiers[i].name,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: i == 0
-                                    ? AdminColors.accentOf(context)
-                                    : AdminColors.pinkAccentOf(context),
+                  Icon(Icons.info_outline_rounded, size: 20, color: textSec),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Produser belum menambahkan kategori tiket.',
+                      style: TextStyle(fontSize: 13, color: textSec),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            _buildTicketTiersList(context, item.tiers),
+        ],
+      ),
+    );
+  }
+
+  /// Membersihkan pengulangan format waktu pada tanggal (misal: " - 19:00 WIB - 19:00 WIB")
+  String _cleanDateString(String raw) {
+    var result = raw;
+    final regex = RegExp(
+        r'(\s*-\s*\d{1,2}[:.]\d{2}\s*WIB)\1+',
+        caseSensitive: false);
+    result = result.replaceAllMapped(regex, (m) => m.group(1) ?? '');
+    return result;
+  }
+
+  /// Render daftar kategori tiket yang rapi dan terstruktur di HP / Desktop
+  Widget _buildTicketTiersList(
+      BuildContext context, List<SubmissionTierModel> tiers) {
+    final textPri = AdminColors.textPrimaryOf(context);
+    final textSec = AdminColors.textSecondaryOf(context);
+
+    // Palet warna aksen berbeda untuk setiap tingkatan tier agar visual menarik
+    const tierColors = [
+      Color(0xFF6366F1), // Indigo
+      Color(0xFFEC4899), // Pink
+      Color(0xFF8B5CF6), // Purple
+      Color(0xFF0EA5E9), // Sky Blue
+      Color(0xFF10B981), // Emerald
+      Color(0xFFF59E0B), // Amber
+    ];
+
+    return Column(
+      children: [
+        for (var i = 0; i < tiers.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          AdminCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Aksen garis warna vertikal
+                Container(
+                  width: 4,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: tierColors[i % tierColors.length],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                // Informasi Kategori Tiket (Nama, Kapasitas, Deskripsi)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            tiers[i].name,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: textPri,
+                            ),
+                          ),
+                          if (i == 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AdminColors.accentOf(context)
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'Tier Utama',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: AdminColors.accentOf(context),
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              ApprovalFormat.rupiah(item.tiers[i].price),
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: textPri,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Kapasitas: ${item.tiers[i].totalQuota} kursi',
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.event_seat_rounded,
+                            size: 13.5,
+                            color: textSec,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'Kapasitas: ${tiers[i].totalQuota} kursi',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: textSec,
                               ),
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+                      if (tiers[i].description.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          tiers[i].description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: textSec,
+                          ),
                         ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Harga Tiket dalam Format Rupiah
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      ApprovalFormat.rupiah(tiers[i].price),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: tierColors[i % tierColors.length],
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'per tiket',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: textSec,
                       ),
                     ),
                   ],
-                ],
-              ),
-          ],
+                ),
+              ],
+            ),
+          ),
         ],
-      ),
+      ],
     );
   }
 

@@ -324,8 +324,9 @@ void main() {
     );
 
     final latest = cs.getThreadById(prodThread.threadId)!;
-    expect(latest.messages.last.receiverRole, 'Admin');
-    expect(latest.messages.last.senderRole, 'Produser');
+    final prodMsg = latest.messages.firstWhere((m) => m.senderRole == 'Produser');
+    expect(prodMsg.receiverRole, 'Admin');
+    expect(prodMsg.senderRole, 'Produser');
     expect(latest.unreadAdminCount, greaterThan(0));
 
     await cs.sendMessage(

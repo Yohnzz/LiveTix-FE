@@ -1305,12 +1305,16 @@ class _TicketScreenState extends State<TicketScreen> {
                                           size: 13,
                                           color: isDark ? AppColors.primaryDark : stripeColor),
                                       const SizedBox(width: 4),
-                                      Text(
-                                        'Pos: ${ticket.gate}',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: isDark ? AppColors.primaryDark : stripeColor,
+                                      Flexible(
+                                        child: Text(
+                                          'Pos: ${ticket.gate}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: isDark ? AppColors.primaryDark : stripeColor,
+                                          ),
                                         ),
                                       ),
                                     ],

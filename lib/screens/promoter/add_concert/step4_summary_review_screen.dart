@@ -456,13 +456,18 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    '${tier.name} (${PromoterTicketTier.formatNumber(tier.quota)} pax)',
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      color: subtextColor,
+                                  Expanded(
+                                    child: Text(
+                                      '${tier.name} (${PromoterTicketTier.formatNumber(tier.quota)} pax)',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        color: subtextColor,
+                                      ),
                                     ),
                                   ),
+                                  const SizedBox(width: 8),
                                   Text(
                                     _formatShortPrice(tier.price),
                                     style: TextStyle(
