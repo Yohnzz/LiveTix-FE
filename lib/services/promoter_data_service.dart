@@ -117,6 +117,26 @@ class PromoterDataService {
   /// Status apakah sesi login saat ini sudah membuka kunci PIN
   bool isPinUnlockedThisSession = false;
 
+  /// Jumlah percobaan input PIN yang salah berturut-turut (maksimal 5 kali)
+  final ValueNotifier<int> pinFailedAttemptsNotifier = ValueNotifier<int>(0);
+
+  /// Batas waktu penguncian PIN Produser jika salah 5 kali (cooldown 10 menit realtime)
+  final ValueNotifier<DateTime?> pinLockedUntilNotifier =
+      ValueNotifier<DateTime?>(null);
+
+  bool get isPinLockedOut {
+    final lockedUntil = pinLockedUntilNotifier.value;
+    if (lockedUntil == null) return false;
+    return lockedUntil.isAfter(DateTime.now());
+  }
+
+  Duration get remainingPinLockoutDuration {
+    final lockedUntil = pinLockedUntilNotifier.value;
+    if (lockedUntil == null) return Duration.zero;
+    final rem = lockedUntil.difference(DateTime.now());
+    return rem.isNegative ? Duration.zero : rem;
+  }
+
   /// Rekening bank penerima dana Produser (diisi saat verifikasi, dimuat dari `promoter_profiles`)
   final ValueNotifier<String> bankNameNotifier = ValueNotifier<String>('');
   final ValueNotifier<String> bankAccountNumberNotifier =
@@ -153,6 +173,8 @@ class PromoterDataService {
     LocalStorage.remove('livetix_producer_deactivation_reason');
     LocalStorage.remove('livetix_producer_rejected_at');
     isPinUnlockedThisSession = false;
+    pinFailedAttemptsNotifier.value = 0;
+    pinLockedUntilNotifier.value = null;
   }
 
   static final RegExp _uuidPattern = RegExp(
@@ -265,59 +287,18 @@ class PromoterDataService {
   ];
 
   void _initData() {
-    // Payment gateway / withdrawal mock records tetap dipertahankan hingga integrasi Midtrans
-    transactionsNotifier.value = [
-      const PromoterTransactionItem(
-        id: 'TX-101',
-        title: 'Penjualan Tiket - Soundwave Fest',
-        date: '21 Okt 2026, 14:20 WIB',
-        amount: '+ Rp 1.050.000',
-        isIncome: true,
-      ),
-      const PromoterTransactionItem(
-        id: 'TX-100',
-        title: 'Pencairan Dana ke BCA 8820****',
-        date: '19 Okt 2026, 10:15 WIB',
-        amount: '- Rp 150.000.000',
-        isIncome: false,
-      ),
-      const PromoterTransactionItem(
-        id: 'TX-099',
-        title: 'Penjualan Tiket - Soundwave Fest',
-        date: '18 Okt 2026, 19:40 WIB',
-        amount: '+ Rp 2.250.000',
-        isIncome: true,
-      ),
-    ];
+    // Jika Supabase sudah terhubung, semua data dimuat dari database — tidak ada dummy
+    if (SupabaseService.isInitialized) {
+      transactionsNotifier.value = [];
+      withdrawalRecordsNotifier.value = [];
+      concertsNotifier.value = [];
+      concertFinanceSummariesNotifier.value = [];
+      return;
+    }
 
-    withdrawalRecordsNotifier.value = [
-      const PromoterWithdrawalRecord(
-        id: 'w-1',
-        dateTimeStr: '18 Okt 2026 · 14:05 WIB',
-        amount: 250000000,
-        bankAccount: 'BCA - ***9901',
-        status: WithdrawalStatus.berhasil,
-        refId: '#WD-8842109',
-      ),
-      const PromoterWithdrawalRecord(
-        id: 'w-2',
-        dateTimeStr: '20 Okt 2026 · 09:12 WIB',
-        amount: 150000000,
-        bankAccount: 'Mandiri - ***3321',
-        status: WithdrawalStatus.menunggu,
-        refId: '#WD-9912048',
-      ),
-      const PromoterWithdrawalRecord(
-        id: 'w-3',
-        dateTimeStr: '15 Okt 2026 · 11:30 WIB',
-        amount: 500000000,
-        bankAccount: 'BCA - ***9901',
-        status: WithdrawalStatus.ditolak,
-        refId: '#WD-8842109',
-        rejectionReason:
-            'Alasan: Nama pemilik rekening tidak cocok dengan nama KTP terverifikasi.',
-      ),
-    ];
+    // Fallback mode pengujian unit/widget test (Supabase tidak diinisialisasi) ↓
+    transactionsNotifier.value = [];
+    withdrawalRecordsNotifier.value = [];
 
     // Jika terhubung ke Supabase, inisialisasi kosong — data akan dimuat saat pengguna login sebagai Produser
     if (SupabaseService.isInitialized) {
@@ -539,6 +520,15 @@ class PromoterDataService {
         if (pin != null && pin.trim().isNotEmpty) {
           pinCodeNotifier.value = pin.trim();
         }
+        final pAttempts = profileRow['pin_failed_attempts'];
+        if (pAttempts != null) {
+          pinFailedAttemptsNotifier.value = (pAttempts as num).toInt();
+        }
+        final pLockedUntil = profileRow['pin_locked_until']?.toString();
+        if (pLockedUntil != null && pLockedUntil.isNotEmpty) {
+          final dt = DateTime.tryParse(pLockedUntil);
+          if (dt != null) pinLockedUntilNotifier.value = dt.toLocal();
+        }
         final verStatus = profileRow['verification_status']?.toString();
         if (verStatus != null && verStatus.trim().isNotEmpty) {
           verificationStatusNotifier.value = normalizeStatusValue(verStatus);
@@ -601,6 +591,15 @@ class PromoterDataService {
         final pin = promoterRow['pin_code']?.toString();
         if (pin != null && pin.isNotEmpty) {
           pinCodeNotifier.value = pin;
+        }
+        final rAttempts = promoterRow['pin_failed_attempts'];
+        if (rAttempts != null) {
+          pinFailedAttemptsNotifier.value = (rAttempts as num).toInt();
+        }
+        final rLockedUntil = promoterRow['pin_locked_until']?.toString();
+        if (rLockedUntil != null && rLockedUntil.isNotEmpty) {
+          final dt = DateTime.tryParse(rLockedUntil);
+          if (dt != null) pinLockedUntilNotifier.value = dt.toLocal();
         }
         pendingPromoterNameNotifier.value =
             promoterRow['pending_name']?.toString();
@@ -1003,6 +1002,7 @@ class PromoterDataService {
 
   /// Verifikasi PIN 6-digit Produser saat login (PIN tersimpan sebagai hash SHA-256)
   bool verifyPin(String inputPin) {
+    if (isPinLockedOut) return false;
     final cleanInput = inputPin.trim();
     final storedPin = pinCodeNotifier.value.trim();
     if (cleanInput.isEmpty || storedPin.isEmpty) return false;
@@ -1014,6 +1014,79 @@ class PromoterDataService {
       _rehashLegacyPin(cleanInput);
     }
     return true;
+  }
+
+  /// Catat kegagalan input PIN, tingkatkan hitungan, dan jika mencapai 5 kali salah,
+  /// kunci akun selama 10 menit serta simpan ke database secara realtime.
+  Future<int> recordFailedPinAttempt() async {
+    final currentAttempts = pinFailedAttemptsNotifier.value;
+    final newAttempts = currentAttempts + 1;
+    pinFailedAttemptsNotifier.value = newAttempts;
+    DateTime? lockedUntil;
+
+    if (newAttempts >= 5) {
+      lockedUntil = DateTime.now().add(const Duration(minutes: 10));
+      pinLockedUntilNotifier.value = lockedUntil;
+    }
+
+    if (SupabaseService.isInitialized) {
+      final userId = DataService().currentUser?.id;
+      if (userId != null && userId.isNotEmpty) {
+        final updatePayload = <String, dynamic>{
+          'pin_failed_attempts': newAttempts,
+          'pin_locked_until': lockedUntil?.toUtc().toIso8601String(),
+        };
+        try {
+          await SupabaseService.client
+              .from('profiles')
+              .update(updatePayload)
+              .eq('id', userId);
+        } catch (e) {
+          debugPrint('Error updating profiles pin lockout: $e');
+        }
+        try {
+          await SupabaseService.client
+              .from('promoter_profiles')
+              .update(updatePayload)
+              .eq('user_id', userId);
+        } catch (e) {
+          debugPrint('Error updating promoter_profiles pin lockout: $e');
+        }
+      }
+    }
+    return newAttempts;
+  }
+
+  /// Reset kegagalan PIN dan status penguncian (dipanggil saat PIN benar atau waktu tunggu selesai).
+  Future<void> resetPinLockout() async {
+    pinFailedAttemptsNotifier.value = 0;
+    pinLockedUntilNotifier.value = null;
+
+    if (SupabaseService.isInitialized) {
+      final userId = DataService().currentUser?.id;
+      if (userId != null && userId.isNotEmpty) {
+        final updatePayload = <String, dynamic>{
+          'pin_failed_attempts': 0,
+          'pin_locked_until': null,
+        };
+        try {
+          await SupabaseService.client
+              .from('profiles')
+              .update(updatePayload)
+              .eq('id', userId);
+        } catch (e) {
+          debugPrint('Error resetting profiles pin lockout: $e');
+        }
+        try {
+          await SupabaseService.client
+              .from('promoter_profiles')
+              .update(updatePayload)
+              .eq('user_id', userId);
+        } catch (e) {
+          debugPrint('Error resetting promoter_profiles pin lockout: $e');
+        }
+      }
+    }
   }
 
   /// Menyimpan ulang PIN sebagai hash bila sebelumnya masih tersimpan plaintext.

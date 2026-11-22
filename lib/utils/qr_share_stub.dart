@@ -23,19 +23,29 @@ bool platformDownloadQrImage({
 }) {
   try {
     if (pngBytes.isEmpty) return false;
-    // Android: coba simpan ke folder Download publik
+    // Android: coba simpan ke folder Download publik, Pictures, atau DCIM
     if (Platform.isAndroid) {
-      final downloadDir = Directory('/storage/emulated/0/Download');
-      if (downloadDir.existsSync()) {
-        final file = File('${downloadDir.path}/$fileName');
-        file.writeAsBytesSync(pngBytes);
-        return true;
+      final candidates = [
+        '/storage/emulated/0/Download',
+        '/storage/emulated/0/Pictures',
+        '/storage/emulated/0/DCIM/Camera',
+        '/storage/emulated/0/DCIM',
+      ];
+      for (final path in candidates) {
+        final dir = Directory(path);
+        if (dir.existsSync()) {
+          try {
+            final file = File('${dir.path}/$fileName');
+            file.writeAsBytesSync(pngBytes, flush: true);
+            return true;
+          } catch (_) {}
+        }
       }
     }
     // Fallback: temp folder
     final tempDir = Directory.systemTemp;
     final file = File('${tempDir.path}/$fileName');
-    file.writeAsBytesSync(pngBytes);
+    file.writeAsBytesSync(pngBytes, flush: true);
     return true;
   } catch (_) {
     return false;

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/account_status.dart';
@@ -68,26 +69,101 @@ class _PromoterPinLockScreenState extends State<PromoterPinLockScreen> {
   final TextEditingController _pinController = TextEditingController();
   bool _obscurePin = true;
   String? _errorMessage;
+  bool _isVerifying = false;
+  Timer? _countdownTimer;
+  Duration _remainingLockout = Duration.zero;
+
+  bool get _isLockedOut =>
+      _remainingLockout > Duration.zero ||
+      PromoterDataService().isPinLockedOut;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLockout();
+  }
+
+  void _checkLockout() {
+    final service = PromoterDataService();
+    if (service.isPinLockedOut) {
+      _remainingLockout = service.remainingPinLockoutDuration;
+      _startCountdown();
+    }
+  }
+
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      final remaining = PromoterDataService().remainingPinLockoutDuration;
+      if (remaining <= Duration.zero) {
+        timer.cancel();
+        PromoterDataService().resetPinLockout();
+        setState(() {
+          _remainingLockout = Duration.zero;
+          _errorMessage = null;
+        });
+      } else {
+        setState(() {
+          _remainingLockout = remaining;
+        });
+      }
+    });
+  }
+
+  String _formatCountdown(Duration d) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _pinController.dispose();
     super.dispose();
   }
 
-  void _verifyPinAndEnter() {
+  Future<void> _verifyPinAndEnter() async {
+    if (_isLockedOut || _isVerifying) return;
     final input = _pinController.text.trim();
     if (input.length != 6) {
       setState(() => _errorMessage = 'Masukkan 6 digit PIN keamanan Anda.');
       return;
     }
 
-    final ok = PromoterDataService().verifyPin(input);
+    setState(() => _isVerifying = true);
+    final service = PromoterDataService();
+    final ok = service.verifyPin(input);
+
     if (!ok) {
-      setState(() => _errorMessage = 'PIN yang Anda masukkan tidak sesuai.');
+      _pinController.clear();
+      final attempts = await service.recordFailedPinAttempt();
+      if (!mounted) return;
+      if (attempts >= 5) {
+        _remainingLockout = service.remainingPinLockoutDuration;
+        _startCountdown();
+        setState(() {
+          _isVerifying = false;
+          _errorMessage =
+              'PIN salah 5 kali berturut-turut. Akses dikunci selama 10 menit demi keamanan.';
+        });
+      } else {
+        final remainingAttempts = 5 - attempts;
+        setState(() {
+          _isVerifying = false;
+          _errorMessage =
+              'PIN yang Anda masukkan salah. Sisa kesempatan: $remainingAttempts kali.';
+        });
+      }
       return;
     }
 
+    await service.resetPinLockout();
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const PromoterMainScreen()),
@@ -229,10 +305,19 @@ class _PromoterPinLockScreenState extends State<PromoterPinLockScreen> {
                           child: TextField(
                             controller: _pinController,
                             autofocus: true,
+                            enabled: !_isLockedOut && !_isVerifying,
                             obscureText: _obscurePin,
                             keyboardType: TextInputType.number,
                             maxLength: 6,
                             textAlign: TextAlign.center,
+                            onChanged: (val) {
+                              if (_isLockedOut || _isVerifying) return;
+                              if (val.length == 6) {
+                                _verifyPinAndEnter();
+                              } else if (_errorMessage != null) {
+                                setState(() => _errorMessage = null);
+                              }
+                            },
                             onSubmitted: (_) => _verifyPinAndEnter(),
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
@@ -267,6 +352,58 @@ class _PromoterPinLockScreenState extends State<PromoterPinLockScreen> {
                             ),
                           ),
                         ),
+                        if (_isLockedOut) ...[
+                          const SizedBox(height: 14),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: isDarkMode
+                                  ? const Color(0xFF3B1219)
+                                  : const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isDarkMode
+                                    ? const Color(0xFF991B1B)
+                                    : const Color(0xFFFCA5A5),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.timer_outlined,
+                                      size: 18,
+                                      color: Color(0xFFDC2626),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Terkunci: Coba lagi dalam ${_formatCountdown(_remainingLockout)}',
+                                      style: const TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFFDC2626),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Batas waktu tersinkronisasi realtime ke database.',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isDarkMode
+                                        ? Colors.white70
+                                        : const Color(0xFF7F1D1D),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         if (_errorMessage != null) ...[
                           const SizedBox(height: 12),
                           Text(
@@ -284,22 +421,39 @@ class _PromoterPinLockScreenState extends State<PromoterPinLockScreen> {
                           width: double.infinity,
                           height: 48,
                           child: ElevatedButton(
-                            onPressed: _verifyPinAndEnter,
+                            onPressed: _isLockedOut || _isVerifying
+                                ? null
+                                : _verifyPinAndEnter,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1B2A8C),
+                              backgroundColor: _isLockedOut
+                                  ? (isDarkMode
+                                      ? const Color(0xFF334155)
+                                      : const Color(0xFFCBD5E1))
+                                  : const Color(0xFF1B2A8C),
                               foregroundColor: Colors.white,
                               elevation: 0,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
                             ),
-                            child: const Text(
-                              'Buka Aplikasi Produser',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                            child: _isVerifying
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
+                                    _isLockedOut
+                                        ? 'Terkunci (${_formatCountdown(_remainingLockout)})'
+                                        : 'Buka Aplikasi Produser',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                           ),
                         ),
                       ],

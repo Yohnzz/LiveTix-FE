@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide LocalStorage;
 
 import 'data_service.dart';
+import '../utils/local_storage.dart';
 import 'promoter_data_service.dart';
 import 'supabase_service.dart';
 
@@ -60,6 +62,18 @@ class GoogleRoleSelectionResult {
 
   final bool success;
   final String? role;
+  final String? errorMessage;
+}
+
+class GoogleBindResult {
+  const GoogleBindResult({
+    required this.success,
+    this.googleEmail,
+    this.errorMessage,
+  });
+
+  final bool success;
+  final String? googleEmail;
   final String? errorMessage;
 }
 
@@ -140,7 +154,7 @@ class GoogleAuthService {
 
     final identityData = googleIdentity?.identityData ?? const {};
     final meta = user.userMetadata ?? const {};
-    final email = (user.email ?? identityData['email'] ?? '').toString().trim();
+    final email = (identityData['email'] ?? user.email ?? '').toString().trim();
     final googleId = (identityData['sub'] ?? googleIdentity?.identityId ?? '')
         .toString()
         .trim();
@@ -206,6 +220,24 @@ class GoogleAuthService {
           .select()
           .eq('id', account.userId)
           .maybeSingle();
+
+      // VALIDASI PENTING: Periksa apakah akun Google (email atau googleId) sudah dipakai oleh akun lain di database
+      final conflict = await SupabaseService.client
+          .from('profiles')
+          .select('id, email, google_id')
+          .or('email.eq.${account.email},google_id.eq.${account.googleId}')
+          .neq('id', account.userId)
+          .maybeSingle();
+
+      if (conflict != null) {
+        try {
+          await SupabaseService.client.auth.signOut();
+        } catch (_) {}
+        return const GoogleProfileSyncResult(
+          success: false,
+          errorMessage: 'Akun ini sudah terpakai, silakan gunakan akun lainnya.',
+        );
+      }
 
       final existingName = _firstNonEmpty([
         existing?['name'],
@@ -366,6 +398,251 @@ class GoogleAuthService {
         success: false,
         errorMessage:
             'Gagal menyimpan role ke database. Periksa koneksi lalu coba lagi. ($e)',
+      );
+    }
+  }
+
+  /// Menautkan (bind) akun Google ke akun yang sedang login (User atau Produser).
+  /// Memeriksa apakah akun Google sudah terpakai di database. Jika sudah ada,
+  /// mengembalikan: "Akun ini sudah terpakai, silakan gunakan akun lainnya."
+
+  /// Mengembalikan email akun Google yang ditautkan (bukan email pendaftaran manual).
+  String? getBoundGoogleEmail() {
+    final user = _authUser;
+    if (user == null) return null;
+
+    for (final identity in user.identities ?? const <UserIdentity>[]) {
+      if (identity.provider == 'google') {
+        final email = (identity.identityData?['email'] ?? '').toString().trim();
+        if (email.isNotEmpty) return email;
+      }
+    }
+    return null;
+  }
+
+  /// Mengembalikan nama akun Google yang ditautkan.
+  String? getBoundGoogleName() {
+    final user = _authUser;
+    if (user == null) return null;
+
+    for (final identity in user.identities ?? const <UserIdentity>[]) {
+      if (identity.provider == 'google') {
+        final name = _firstNonEmpty([
+          identity.identityData?['full_name'],
+          identity.identityData?['name'],
+        ]);
+        if (name.isNotEmpty) return name;
+      }
+    }
+    return null;
+  }
+
+  Future<GoogleBindResult> linkGoogleAccount() async {
+    if (!SupabaseService.isInitialized) {
+      return const GoogleBindResult(
+        success: false,
+        errorMessage: 'Layanan autentikasi belum siap. Periksa koneksi internet.',
+      );
+    }
+    final currentUser = _authUser;
+    if (currentUser == null) {
+      return const GoogleBindResult(
+        success: false,
+        errorMessage: 'Silakan masuk ke akun Anda terlebih dahulu.',
+      );
+    }
+
+    try {
+      final success = await SupabaseService.client.auth.linkIdentity(
+        OAuthProvider.google,
+        redirectTo: redirectUrl,
+        authScreenLaunchMode: kIsWeb
+            ? LaunchMode.platformDefault
+            : LaunchMode.inAppBrowserView,
+      );
+
+      if (!success) {
+        return const GoogleBindResult(
+          success: false,
+          errorMessage: 'Proses penautan akun Google dibatalkan.',
+        );
+      }
+
+      final updatedUser = SupabaseService.client.auth.currentUser;
+      UserIdentity? googleIdentity;
+      for (final identity in updatedUser?.identities ?? const <UserIdentity>[]) {
+        if (identity.provider == 'google') {
+          googleIdentity = identity;
+          break;
+        }
+      }
+
+      if (googleIdentity == null) {
+        return const GoogleBindResult(
+          success: false,
+          errorMessage:
+              'Identitas Google belum berhasil diperoleh. Silakan coba lagi.',
+        );
+      }
+
+      final identityData = googleIdentity.identityData ?? const {};
+      final googleEmail = (identityData['email'] ?? '').toString().trim();
+      final googleId =
+          (identityData['sub'] ?? googleIdentity.identityId).toString().trim();
+
+      // VALIDASI: Cek apakah akun Google ini sudah terhubung ke akun LiveTix lain
+      final conflict = await SupabaseService.client
+          .from('profiles')
+          .select('id, email, google_id')
+          .or('email.eq.$googleEmail,google_id.eq.$googleId')
+          .neq('id', currentUser.id)
+          .maybeSingle();
+
+      if (conflict != null) {
+        try {
+          await SupabaseService.client.auth.unlinkIdentity(googleIdentity);
+        } catch (_) {}
+        return const GoogleBindResult(
+          success: false,
+          errorMessage: 'Akun ini sudah terpakai, silakan gunakan akun lainnya.',
+        );
+      }
+
+      // Update google_id & google_email di tabel profiles
+      try {
+        await SupabaseService.client.from('profiles').update({
+          'google_id': googleId,
+          'google_email': googleEmail,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', currentUser.id);
+      } catch (_) {
+        // Fallback bila kolom google_email belum ada di database
+        await SupabaseService.client.from('profiles').update({
+          'google_id': googleId,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', currentUser.id);
+      }
+
+      // Update langsung state lokal pengguna di memori dan storage
+      final current = DataService().currentUser;
+      if (current != null) {
+        final boundUser = current.copyWith(
+          googleId: googleId,
+          googleEmail: googleEmail,
+        );
+        DataService().currentUserNotifier.value = boundUser;
+        try {
+          LocalStorage.setString(
+            LocalStorage.savedUserKey,
+            jsonEncode(boundUser.toJson()),
+          );
+        } catch (_) {}
+      }
+
+      await DataService().restoreSupabaseSession(force: true);
+
+      return GoogleBindResult(
+        success: true,
+        googleEmail:
+            googleEmail.isNotEmpty ? googleEmail : 'Akun Google Terhubung',
+      );
+    } on AuthException catch (e) {
+      final lower = e.message.toLowerCase();
+      if (lower.contains('already') ||
+          lower.contains('exists') ||
+          lower.contains('conflict') ||
+          lower.contains('assigned')) {
+        return const GoogleBindResult(
+          success: false,
+          errorMessage: 'Akun ini sudah terpakai, silakan gunakan akun lainnya.',
+        );
+      }
+      return GoogleBindResult(
+        success: false,
+        errorMessage: _friendlyAuthError(e.message),
+      );
+    } catch (e) {
+      final str = e.toString().toLowerCase();
+      if (str.contains('already') ||
+          str.contains('conflict') ||
+          str.contains('terpakai')) {
+        return const GoogleBindResult(
+          success: false,
+          errorMessage: 'Akun ini sudah terpakai, silakan gunakan akun lainnya.',
+        );
+      }
+      return GoogleBindResult(
+        success: false,
+        errorMessage: 'Gagal menautkan akun Google: $e',
+      );
+    }
+  }
+
+  /// Melepas tautan (unbind) akun Google dari akun yang sedang login.
+  Future<GoogleBindResult> unlinkGoogleAccount() async {
+    final user = _authUser;
+    if (user == null) {
+      return const GoogleBindResult(
+        success: false,
+        errorMessage: 'Sesi akun tidak aktif.',
+      );
+    }
+
+    UserIdentity? googleIdentity;
+    for (final identity in user.identities ?? const <UserIdentity>[]) {
+      if (identity.provider == 'google') {
+        googleIdentity = identity;
+        break;
+      }
+    }
+
+    try {
+      if (googleIdentity != null) {
+        await SupabaseService.client.auth.unlinkIdentity(googleIdentity);
+      }
+
+      // 1. Kosongkan google_id & google_email pada database profiles
+      try {
+        await SupabaseService.client.from('profiles').update({
+          'google_id': null,
+          'google_email': null,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', user.id);
+      } catch (_) {
+        await SupabaseService.client.from('profiles').update({
+          'google_id': null,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', user.id);
+      }
+
+      // 2. Bersihkan seketika pada state lokal aplikasi agar UI langsung berubah
+      final current = DataService().currentUser;
+      if (current != null) {
+        final clearedUser = current.copyWith(
+          googleId: '',
+          googleEmail: '',
+        );
+        DataService().currentUserNotifier.value = clearedUser;
+        try {
+          LocalStorage.setString(
+            LocalStorage.savedUserKey,
+            jsonEncode(clearedUser.toJson()),
+          );
+        } catch (_) {}
+      }
+
+      // 3. Perbarui cache identitas Supabase Auth dari server
+      try {
+        await SupabaseService.client.auth.getUser();
+      } catch (_) {}
+
+      await DataService().restoreSupabaseSession(force: true);
+
+      return const GoogleBindResult(success: true);
+    } catch (e) {
+      return GoogleBindResult(
+        success: false,
+        errorMessage: 'Gagal melepas tautan akun Google: $e',
       );
     }
   }

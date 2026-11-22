@@ -40,10 +40,9 @@ void main() async {
 
   await NotificationService().initialize();
 
-  // Sembunyikan status bar atas jika didukung platform agar tampilan lebih bersih
+  // Tampilkan status bar atas dan navigasi sistem secara normal (edge-to-edge)
   SystemChrome.setEnabledSystemUIMode(
-    SystemUiMode.manual,
-    overlays: [SystemUiOverlay.bottom],
+    SystemUiMode.edgeToEdge,
   );
 
   runApp(const LiveTixApp());

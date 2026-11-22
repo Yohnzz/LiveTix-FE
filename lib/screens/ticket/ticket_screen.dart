@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/concert_model.dart';
@@ -158,13 +159,7 @@ class _TicketScreenState extends State<TicketScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          _buildPricingRow('Harga Tiket (${quantity}x $tierName)', _formatCurrency(pricing.hargaTiket), isDark: isDark),
-          const SizedBox(height: 6),
-          _buildPricingRow('Pajak Hiburan (10%)', _formatCurrency(pricing.pajakHiburan), isDark: isDark),
-          const SizedBox(height: 6),
-          _buildPricingRow('Biaya Aplikasi (2%)', _formatCurrency(pricing.biayaAplikasi), isDark: isDark),
-          const SizedBox(height: 6),
-          _buildPricingRow('Pembulatan', _formatCurrency(pricing.pembulatan), isDark: isDark),
+          _buildPricingRow('Harga Tiket (${quantity}x $tierName)', _formatCurrency(pricing.totalBayar), isDark: isDark),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Divider(
@@ -192,6 +187,15 @@ class _TicketScreenState extends State<TicketScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Harga sudah termasuk tiket, pajak hiburan, dan seluruh biaya aplikasi.',
+            style: TextStyle(
+              fontSize: 11,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -411,11 +415,12 @@ class _TicketScreenState extends State<TicketScreen> {
                         ),
                         Flexible(
                           child: Text(
-                            ticket.bookingCode,
+                            '#${ticket.displayShortCode}',
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w700,
                               color: AppColors.textDark,
+                              letterSpacing: 0.5,
                             ),
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.end,
@@ -637,7 +642,7 @@ class _TicketScreenState extends State<TicketScreen> {
                           _buildModalIdentityRow('NIK', maskedNik),
                           const SizedBox(height: 6),
                           _buildModalIdentityRow(
-                              'Kode Tiket', ticket.bookingCode,
+                              'Kode Tiket', '#${ticket.displayShortCode}',
                               isCode: true),
                         ],
                       ),
@@ -780,11 +785,12 @@ class _TicketScreenState extends State<TicketScreen> {
                       ),
                     ),
                     Text(
-                      ticket.bookingCode,
+                      '#${ticket.displayShortCode}',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textDark,
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ],
@@ -1067,24 +1073,8 @@ class _TicketScreenState extends State<TicketScreen> {
       valueListenable: DataService().userTicketsNotifier,
       builder: (context, tickets, _) {
         final filteredTickets = _selectedTabIndex == 0
-            ? tickets
-                .where((t) =>
-                    !t.isCancelled &&
-                    !t.status.toLowerCase().contains('refund') &&
-                    !t.status.toLowerCase().contains('hangus') &&
-                    !t.status.toLowerCase().contains('expired') &&
-                    !t.status.toLowerCase().contains('cancelled'))
-                .toList()
-            : tickets
-                .where((t) =>
-                    t.isValidated ||
-                    t.isCompleted ||
-                    t.isCancelled ||
-                    t.status.toLowerCase().contains('refund') ||
-                    t.status.toLowerCase().contains('hangus') ||
-                    t.status.toLowerCase().contains('expired') ||
-                    t.status.toLowerCase().contains('cancelled'))
-                .toList();
+            ? tickets.where((t) => t.isActiveTabTicket).toList()
+            : tickets.where((t) => t.isHistoryTabTicket).toList();
 
         return RefreshIndicator(
           color: AppColors.primary,
@@ -1230,34 +1220,12 @@ class _TicketScreenState extends State<TicketScreen> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Kotak Icon Rounded dengan Lingkaran Konsentris
-                          Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: iconBgColor,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Center(
-                              child: Container(
-                                width: 22,
-                                height: 22,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: iconColor, width: 2.2),
-                                ),
-                                child: Center(
-                                  child: Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: iconColor,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
+                          // Logo Konser dari Database / Cache (dengan fallback icon)
+                          _buildTicketConcertLogo(
+                            ticket,
+                            isDark: isDark,
+                            iconBgColor: iconBgColor,
+                            iconColor: iconColor,
                           ),
                           const SizedBox(width: 12),
 
@@ -1305,12 +1273,16 @@ class _TicketScreenState extends State<TicketScreen> {
                                           size: 13,
                                           color: isDark ? AppColors.primaryDark : stripeColor),
                                       const SizedBox(width: 4),
-                                      Text(
-                                        'Pos: ${ticket.gate}',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: isDark ? AppColors.primaryDark : stripeColor,
+                                      Flexible(
+                                        child: Text(
+                                          'Pos: ${ticket.gate}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: isDark ? AppColors.primaryDark : stripeColor,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
                                     ],
@@ -1547,6 +1519,101 @@ class _TicketScreenState extends State<TicketScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Menampilkan logo konser tiket dari database (foto poster/logo konser)
+  /// dengan graceful fallback ke cache lokal konser atau ikon bertema musik.
+  Widget _buildTicketConcertLogo(
+    UserTicketModel ticket, {
+    required bool isDark,
+    required Color iconBgColor,
+    required Color iconColor,
+  }) {
+    String? resolvedLogoUrl = ticket.logoImageUrl;
+    Uint8List? resolvedLogoBytes = ticket.logoImageBytes;
+
+    // Jika belum ada di model tiket, cari dari cache konser lokal (DataService.rawConcerts)
+    if ((resolvedLogoUrl == null || resolvedLogoUrl.trim().isEmpty) &&
+        resolvedLogoBytes == null) {
+      try {
+        final allConcerts = DataService().rawConcerts;
+        final cid = ticket.concertId;
+        final matched = allConcerts.cast<ConcertModel?>().firstWhere(
+              (c) =>
+                  c != null &&
+                  ((cid != null && cid.isNotEmpty && c.id == cid) ||
+                      c.title.trim().toLowerCase() ==
+                          ticket.concertTitle.trim().toLowerCase()),
+              orElse: () => null,
+            );
+        if (matched != null) {
+          resolvedLogoUrl =
+              matched.logoImageUrl ?? matched.bannerImageUrl;
+          resolvedLogoBytes =
+              matched.logoImageBytes ?? matched.bannerImageBytes;
+        }
+      } catch (_) {}
+    }
+
+    Widget? imageContent;
+    if (resolvedLogoBytes != null && resolvedLogoBytes.isNotEmpty) {
+      imageContent = Image.memory(
+        resolvedLogoBytes,
+        width: 52,
+        height: 52,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _buildTicketFallbackLogo(iconBgColor, iconColor),
+      );
+    } else if (resolvedLogoUrl != null && resolvedLogoUrl.trim().isNotEmpty) {
+      imageContent = Image.network(
+        resolvedLogoUrl.trim(),
+        width: 52,
+        height: 52,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _buildTicketFallbackLogo(iconBgColor, iconColor),
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            width: 52,
+            height: 52,
+            color: iconBgColor,
+            child: Center(
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(iconColor),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: imageContent ?? _buildTicketFallbackLogo(iconBgColor, iconColor),
+    );
+  }
+
+  Widget _buildTicketFallbackLogo(Color iconBgColor, Color iconColor) {
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: iconBgColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.music_note_rounded,
+          color: iconColor,
+          size: 26,
+        ),
       ),
     );
   }

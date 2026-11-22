@@ -217,10 +217,6 @@ class OrderSummaryScreen extends StatelessWidget {
   }
 
   Widget _buildPaymentDetailsCard(TransactionPricing pricing, int total) {
-    final ticketPrice = order.ticketPrice > 0 ? order.ticketPrice : pricing.ticketPrice;
-    final tax = order.entertainmentTax > 0 ? order.entertainmentTax : pricing.entertainmentTax;
-    final appFee = order.applicationFee > 0 ? order.applicationFee : pricing.applicationFee;
-    final rounding = order.rounding > 0 ? order.rounding : pricing.rounding;
     final totalPay = total > 0 ? total : pricing.totalPay;
 
     return Container(
@@ -243,38 +239,17 @@ class OrderSummaryScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Baris 1: Harga Tiket
+          // Harga Tiket Bersih (All-inclusive)
           _buildDetailRow(
             'Harga Tiket (${order.quantity}x ${order.tier.name})',
-            _formatCurrency(ticketPrice),
-          ),
-          const SizedBox(height: 10),
-
-          // Baris 2: Pajak Hiburan (10%)
-          _buildDetailRow(
-            'Pajak Hiburan (10%)',
-            _formatCurrency(tax),
-          ),
-          const SizedBox(height: 10),
-
-          // Baris 3: Biaya Aplikasi (2%)
-          _buildDetailRow(
-            'Biaya Aplikasi (2%)',
-            _formatCurrency(appFee),
-          ),
-          const SizedBox(height: 10),
-
-          // Baris 4: Pembulatan
-          _buildDetailRow(
-            'Pembulatan',
-            _formatCurrency(rounding),
+            _formatCurrency(totalPay),
           ),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 14),
             child: Divider(height: 1, color: AppColors.border),
           ),
 
-          // Baris 5: Total Bayar
+          // Total Bayar (Sama persis dengan harga tiket all-in, tanpa penambahan)
           Row(
             children: [
               const Expanded(
@@ -302,6 +277,32 @@ class OrderSummaryScreen extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFBBF7D0)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.check_circle_outline_rounded,
+                    size: 16, color: Color(0xFF16A34A)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Harga sudah termasuk tiket, pajak hiburan, dan seluruh biaya layanan.',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF15803D),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

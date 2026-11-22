@@ -4,6 +4,7 @@ import '../../core/app_colors.dart';
 import '../../models/ticket_order_model.dart';
 import '../../models/user_model.dart';
 import '../../services/data_service.dart';
+import '../../services/google_auth_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
 import '../promoter/producer_customer_service_screen.dart';
@@ -34,6 +35,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final DataService _dataService = DataService();
   bool get _isDarkMode => _dataService.isDarkModeNotifier.value;
   late String _displayName;
+  bool _isBindingGoogle = false;
 
   @override
   void initState() {
@@ -313,6 +315,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               },
             ),
+            _buildGoogleBindTile(),
             const SizedBox(height: 20),
 
             Text(
@@ -696,4 +699,189 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+  /// Tile Tautkan / Lepas Tautan Akun Google
+  Widget _buildGoogleBindTile() {
+    return ValueListenableBuilder<UserModel?>(
+      valueListenable: _dataService.currentUserNotifier,
+      builder: (context, user, _) {
+        final isBound = user?.isGoogleAccount ?? false;
+        final boundGoogle = GoogleAuthService().getBoundGoogleEmail();
+        final boundEmail = isBound
+            ? (boundGoogle != null && boundGoogle.isNotEmpty
+                ? boundGoogle
+                : (user?.googleEmail.isNotEmpty == true
+                    ? user!.googleEmail
+                    : (user?.email ?? '')))
+            : '';
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _isBindingGoogle
+                ? null
+                : () => isBound ? _unbindGoogle() : _bindGoogle(),
+            borderRadius: BorderRadius.circular(12),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: _iconBoxColor,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.login_rounded,
+                        size: 20,
+                        color: isBound
+                            ? const Color(0xFF039855)
+                            : _titleColor,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Tautkan Akun Google',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: _titleColor,
+                            ),
+                          ),
+                          if (isBound && boundEmail.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Terhubung: $boundEmail',
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: Color(0xFF039855),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ] else ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Belum terhubung ke akun Google',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: _subtitleColor,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (_isBindingGoogle)
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      Icon(
+                        isBound
+                            ? Icons.link_off_rounded
+                            : Icons.add_link_rounded,
+                        size: 20,
+                        color: isBound
+                            ? const Color(0xFFB91C1C)
+                            : _subtitleColor,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _bindGoogle() async {
+    if (_isBindingGoogle) return;
+    setState(() => _isBindingGoogle = true);
+    try {
+      final result = await GoogleAuthService().linkGoogleAccount();
+      if (!mounted) return;
+      if (result.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Akun Google berhasil ditautkan: ${result.googleEmail ?? ''}',
+            ),
+            backgroundColor: const Color(0xFF039855),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.errorMessage ?? 'Gagal menautkan akun Google.'),
+            backgroundColor: const Color(0xFFB91C1C),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isBindingGoogle = false);
+    }
+  }
+
+  Future<void> _unbindGoogle() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Lepas Tautan Google',
+          style: TextStyle(fontWeight: FontWeight.bold, color: _titleColor),
+        ),
+        content: Text(
+          'Yakin ingin melepas tautan akun Google dari akun ini?',
+          style: TextStyle(color: _subtitleColor),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Batal', style: TextStyle(color: _subtitleColor)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFB91C1C),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Lepas Tautan'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    setState(() => _isBindingGoogle = true);
+    try {
+      final result = await GoogleAuthService().unlinkGoogleAccount();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.success
+                ? 'Tautan akun Google berhasil dilepas.'
+                : (result.errorMessage ?? 'Gagal melepas tautan.'),
+          ),
+          backgroundColor:
+              result.success ? const Color(0xFF039855) : const Color(0xFFB91C1C),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isBindingGoogle = false);
+    }
+  }
+
 }

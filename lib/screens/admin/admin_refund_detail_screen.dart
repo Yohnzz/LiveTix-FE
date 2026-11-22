@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../models/approval_models.dart';
 import '../../services/admin_service.dart';
+import '../../services/payment_gateway_service.dart';
 import 'widgets/admin_theme.dart';
 import 'widgets/admin_widgets.dart';
 
 /// Layar Detail Refund per Konser (Image 3).
-class AdminRefundDetailScreen extends StatelessWidget {
+class AdminRefundDetailScreen extends StatefulWidget {
   final String concertId;
 
   const AdminRefundDetailScreen({
@@ -14,58 +15,121 @@ class AdminRefundDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<AdminRefundDetailScreen> createState() =>
+      _AdminRefundDetailScreenState();
+}
+
+class _AdminRefundDetailScreenState extends State<AdminRefundDetailScreen> {
+  bool _isLoading = true;
+  List<RefundBuyerModel> _dbBuyers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRefunds();
+  }
+
+  Future<void> _loadRefunds() async {
+    setState(() => _isLoading = true);
+    try {
+      final rows = await PaymentGatewayService()
+          .fetchConcertRefunds(widget.concertId);
+      final mapped = <RefundBuyerModel>[];
+      for (final r in rows) {
+        final name = r['destination_account_name']?.toString() ??
+            r['buyer_name']?.toString() ??
+            'Penonton';
+        final prov = r['destination_provider']?.toString() ?? 'Bank';
+        final accNo = r['destination_account_no']?.toString() ?? '';
+        final masked =
+            accNo.length > 4 ? '••${accNo.substring(accNo.length - 4)}' : accNo;
+        final st = (r['status']?.toString() ?? '').toLowerCase();
+        String statusLabel;
+        if (st == 'completed' || st == 'berhasil' || st == 'selesai') {
+          statusLabel = 'Selesai';
+        } else if (st == 'processing' || st == 'diproses') {
+          statusLabel = 'Diproses';
+        } else if (st == 'failed' || st == 'gagal') {
+          statusLabel = 'Gagal';
+        } else {
+          statusLabel = accNo.isEmpty ? 'Perlu data' : 'Diproses';
+        }
+
+        mapped.add(RefundBuyerModel(
+          name: name,
+          tickets: (r['tickets_count'] as num?)?.toInt() ?? 1,
+          paymentInfo:
+              accNo.isNotEmpty ? '$prov $masked' : 'Belum isi rekening',
+          status: statusLabel,
+        ));
+      }
+
+      if (mounted) {
+        setState(() {
+          _dbBuyers = mapped;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final service = AdminService();
-    final detail = service.refundDetailByConcertId(concertId) ??
-        service.refundMonitoringNotifier.value.firstOrNull ??
-        const RefundMonitoringModel(
-          concertId: 'cnc-001',
-          title: 'Soundwave Fest 2026',
-          status: 'Berjalan',
-          refundedTickets: 2940,
-          totalTickets: 4200,
-          percent: 70,
-          refundedAmount: 1480500000,
-          totalAmount: 2115000000,
-          processingTickets: 1050,
-          needDataTickets: 210,
-          deadlineDate: '30 Nov 2026',
-          remainingDays: 42,
-          buyers: [
-            RefundBuyerModel(
-              name: 'Rafi Ardiansyah',
-              tickets: 2,
-              paymentInfo: 'BCA ••9012',
-              status: 'Selesai',
-            ),
-            RefundBuyerModel(
-              name: 'Budi Santoso',
-              tickets: 4,
-              paymentInfo: 'Belum isi rekening',
-              status: 'Perlu data',
-            ),
-            RefundBuyerModel(
-              name: 'Nadia Putri',
-              tickets: 1,
-              paymentInfo: 'GoPay ••4410',
-              status: 'Diproses',
-            ),
-          ],
-        );
+    final monitoringDetail = service.refundDetailByConcertId(widget.concertId);
+    final concert = service.concertsNotifier.value
+        .where((c) => c.id == widget.concertId)
+        .firstOrNull;
 
-    final progress = detail.totalTickets > 0
-        ? (detail.refundedTickets / detail.totalTickets).clamp(0.0, 1.0)
+    final title = concert?.title ?? monitoringDetail?.title ?? 'Detail Refund';
+    final totalTickets = monitoringDetail?.totalTickets ??
+        (concert?.soldTickets ?? 0);
+    final totalAmount = monitoringDetail?.totalAmount ??
+        (concert?.refundAmount ?? 0);
+
+    final buyers = _dbBuyers.isNotEmpty
+        ? _dbBuyers
+        : (monitoringDetail?.buyers ?? const <RefundBuyerModel>[]);
+
+    final int refundedTickets = _dbBuyers.isNotEmpty
+        ? _dbBuyers
+            .where((b) => b.status == 'Selesai')
+            .fold<int>(0, (sum, b) => sum + b.tickets)
+        : (monitoringDetail?.refundedTickets ?? 0);
+
+    final int processingTickets = _dbBuyers.isNotEmpty
+        ? _dbBuyers
+            .where((b) => b.status == 'Diproses')
+            .fold<int>(0, (sum, b) => sum + b.tickets)
+        : (monitoringDetail?.processingTickets ?? 0);
+
+    final int needDataTickets = _dbBuyers.isNotEmpty
+        ? _dbBuyers
+            .where((b) => b.status == 'Perlu data')
+            .fold<int>(0, (sum, b) => sum + b.tickets)
+        : (monitoringDetail?.needDataTickets ?? 0);
+
+    final int refundedAmount = _dbBuyers.isNotEmpty
+        ? (totalTickets > 0 ? ((totalAmount * refundedTickets) ~/ totalTickets) : 0)
+        : (monitoringDetail?.refundedAmount ?? 0);
+
+    final deadlineDate = monitoringDetail?.deadlineDate ??
+        concert?.cancellationDate ??
+        ApprovalFormat.dayMonthYear(DateTime.now());
+    final remainingDays = monitoringDetail?.remainingDays ?? 0;
+
+    final progress = totalTickets > 0
+        ? (refundedTickets / totalTickets).clamp(0.0, 1.0)
         : 0.0;
-    final refundedFormatted = ApprovalFormat.thousands(detail.refundedTickets);
-    final totalFormatted = ApprovalFormat.thousands(detail.totalTickets);
-    final currentAmountFormatted = ApprovalFormat.rupiah(detail.refundedAmount);
-    final totalAmountFormatted = ApprovalFormat.rupiah(detail.totalAmount);
-    final selesaiCountFormatted =
-        ApprovalFormat.thousands(detail.refundedTickets);
-    final diprosesCountFormatted =
-        ApprovalFormat.thousands(detail.processingTickets);
-    final perluDataCountFormatted =
-        ApprovalFormat.thousands(detail.needDataTickets);
+    final refundedFormatted = ApprovalFormat.thousands(refundedTickets);
+    final totalFormatted = ApprovalFormat.thousands(totalTickets);
+    final currentAmountFormatted = ApprovalFormat.rupiah(refundedAmount);
+    final totalAmountFormatted = ApprovalFormat.rupiah(totalAmount);
+    final selesaiCountFormatted = ApprovalFormat.thousands(refundedTickets);
+    final diprosesCountFormatted = ApprovalFormat.thousands(processingTickets);
+    final perluDataCountFormatted = ApprovalFormat.thousands(needDataTickets);
 
     return AdminScope(
       child: Builder(
@@ -83,7 +147,7 @@ class AdminRefundDetailScreen extends StatelessWidget {
                 // Header Gradien dengan Tombol Kembali (Image 3)
                 AdminHeader(
                   title: 'Detail Refund',
-                  subtitle: detail.title,
+                  subtitle: title,
                   onBack: () => Navigator.of(context).maybePop(),
                 ),
 
@@ -269,7 +333,7 @@ class AdminRefundDetailScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${detail.deadlineDate} · sisa ${detail.remainingDays} hari',
+                              '$deadlineDate · sisa $remainingDays hari',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -286,10 +350,26 @@ class AdminRefundDetailScreen extends StatelessWidget {
                       const AdminSectionTitle('Daftar Pembeli'),
                       const SizedBox(height: 8),
 
-                      for (final buyer in detail.buyers) ...[
-                        _buildBuyerCard(context, buyer),
-                        const SizedBox(height: 10),
-                      ],
+                      if (_isLoading)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (buyers.isEmpty)
+                        AdminCard(
+                          padding: const EdgeInsets.all(20),
+                          child: Center(
+                            child: Text(
+                              'Belum ada pengajuan refund dari penonton untuk konser ini.',
+                              style: TextStyle(fontSize: 13, color: textSec),
+                            ),
+                          ),
+                        )
+                      else
+                        for (final buyer in buyers) ...[
+                          _buildBuyerCard(context, buyer),
+                          const SizedBox(height: 10),
+                        ],
                     ],
                   ),
                 ),
@@ -313,7 +393,7 @@ class AdminRefundDetailScreen extends StatelessWidget {
                             ..showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'Pengingat berhasil dikirim ke ${detail.needDataTickets} pembeli yang belum mengisi rekening.',
+                                  'Pengingat berhasil dikirim ke $needDataTickets pembeli yang belum mengisi rekening.',
                                 ),
                               ),
                             );
@@ -331,7 +411,7 @@ class AdminRefundDetailScreen extends StatelessWidget {
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
-                            'Kirim Pengingat (${detail.needDataTickets})',
+                            'Kirim Pengingat ($needDataTickets)',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,

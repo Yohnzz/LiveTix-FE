@@ -5,6 +5,7 @@ import '../../widgets/app_text_field.dart';
 import '../../widgets/custom_checkbox.dart';
 import '../../widgets/primary_button.dart';
 import '../../services/data_service.dart';
+import '../../services/google_auth_service.dart';
 import '../../services/promoter_data_service.dart';
 import '../promoter/verification/producer_verification_flow.dart';
 import 'user_verification_screen.dart';
@@ -26,6 +27,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _role = 'User';
   bool _agree = false;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
   @override
   void dispose() {
@@ -109,6 +111,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted && _isLoading) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _registerWithGoogle() async {
+    if (_isGoogleLoading) return;
+    setState(() => _isGoogleLoading = true);
+    try {
+      await GoogleAuthService().signInWithGoogle();
+      // Supabase akan memproses sesi melalui deep link callback.
+      // Tidak perlu navigasi manual di sini; sesi dipulihkan otomatis.
+    } on GoogleAuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: const Color(0xFFB91C1C),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal masuk dengan Google: $e'),
+          backgroundColor: const Color(0xFFB91C1C),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -282,7 +312,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 18),
 
                 // Tombol Google
-                GoogleButton(onPressed: () {/* TODO: Google Sign-In */}),
+                GoogleButton(onPressed: _isGoogleLoading ? () {} : _registerWithGoogle),
                 const SizedBox(height: 24),
 
                 // Link Masuk

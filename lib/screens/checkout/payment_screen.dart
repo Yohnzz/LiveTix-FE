@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_colors.dart';
@@ -306,13 +307,40 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Future<Uint8List> _generateQrisPngBytes() async {
+    // 1. Jika byte mentah gambar QR sudah ada (misal dari backend)
     if (widget.order.qrCodeBytes != null && widget.order.qrCodeBytes!.isNotEmpty) {
       return widget.order.qrCodeBytes!;
     }
+
+    // 2. Jika qrCodeUrl adalah URL gambar online valid (misal dari Midtrans QRIS API)
+    final rawUrl = widget.order.qrCodeUrl?.trim() ?? '';
+    if (rawUrl.isNotEmpty && (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))) {
+      try {
+        final resp = await http.get(Uri.parse(rawUrl)).timeout(const Duration(seconds: 8));
+        if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+          return resp.bodyBytes;
+        }
+      } catch (e) {
+        debugPrint('Gagal fetch gambar QR dari URL Midtrans: $e');
+      }
+    }
+
+    // 3. Render dari teks QRIS mentah dengan Canvas & PictureRecorder
+    // PENTING: Gunakan background putih solid (bukan transparan) dan tambahkan quiet zone (margin putih)
+    // agar aplikasi m-banking atau e-wallet (BCA, GoPay, OVO, Dana) di HP dapat membaca data QR!
     final effectiveData = (widget.order.qrString != null &&
             widget.order.qrString!.isNotEmpty)
         ? widget.order.qrString!
         : '00020101021226620014COM.GO-JEK.WWW011993600914343247226510210M4324722650303UKE51440014ID.CO.QRIS.WWW0215AID8320192543970303UKE520457335303360540734107325802ID5907LiveTix6010KOTAMOBAGU61059571962395028A120261109045525giJnUUyGeRID0703A016304D48D';
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    const double canvasSize = 600.0;
+    const double padding = 44.0;
+
+    // Latar belakang putih solid
+    final bgPaint = Paint()..color = Colors.white;
+    canvas.drawRect(const Rect.fromLTWH(0, 0, canvasSize, canvasSize), bgPaint);
 
     final painter = QrPainter(
       data: effectiveData,
@@ -327,7 +355,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
         color: Colors.black,
       ),
     );
-    final ui.Image image = await painter.toImage(400);
+
+    canvas.save();
+    canvas.translate(padding, padding);
+    painter.paint(canvas, const Size(canvasSize - (padding * 2), canvasSize - (padding * 2)));
+    canvas.restore();
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(canvasSize.toInt(), canvasSize.toInt());
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     return byteData!.buffer.asUint8List();
   }
@@ -902,7 +937,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 : '00020101021226620014COM.GO-JEK.WWW011993600914343247226510210M4324722650303UKE51440014ID.CO.QRIS.WWW0215AID8320192543970303UKE520457335303360540734107325802ID5907LiveTix6010KOTAMOBAGU61059571962395028A120261109045525giJnUUyGeRID0703A016304D48D',
             qrCodeUrl: widget.order.qrCodeUrl,
             qrCodeBytes: widget.order.qrCodeBytes,
-            size: 184,
+            size: 240,
             padding: 14,
             semanticLabel: 'Kode Barcode QRIS Pembayaran LiveTix',
           ),
@@ -1423,10 +1458,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
           : widget.order.ticketPrice ~/ (widget.order.quantity > 0 ? widget.order.quantity : 1),
       widget.order.quantity,
     );
-    final ticketPrice = widget.order.ticketPrice > 0 ? widget.order.ticketPrice : pricing.ticketPrice;
-    final tax = widget.order.entertainmentTax > 0 ? widget.order.entertainmentTax : pricing.entertainmentTax;
-    final appFee = widget.order.applicationFee > 0 ? widget.order.applicationFee : pricing.applicationFee;
-    final rounding = widget.order.rounding > 0 ? widget.order.rounding : pricing.rounding;
     final totalPay = widget.order.totalAmount > 0 ? widget.order.totalAmount : pricing.totalPay;
 
     return Container(
@@ -1451,30 +1482,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
           const SizedBox(height: 14),
           _buildBreakdownRow(
             'Harga Tiket (${widget.order.quantity}x ${widget.order.tier.name})',
-            _formatCurrency(ticketPrice),
+            _formatCurrency(totalPay),
           ),
-          const SizedBox(height: 8),
-          _buildBreakdownRow(
-            'Pajak Hiburan (10%)',
-            _formatCurrency(tax),
-          ),
-          const SizedBox(height: 8),
-          _buildBreakdownRow(
-            'Biaya Aplikasi (2%)',
-            _formatCurrency(appFee),
-          ),
-          const SizedBox(height: 8),
-          _buildBreakdownRow(
-            'Pembulatan',
-            _formatCurrency(rounding),
-          ),
-          if (widget.order.transactionFee > 0) ...[
-            const SizedBox(height: 8),
-            _buildBreakdownRow(
-              'Biaya transaksi (${widget.order.paymentProvider})',
-              _formatCurrency(widget.order.transactionFee),
-            ),
-          ],
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
             child: Divider(height: 1, color: AppColors.border),
@@ -1497,6 +1506,23 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                   color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Row(
+            children: [
+              Icon(Icons.verified_outlined, size: 14, color: Color(0xFF16A34A)),
+              SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Harga sudah termasuk tiket, pajak hiburan, dan seluruh biaya layanan.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF15803D),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],

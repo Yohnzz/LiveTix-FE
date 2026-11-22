@@ -15,12 +15,38 @@ class PromoterWithdrawalScreen extends StatefulWidget {
 }
 
 class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
-  final TextEditingController _amountController =
-      TextEditingController(text: '150.000.000');
+  final TextEditingController _amountController = TextEditingController();
   static const int _adminFee = 6500;
 
-  int _parsedAmount = 150000000;
+  int _parsedAmount = 0;
   String? _errorMessage;
+
+  String get _bankName {
+    final service = PromoterDataService();
+    return service.bankNameNotifier.value.trim().isNotEmpty
+        ? service.bankNameNotifier.value.trim()
+        : 'BCA';
+  }
+
+  String get _accountNumber {
+    final service = PromoterDataService();
+    return service.bankAccountNumberNotifier.value.trim().isNotEmpty
+        ? service.bankAccountNumberNotifier.value.trim()
+        : '';
+  }
+
+  String get _accountHolder {
+    final service = PromoterDataService();
+    return service.bankAccountHolderNotifier.value.trim().isNotEmpty
+        ? service.bankAccountHolderNotifier.value.trim()
+        : service.promoterName;
+  }
+
+  String get _maskedAccountNumber {
+    final acc = _accountNumber;
+    if (acc.isEmpty) return 'Belum diatur';
+    return acc.length > 4 ? '****${acc.substring(acc.length - 4)}' : acc;
+  }
 
   @override
   void initState() {
@@ -36,6 +62,8 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
           service.pendingBalanceNotifier.value = bal.pendingBalance;
         }
       });
+      // Pastikan data rekening produser tersinkron dari database
+      PromoterDataService().loadProducerProfileFromSupabase(user.id);
     }
   }
 
@@ -154,7 +182,7 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Otorisasi penarikan Rp ${PromoterDataService.formatCurrency(_parsedAmount)} ke BCA (***9901)',
+                  'Otorisasi penarikan Rp ${PromoterDataService.formatCurrency(_parsedAmount)} ke $_bankName ($_maskedAccountNumber)',
                   style:
                       const TextStyle(fontSize: 12, color: Color(0xFF667085)),
                   textAlign: TextAlign.center,
@@ -317,11 +345,11 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
     );
 
     final res = await PaymentGatewayService().requestProducerWithdrawal(
-      producerId: producerId.isNotEmpty ? producerId : 'b0000000-0000-0000-0000-000000000002',
+      producerId: producerId.isNotEmpty ? producerId : (user?.id ?? ''),
       amount: _parsedAmount,
-      bankName: 'BCA',
-      accountNumber: '880812345678',
-      accountName: service.promoterName,
+      bankName: _bankName,
+      accountNumber: _accountNumber.isNotEmpty ? _accountNumber : '1234567890',
+      accountName: _accountHolder,
     );
 
     if (!mounted) return;
@@ -343,8 +371,8 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
 
     service.withdrawBalance(
       amount: _parsedAmount,
-      targetBank: 'BCA',
-      targetAccount: '***9901',
+      targetBank: _bankName,
+      targetAccount: _maskedAccountNumber,
     );
 
     // Refresh saldo realtime dari server
@@ -386,7 +414,7 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Pencairan dana sebesar Rp ${PromoterDataService.formatCurrency(_parsedAmount)} sedang diproses transfer ke rekening BCA ${service.promoterName} (***9901).\nRef: $refNo',
+              'Pencairan dana sebesar Rp ${PromoterDataService.formatCurrency(_parsedAmount)} sedang diproses transfer ke rekening $_bankName $_accountHolder ($_maskedAccountNumber).\nRef: $refNo',
               style: const TextStyle(
                 fontSize: 12.5,
                 color: Color(0xFF667085),
@@ -687,7 +715,7 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
                         ),
                         child: Row(
                           children: [
-                            // BCA Badge Box
+                            // Bank Badge Box
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 6),
@@ -695,9 +723,9 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
                                 color: const Color(0xFFE8F1FF),
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: const Text(
-                                'BCA',
-                                style: TextStyle(
+                              child: Text(
+                                _bankName,
+                                style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
                                   color: Color(0xFF1B2A8C),
@@ -710,7 +738,7 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'BCA - Rafi Firmansyah',
+                                    '$_bankName - $_accountHolder',
                                     style: TextStyle(
                                       fontSize: 13.5,
                                       fontWeight: FontWeight.w700,
@@ -719,7 +747,7 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Nomor Rekening: ****9901',
+                                    'Nomor Rekening: $_maskedAccountNumber',
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: subtextColor,

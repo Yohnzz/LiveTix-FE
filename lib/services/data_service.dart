@@ -977,6 +977,16 @@ class DataService {
       String? resolvedAvatarUrl =
           (meta['url_foto'] as String?) ?? (meta['avatar_url'] as String?);
       String resolvedGoogleId = (meta['google_id'] as String?) ?? '';
+      String resolvedGoogleEmail = (meta['google_email'] as String?) ?? '';
+      for (final identity in authUser.identities ?? const <UserIdentity>[]) {
+        if (identity.provider == 'google') {
+          final idEmail = (identity.identityData?['email'] ?? '').toString().trim();
+          if (idEmail.isNotEmpty) {
+            resolvedGoogleEmail = idEmail;
+            break;
+          }
+        }
+      }
       String roleVerificationStatus =
           (meta['role_verification_status'] as String?) ?? '';
       Map<String, dynamic>? fetchedProfile;
@@ -1004,8 +1014,9 @@ class DataService {
             resolvedAvatarUrl = dbFoto;
           }
 
-          resolvedGoogleId =
-              (profileRes['google_id'] as String?) ?? resolvedGoogleId;
+          // Database adalah sumber kebenaran: jika google_id di database null, berarti akun tidak terikat
+          resolvedGoogleId = (profileRes['google_id'] as String?) ?? '';
+          resolvedGoogleEmail = (profileRes['google_email'] as String?) ?? '';
           roleVerificationStatus =
               (profileRes['role_verification_status'] as String?) ??
                   roleVerificationStatus;
@@ -1057,6 +1068,7 @@ class DataService {
         accountStatus: accountStatus,
         deactivationReason: deactivationReason,
         googleId: resolvedGoogleId,
+        googleEmail: resolvedGoogleEmail,
         roleVerificationStatus: roleVerificationStatus,
       );
 
@@ -1105,6 +1117,16 @@ class DataService {
       String? resolvedAvatarUrl =
           (meta['url_foto'] as String?) ?? (meta['avatar_url'] as String?);
       String resolvedGoogleId = (meta['google_id'] as String?) ?? '';
+      String resolvedGoogleEmail = (meta['google_email'] as String?) ?? '';
+      for (final identity in authUser.identities ?? const <UserIdentity>[]) {
+        if (identity.provider == 'google') {
+          final idEmail = (identity.identityData?['email'] ?? '').toString().trim();
+          if (idEmail.isNotEmpty) {
+            resolvedGoogleEmail = idEmail;
+            break;
+          }
+        }
+      }
       String roleVerificationStatus =
           (meta['role_verification_status'] as String?) ?? '';
       Map<String, dynamic>? fetchedProfile;
@@ -1132,8 +1154,9 @@ class DataService {
             resolvedAvatarUrl = dbFoto;
           }
 
-          resolvedGoogleId =
-              (profileRes['google_id'] as String?) ?? resolvedGoogleId;
+          // Database adalah sumber kebenaran: jika google_id di database null, berarti akun tidak terikat
+          resolvedGoogleId = (profileRes['google_id'] as String?) ?? '';
+          resolvedGoogleEmail = (profileRes['google_email'] as String?) ?? '';
           roleVerificationStatus =
               (profileRes['role_verification_status'] as String?) ??
                   roleVerificationStatus;
@@ -1185,6 +1208,7 @@ class DataService {
         accountStatus: accountStatus,
         deactivationReason: deactivationReason,
         googleId: resolvedGoogleId,
+        googleEmail: resolvedGoogleEmail,
         roleVerificationStatus: roleVerificationStatus,
       );
 
@@ -2255,17 +2279,30 @@ class DataService {
   Future<void> _doFetchUserTicketsFromSupabase() async {
     try {
       final user = currentUser;
-      final rawUserId = user?.id;
+      if (user == null) {
+        userTicketsNotifier.value = [];
+        return;
+      }
+      final rawUserId = user.id.trim();
+      final userEmail = user.email.trim().toLowerCase();
       final uuidRegex = RegExp(
           r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
-      final validUserId = (rawUserId != null && uuidRegex.hasMatch(rawUserId))
+      final validUserId = (rawUserId.isNotEmpty && uuidRegex.hasMatch(rawUserId))
           ? rawUserId
           : (SupabaseService.client.auth.currentUser?.id);
 
       final List<dynamic> rows = await _withTransientRetry(() async {
         var query = SupabaseService.client.from('tickets').select();
-        if (validUserId != null) {
-          query = query.or('user_id.eq.$validUserId,user_id.is.null');
+        if (validUserId != null && validUserId.isNotEmpty) {
+          if (userEmail.isNotEmpty) {
+            query = query.or('user_id.eq.$validUserId,customer_email.eq.$userEmail');
+          } else {
+            query = query.eq('user_id', validUserId);
+          }
+        } else if (userEmail.isNotEmpty) {
+          query = query.eq('customer_email', userEmail);
+        } else {
+          return <dynamic>[];
         }
         return await query.order('issued_at', ascending: false);
       });
@@ -2287,6 +2324,29 @@ class DataService {
             for (final o in orderRows) {
               final oid = o['id']?.toString();
               if (oid != null) ordersMap[oid] = Map<String, dynamic>.from(o);
+            }
+          }
+        } catch (_) {}
+
+        // Ambil foto logo/poster konser dari tabel concerts
+        final Map<String, String> concertLogos = {};
+        try {
+          final concertIds = rows
+              .map((r) => r['concert_id']?.toString())
+              .where((id) => id != null && id.isNotEmpty)
+              .toSet()
+              .toList();
+          if (concertIds.isNotEmpty) {
+            final List<dynamic> concertRows = await SupabaseService.client
+                .from('concerts')
+                .select('id, logo_image_url, banner_image_url')
+                .filter('id', 'in', concertIds);
+            for (final c in concertRows) {
+              final cid = c['id']?.toString();
+              final lUrl = c['logo_image_url']?.toString() ?? c['banner_image_url']?.toString();
+              if (cid != null && lUrl != null && lUrl.trim().isNotEmpty) {
+                concertLogos[cid] = lUrl.trim();
+              }
             }
           }
         } catch (_) {}
@@ -2371,6 +2431,34 @@ class DataService {
             daysRemaining = diff < 0 ? 0 : diff;
           }
 
+          final cid = r['concert_id']?.toString();
+          final matchedConcert = (cid != null && cid.isNotEmpty)
+              ? cachedConcertById(cid)
+              : _concerts.firstWhere(
+                  (c) =>
+                      c.title.toLowerCase() ==
+                      (r['concert_title']?.toString() ?? '').toLowerCase(),
+                  orElse: () => const ConcertModel(
+                    id: '',
+                    title: '',
+                    date: '',
+                    venue: '',
+                    price: 0,
+                    category: '',
+                  ),
+                );
+
+          final logoUrl = (cid != null &&
+                  concertLogos[cid] != null &&
+                  concertLogos[cid]!.isNotEmpty)
+              ? concertLogos[cid]
+              : (matchedConcert != null &&
+                      matchedConcert.logoImageUrl?.isNotEmpty == true
+                  ? matchedConcert.logoImageUrl
+                  : (matchedConcert?.bannerImageUrl?.isNotEmpty == true
+                      ? matchedConcert!.bannerImageUrl
+                      : null));
+
           fetched.add(UserTicketModel(
             id: r['id'].toString(),
             bookingCode: tCode,
@@ -2404,28 +2492,43 @@ class DataService {
                 (r['scans_used'] as num?)?.toInt() ??
                 0,
             paymentMethod: realPaymentMethod,
+            concertId: cid,
+            logoImageUrl: logoUrl,
             buyerName: r['customer_name']?.toString() ??
                 orderData?['customer_name']?.toString() ??
-                user?.name,
+                user.name,
             buyerEmail: r['customer_email']?.toString() ??
                 orderData?['customer_email']?.toString() ??
-                user?.email,
-            buyerNik: r['customer_nik']?.toString() ?? user?.nik,
+                user.email,
+            buyerNik: r['customer_nik']?.toString() ?? user.nik,
           ));
         }
 
-        // Pertahankan SEMUA tiket lokal (baik pending maupun aktif yang baru dibeli) yang belum tersinkron
+        // Pertahankan tiket lokal yang memang milik user ini (bukan user lain) dan belum ada di fetched
         final localRetained = userTicketsNotifier.value
-            .where((t) => !fetched.any((f) =>
-                f.id == t.id ||
-                (t.bookingCode.isNotEmpty && f.bookingCode == t.bookingCode)))
+            .where((t) {
+              final belongsToThisUser = (t.buyerEmail == null ||
+                  t.buyerEmail!.trim().toLowerCase() == userEmail ||
+                  userEmail.isEmpty);
+              final notInFetched = !fetched.any((f) =>
+                  f.id == t.id ||
+                  (t.bookingCode.isNotEmpty && f.bookingCode == t.bookingCode));
+              return belongsToThisUser && notInFetched;
+            })
             .toList();
 
         final combined = [...localRetained, ...fetched];
         userTicketsNotifier.value = combined;
         _saveUserTicketsToLocalStorage();
       } else {
-        // Jika belum ada tiket dari Supabase, jangan hapus tiket lokal yang ada!
+        // Jika belum ada tiket dari Supabase untuk user ini, pertahankan tiket lokal milik user ini saja
+        final localRetained = userTicketsNotifier.value
+            .where((t) =>
+                (t.buyerEmail == null ||
+                    t.buyerEmail!.trim().toLowerCase() == userEmail ||
+                    userEmail.isEmpty))
+            .toList();
+        userTicketsNotifier.value = localRetained;
         _saveUserTicketsToLocalStorage();
       }
     } catch (e) {

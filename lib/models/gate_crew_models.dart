@@ -171,7 +171,7 @@ class GateCrewMemberModel {
 
 class TicketScanValidationResult {
   final bool isValid;
-  final String status; // 'Berhasil', 'Ditolak (Salah Gate)', 'Ditolak (Habis Kuota)', 'Ditolak (Salah Konser)', 'Ditolak (Invalid)', 'Ditolak (Direfund)'
+  final String status; // 'Berhasil', 'Ditolak (Salah Gate)', 'Ditolak (Habis Kuota)', 'Ditolak (Salah Konser)', 'Ditolak (Invalid)', 'Ditolak (Direfund)', 'Ditolak (Belum Waktunya)'
   final String? invalidReason;
   final String ticketId;
   final String bookingCode;
@@ -186,6 +186,15 @@ class TicketScanValidationResult {
   final bool isWrongGate;
   final String? customerEmail;
   final String? customerNik;
+
+  /// True jika scan dilakukan sebelum H-1 konser (waktu scan belum dibuka)
+  final bool isTooEarly;
+
+  /// Waktu mulai scan dibuka (H-1 konser = eventDateTime - 24 jam)
+  final DateTime? scanOpensAt;
+
+  /// Tanggal & waktu mulai konser yang terparse
+  final DateTime? eventDateTime;
 
   const TicketScanValidationResult({
     required this.isValid,
@@ -204,9 +213,19 @@ class TicketScanValidationResult {
     this.isWrongGate = false,
     this.customerEmail,
     this.customerNik,
+    this.isTooEarly = false,
+    this.scanOpensAt,
+    this.eventDateTime,
   });
 
   int get remaining => (quota - used).clamp(0, quota);
+
+  /// Sisa waktu hingga scan dibuka (hanya valid jika isTooEarly == true)
+  Duration get timeUntilScanOpens {
+    if (scanOpensAt == null) return Duration.zero;
+    final diff = scanOpensAt!.difference(DateTime.now());
+    return diff.isNegative ? Duration.zero : diff;
+  }
 }
 
 

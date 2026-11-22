@@ -1,5 +1,7 @@
+import '../../models/user_model.dart';
 import 'package:flutter/material.dart';
 import '../../services/data_service.dart';
+import '../../services/google_auth_service.dart';
 import '../../services/promoter_data_service.dart';
 import '../../utils/file_picker_helper.dart';
 import '../home/home_screen.dart';
@@ -597,6 +599,11 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
                         subtextColor: subtextColor,
                         onTap: () => _showPinSettingsDialog(context),
                       ),
+
+                      const SizedBox(height: 10),
+
+                      // Tautkan Akun Google
+                      _buildPromoterGoogleBindTile(context, cardBg, cardBorder, textColor, subtextColor),
 
                       const SizedBox(height: 10),
 
@@ -1315,4 +1322,186 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
       }
     });
   }
+  bool _isPromoterBindingGoogle = false;
+
+  /// Tile Tautkan / Lepas Tautan Akun Google (Produser)
+  Widget _buildPromoterGoogleBindTile(
+    BuildContext context,
+    Color cardBg,
+    Color cardBorder,
+    Color textColor,
+    Color subtextColor,
+  ) {
+    return ValueListenableBuilder<UserModel?>(
+      valueListenable: DataService().currentUserNotifier,
+      builder: (context, user, _) {
+        final isBound = user?.isGoogleAccount ?? false;
+        final boundGoogle = GoogleAuthService().getBoundGoogleEmail();
+        final boundEmail = isBound
+            ? (boundGoogle != null && boundGoogle.isNotEmpty
+                ? boundGoogle
+                : (user?.googleEmail.isNotEmpty == true
+                    ? user!.googleEmail
+                    : (user?.email ?? '')))
+            : '';
+
+        return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cardBorder),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Tautkan Akun Google',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                if (isBound && boundEmail.isNotEmpty)
+                  Text(
+                    'Terhubung: $boundEmail',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFF039855),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                else
+                  Text(
+                    'Belum terhubung ke akun Google',
+                    style: TextStyle(fontSize: 11.5, color: subtextColor),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          if (_isPromoterBindingGoogle)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Color(0xFF1B2A8C),
+              ),
+            )
+          else
+            GestureDetector(
+              onTap: isBound
+                  ? () => _unbindPromoterGoogle(context)
+                  : () => _bindPromoterGoogle(context),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isBound
+                      ? const Color(0xFFFEF2F2)
+                      : const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isBound
+                        ? const Color(0xFFFCA5A5)
+                        : const Color(0xFFC7D2FE),
+                  ),
+                ),
+                child: Text(
+                  isBound ? 'Lepas Tautan' : 'Tautkan',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isBound
+                        ? const Color(0xFFB91C1C)
+                        : const Color(0xFF1B2A8C),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+      },
+    );
+  }
+
+  Future<void> _bindPromoterGoogle(BuildContext context) async {
+    if (_isPromoterBindingGoogle) return;
+    setState(() => _isPromoterBindingGoogle = true);
+    try {
+      final result = await GoogleAuthService().linkGoogleAccount();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.success
+                ? 'Akun Google berhasil ditautkan: ${result.googleEmail ?? ''}'
+                : (result.errorMessage ?? 'Gagal menautkan akun Google.'),
+          ),
+          backgroundColor:
+              result.success ? const Color(0xFF039855) : const Color(0xFFB91C1C),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isPromoterBindingGoogle = false);
+    }
+  }
+
+  Future<void> _unbindPromoterGoogle(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          'Lepas Tautan Google',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Yakin ingin melepas tautan akun Google dari akun produser ini?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFB91C1C),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Lepas Tautan'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+    setState(() => _isPromoterBindingGoogle = true);
+    try {
+      final result = await GoogleAuthService().unlinkGoogleAccount();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.success
+                ? 'Tautan akun Google berhasil dilepas.'
+                : (result.errorMessage ?? 'Gagal melepas tautan.'),
+          ),
+          backgroundColor:
+              result.success ? const Color(0xFF039855) : const Color(0xFFB91C1C),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isPromoterBindingGoogle = false);
+    }
+  }
+
 }

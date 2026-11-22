@@ -8,6 +8,36 @@ import 'data_service.dart';
 import 'promoter_data_service.dart';
 import 'supabase_service.dart';
 
+/// Nama bulan Indonesia → angka
+const _bulanMap = {
+  'januari': 1, 'jan': 1,
+  'februari': 2, 'feb': 2,
+  'maret': 3, 'mar': 3,
+  'april': 4, 'apr': 4,
+  'mei': 5,
+  'juni': 6, 'jun': 6,
+  'juli': 7, 'jul': 7,
+  'agustus': 8, 'agu': 8, 'agst': 8,
+  'september': 9, 'sep': 9, 'sept': 9,
+  'oktober': 10, 'okt': 10, 'oct': 10,
+  'november': 11, 'nov': 11,
+  'desember': 12, 'des': 12, 'dec': 12,
+};
+
+/// Format countdown "X Hari, Y Jam, Z Menit, W Detik"
+String formatCountdown(Duration d) {
+  final days = d.inDays;
+  final hours = d.inHours % 24;
+  final minutes = d.inMinutes % 60;
+  final seconds = d.inSeconds % 60;
+  final parts = <String>[];
+  if (days > 0) parts.add('$days Hari');
+  if (hours > 0 || days > 0) parts.add('$hours Jam');
+  if (minutes > 0 || hours > 0 || days > 0) parts.add('$minutes Menit');
+  parts.add('$seconds Detik');
+  return parts.join(', ');
+}
+
 class AddGateCrewBatchResult {
   final bool isSuccess;
   final String message;
@@ -47,6 +77,92 @@ class GateCrewService {
 
   void clearSessionScanCache() {
     _sessionScansUsedMap.clear();
+  }
+
+  /// Parse tanggal + waktu konser dari berbagai format string yang digunakan LiveTix:
+  /// - ISO: "2026-10-12T19:00:00" / "2026-10-12"
+  /// - Indonesia: "Minggu, 12 Oktober 2026" / "12 Okt 2026"
+  /// - Waktu: "19:00" / "19.00 WIB" / "Gerbang 17.00 · Mulai 19.00"
+  static DateTime? parseConcertDateTime(String? dateStr, [String? timeStr]) {
+    if (dateStr == null || dateStr.trim().isEmpty) return null;
+    final ds = dateStr.trim();
+
+    // 1. ISO penuh: 2026-10-12T19:00:00 atau 2026-10-12T19:00:00.000Z
+    final iso = DateTime.tryParse(ds);
+    if (iso != null) {
+      // Jika timeStr tersedia, timpa jam-menit dari ISO date-only
+      if (timeStr != null && timeStr.trim().isNotEmpty && !ds.contains('T')) {
+        final t = _parseTime(timeStr);
+        return DateTime(iso.year, iso.month, iso.day,
+            t?.hour ?? iso.hour, t?.minute ?? iso.minute);
+      }
+      return iso;
+    }
+
+    // 2. Format Indonesia teks: "Minggu, 12 Oktober 2026" / "12 Oktober 2026" / "12 Okt 2026"
+    final parts = ds
+        .replaceAll(',', '')
+        .split(RegExp(r'[\s\-\/]+'))
+        .map((s) => s.trim().toLowerCase())
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    int? day, month, year;
+
+    for (var i = 0; i < parts.length; i++) {
+      final p = parts[i];
+      // Cek apakah bulan
+      if (_bulanMap.containsKey(p)) {
+        month = _bulanMap[p];
+        // Ambil angka sebelumnya sebagai day jika bisa
+        if (i > 0) day ??= int.tryParse(parts[i - 1]);
+        // Ambil angka sesudahnya sebagai year atau day
+        if (i + 1 < parts.length) {
+          final next = int.tryParse(parts[i + 1]);
+          if (next != null) {
+            if (next > 31) {
+              year = next;
+            } else {
+              day ??= next;
+            }
+          }
+        }
+        if (i + 2 < parts.length) {
+          final next2 = int.tryParse(parts[i + 2]);
+          if (next2 != null && next2 > 31) year = next2;
+        }
+      } else {
+        final n = int.tryParse(p);
+        if (n != null) {
+          if (n > 31) {
+            year ??= n;
+          } else if (n >= 1 && n <= 31 && day == null && month != null) {
+            day = n;
+          } else if (n >= 1 && n <= 31 && day == null) {
+            day = n;
+          }
+        }
+      }
+    }
+
+    if (day != null && month != null && year != null) {
+      final t = timeStr != null ? _parseTime(timeStr) : null;
+      return DateTime(year, month, day, t?.hour ?? 0, t?.minute ?? 0);
+    }
+
+    return null;
+  }
+
+  /// Parse "19:00" / "19.00" / "19.00 WIB" / "Gerbang 17.00 · Mulai 19.00"
+  static DateTime? _parseTime(String timeStr) {
+    // Ambil jam pertama yang ditemukan
+    final match = RegExp(r'(\d{1,2})[:\.](\d{2})').firstMatch(timeStr);
+    if (match == null) return null;
+    final h = int.tryParse(match.group(1)!) ?? 0;
+    final m = int.tryParse(match.group(2)!) ?? 0;
+    if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day, h, m);
   }
 
   static String _generateValidUuid(int seed) {
@@ -1518,30 +1634,74 @@ class GateCrewService {
       used = cachedUsed;
     }
 
-    // 4. Validasi Konser
-    if (currentConcertId.isNotEmpty &&
-        concertId.isNotEmpty &&
-        concertId != currentConcertId &&
-        !concertId.contains(currentConcertId) &&
-        !currentConcertId.contains(concertId)) {
-      return TicketScanValidationResult(
-        isValid: false,
-        status: 'Ditolak (Salah Konser)',
-        invalidReason:
-            'Tiket ini terdaftar untuk konser "$concertTitle", bukan untuk konser ini.',
-        ticketId: ticketId,
-        ticketCode: ticketCode,
-        bookingCode: bookingCode,
-        attendeeName: customerName,
-        category: tierName,
-        gateName: gateName,
-        concertId: concertId,
-        concertTitle: concertTitle,
-        quota: quota,
-        used: used,
-        customerEmail: customerEmail,
-        customerNik: customerNik,
-      );
+    // 4. Validasi Waktu H-1: Tiket hanya boleh di-scan mulai H-1 konser
+    {
+      // Ambil tanggal konser dari ticketRow, lalu fallback ke konser dari DataService
+      String? rawDate = ticketRow['concert_date']?.toString() ??
+          ticketRow['date']?.toString();
+      String? rawTime = ticketRow['concert_time']?.toString() ??
+          ticketRow['time']?.toString();
+
+      // Fallback: cari dari PromoterDataService concerts
+      if ((rawDate == null || rawDate.isEmpty) && concertId.isNotEmpty) {
+        final promoterConcert = PromoterDataService()
+            .concertsNotifier
+            .value
+            .where((c) =>
+                c.id == concertId ||
+                c.title.toLowerCase() == concertTitle.toLowerCase())
+            .firstOrNull;
+        if (promoterConcert != null) {
+          rawDate = promoterConcert.date;
+          rawTime = promoterConcert.time;
+        }
+      }
+
+      // Fallback: cari dari DataService userTickets (memori lokal user)
+      if ((rawDate == null || rawDate.isEmpty)) {
+        final userTickets = DataService().userTicketsNotifier.value;
+        for (final t in userTickets) {
+          if (t.id == ticketId ||
+              t.bookingCode == ticketCode ||
+              t.bookingCode == bookingCode) {
+            rawDate = t.date;
+            rawTime = t.time;
+            break;
+          }
+        }
+      }
+
+      final eventDateTime = parseConcertDateTime(rawDate, rawTime);
+      if (eventDateTime != null) {
+        final scanOpensAt = eventDateTime.subtract(const Duration(hours: 24));
+        final now = DateTime.now();
+        if (now.isBefore(scanOpensAt)) {
+          final diff = scanOpensAt.difference(now);
+          final countdown = formatCountdown(diff);
+          return TicketScanValidationResult(
+            isValid: false,
+            isTooEarly: true,
+            status: 'Ditolak (Belum Waktunya)',
+            invalidReason:
+                'QR tiket belum bisa dipakai. Waktu scan masih $countdown. '
+                'Tunggu hingga waktu habis (scan dibuka H-1 konser).',
+            ticketId: ticketId,
+            ticketCode: ticketCode,
+            bookingCode: bookingCode,
+            attendeeName: customerName,
+            category: tierName,
+            gateName: gateName,
+            concertId: concertId,
+            concertTitle: concertTitle,
+            quota: quota,
+            used: used,
+            customerEmail: customerEmail,
+            customerNik: customerNik,
+            scanOpensAt: scanOpensAt,
+            eventDateTime: eventDateTime,
+          );
+        }
+      }
     }
 
     // 5. Validasi Status Refund / Pembatalan
@@ -1664,6 +1824,11 @@ class GateCrewService {
     required String crewEmail,
     required String concertTitle,
   }) async {
+    // Pengaman: Waktu scan belum dibuka (H-1 konser)
+    if (ticket.isTooEarly) {
+      debugPrint('Check-in ditolak: Waktu scan belum dibuka (H-1 konser).');
+      return false;
+    }
     // Pengaman: Jika sisa kuota sudah habis atau count tidak valid, tolak
     if (ticket.remaining <= 0 || countToUse <= 0 || ticket.used >= ticket.quota) {
       debugPrint('Check-in ditolak: Kuota scan tiket sudah habis.');
