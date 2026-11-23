@@ -333,82 +333,23 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
     final widgets = <Widget>[];
     final tiers = _availableTiers;
 
-    // 1. Prioritaskan tier VIP / VVIP di depan / paling dekat panggung jika ada
-    final vipTiers =
-        tiers.where((t) => t.name.toLowerCase().contains('vip')).toList();
-    final nonVipTiers =
-        tiers.where((t) => !t.name.toLowerCase().contains('vip')).toList();
-
-    for (final vip in vipTiers) {
+    for (final tier in tiers) {
+      final isVip = tier.name.toLowerCase().contains('vip');
       widgets.add(
         Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: _buildStageAreaCard(
-            tier: vip,
-            title: vip.name.toUpperCase(),
-            subtitle: vip.description.isNotEmpty
-                ? vip.description
-                : 'Tempat duduk VIP eksklusif depan panggung',
-            icon: Icons.star_rounded,
+            tier: tier,
+            title: tier.name.toUpperCase(),
+            subtitle: tier.description.isNotEmpty
+                ? tier.description
+                : (isVip
+                    ? 'Tempat duduk VIP eksklusif depan panggung'
+                    : 'Area resmi ${tier.name}'),
+            icon: isVip ? Icons.star_rounded : null,
           ),
         ),
       );
-    }
-
-    // 2. Tampilkan tier non-VIP (bila ada nama pendek berpasangan seperti Tribun A & Tribun B)
-    int i = 0;
-    while (i < nonVipTiers.length) {
-      final current = nonVipTiers[i];
-      final isShortName = current.name.length <= 14;
-      final hasNext = i + 1 < nonVipTiers.length;
-      final next = hasNext ? nonVipTiers[i + 1] : null;
-      final isNextShort = next != null && next.name.length <= 14;
-
-      if (hasNext && isShortName && isNextShort && nonVipTiers.length > 2) {
-        widgets.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildStageAreaCard(
-                    tier: current,
-                    title: current.name.toUpperCase(),
-                    subtitle: current.description.isNotEmpty
-                        ? current.description
-                        : 'Area ${current.name}',
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _buildStageAreaCard(
-                    tier: next,
-                    title: next.name.toUpperCase(),
-                    subtitle: next.description.isNotEmpty
-                        ? next.description
-                        : 'Area ${next.name}',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-        i += 2;
-      } else {
-        widgets.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _buildStageAreaCard(
-              tier: current,
-              title: current.name.toUpperCase(),
-              subtitle: current.description.isNotEmpty
-                  ? current.description
-                  : 'Area resmi ${current.name}',
-            ),
-          ),
-        );
-        i += 1;
-      }
     }
 
     return widgets;

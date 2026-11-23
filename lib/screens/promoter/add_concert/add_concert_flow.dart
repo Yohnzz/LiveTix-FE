@@ -65,10 +65,13 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
 
     if (editing != null) {
       _nameController = TextEditingController(text: editing.title);
+      final dateStr = editing.date;
+      final timeStr = editing.time;
+      final bool alreadyHasTime = timeStr.isNotEmpty && dateStr.contains(timeStr);
       _dateTimeController = TextEditingController(
-        text: editing.time.isNotEmpty
-            ? '${editing.date} - ${editing.time}'
-            : editing.date,
+        text: (timeStr.isNotEmpty && !alreadyHasTime)
+            ? '$dateStr - $timeStr'
+            : dateStr,
       );
       _descriptionController = TextEditingController(text: editing.description);
       _posterFileName = editing.posterFileName;

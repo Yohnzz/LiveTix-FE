@@ -663,7 +663,8 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
   // Peta Google Maps Interaktif
   // ---------------------------------------------------------------------------
   String _getGoogleMapsTileUrl() {
-    final apiKey = dotenv.env['GOOGLE_MAPS_API_KEY']?.trim();
+    final apiKey =
+        dotenv.isInitialized ? dotenv.env['GOOGLE_MAPS_API_KEY']?.trim() : null;
     if (apiKey != null && apiKey.isNotEmpty) {
       return 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=$apiKey';
     }
@@ -1472,6 +1473,39 @@ class _Step2VenueLocationScreenState extends State<Step2VenueLocationScreen> {
               ),
 
               const SizedBox(height: 14),
+
+              // Info: peta & pencarian lokasi gratis tanpa API key.
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isDarkMode
+                      ? const Color(0xFF1E293B)
+                      : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: cardBorder),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.map_outlined,
+                        size: 16, color: Color(0xFF1B2A8C)),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Peta OpenStreetMap · gratis tanpa API key',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 10),
 
               // Peta OpenStreetMap
               _buildMap(),

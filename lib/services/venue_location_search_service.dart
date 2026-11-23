@@ -427,7 +427,8 @@ class VenueLocationSearchService {
 
     // 3. Pencarian online geocoder (Nominatim & Photon) dengan prioritas Indonesia
     List<PromoterVenueLocation> onlineResults = [];
-    final googleApiKey = dotenv.env['GOOGLE_MAPS_API_KEY']?.trim();
+    final googleApiKey =
+        dotenv.isInitialized ? dotenv.env['GOOGLE_MAPS_API_KEY']?.trim() : null;
 
     // A. Google Geocoding jika ada API key di .env
     if (googleApiKey != null && googleApiKey.isNotEmpty) {
@@ -638,7 +639,8 @@ class VenueLocationSearchService {
   /// nama jalan, venue, kelurahan/kecamatan, kota, dan provinsi secara akurat.
   Future<PromoterVenueLocation?> reverseGeocode(double lat, double lon) async {
     // 1. Google Maps Geocoding API jika memiliki API key di .env
-    final googleApiKey = dotenv.env['GOOGLE_MAPS_API_KEY']?.trim();
+    final googleApiKey =
+        dotenv.isInitialized ? dotenv.env['GOOGLE_MAPS_API_KEY']?.trim() : null;
     if (googleApiKey != null && googleApiKey.isNotEmpty) {
       try {
         final url = Uri.parse(

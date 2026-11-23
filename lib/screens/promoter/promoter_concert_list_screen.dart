@@ -591,9 +591,18 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('${t.name} (${t.formattedQuota})',
+                      Expanded(
+                        child: Text(
+                          '${t.name} (${t.formattedQuota})',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              fontSize: 12, color: Color(0xFF475467))),
+                            fontSize: 12,
+                            color: Color(0xFF475467),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Text(t.formattedPrice,
                           style: const TextStyle(
                               fontSize: 12.5,

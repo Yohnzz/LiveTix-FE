@@ -1276,6 +1276,8 @@ class _TicketScreenState extends State<TicketScreen> {
                                       Flexible(
                                         child: Text(
                                           'Pos: ${ticket.gate}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w700,
