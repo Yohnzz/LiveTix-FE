@@ -553,12 +553,12 @@ class PaymentGatewayService {
       }
     }
 
-    // Nilai Default Simulasi
+    // Supabase belum siap — kembalikan nol (tidak ada data dummy)
     return const PromoterBalanceResult(
-      pendingBalance: 24500000,
-      availableBalance: 8750000,
-      totalSales: 33250000,
-      totalWithdrawn: 12500000,
+      pendingBalance: 0,
+      availableBalance: 0,
+      totalSales: 0,
+      totalWithdrawn: 0,
       hasPendingWithdrawal: false,
     );
   }
@@ -586,13 +586,13 @@ class PaymentGatewayService {
     }
 
     return const AdminBalanceResult(
-      totalFeeCollected: 4500000,
-      availableFeeBalance: 3200000,
-      totalFeeWithdrawn: 1300000,
-      totalBiayaAplikasi: 3600000,
-      totalPembulatan: 900000,
-      availableBiayaAplikasi: 2560000,
-      availablePembulatan: 640000,
+      totalFeeCollected: 0,
+      availableFeeBalance: 0,
+      totalFeeWithdrawn: 0,
+      totalBiayaAplikasi: 0,
+      totalPembulatan: 0,
+      availableBiayaAplikasi: 0,
+      availablePembulatan: 0,
       hasPendingWithdrawal: false,
     );
   }
@@ -934,6 +934,36 @@ class PaymentGatewayService {
       return List<Map<String, dynamic>>.from(rows);
     } catch (e) {
       debugPrint('Error fetchUserRefunds: $e');
+      return [];
+    }
+  }
+
+  /// Ambil riwayat fee transaksi konser dari ledger_entries atau orders (untuk Admin)
+  Future<List<Map<String, dynamic>>> fetchAdminFeeHistory({int limit = 50}) async {
+    if (!SupabaseService.isInitialized) return [];
+    // Coba dari tabel ledger_entries (lebih detail) dulu
+    try {
+      final rows = await SupabaseService.client
+          .from('ledger_entries')
+          .select('id, entry_type, amount, description, created_at, order_id, concert_id')
+          .inFilter('entry_type', ['FEE_APLIKASI', 'PEMBULATAN', 'PLATFORM_FEE', 'APPLICATION_FEE'])
+          .order('created_at', ascending: false)
+          .limit(limit);
+      if ((rows as List).isNotEmpty) {
+        return List<Map<String, dynamic>>.from(rows);
+      }
+    } catch (_) {}
+    // Fallback: ambil dari orders yang sudah paid
+    try {
+      final rows = await SupabaseService.client
+          .from('orders')
+          .select('id, concert_id, gross_amount, application_fee, rounding, created_at')
+          .eq('payment_status', 'PAID')
+          .order('created_at', ascending: false)
+          .limit(limit);
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      debugPrint('Error fetchAdminFeeHistory: $e');
       return [];
     }
   }

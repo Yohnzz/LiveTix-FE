@@ -21,6 +21,8 @@ class CsMessageModel {
   final bool isFromAdmin;
   final String message;
   final DateTime createdAt;
+  final String? imageUrl;
+  final String? imageBase64;
 
   const CsMessageModel({
     required this.id,
@@ -35,6 +37,8 @@ class CsMessageModel {
     required this.isFromAdmin,
     required this.message,
     required this.createdAt,
+    this.imageUrl,
+    this.imageBase64,
   });
 
   factory CsMessageModel.fromJson(Map<String, dynamic> json) {
@@ -66,6 +70,8 @@ class CsMessageModel {
       createdAt: DateTime.tryParse(
               (json['created_at'] ?? json['createdAt'] ?? '').toString()) ??
           DateTime.now(),
+      imageUrl: json['image_url']?.toString() ?? json['imageUrl']?.toString(),
+      imageBase64: json['image_base64']?.toString() ?? json['imageBase64']?.toString(),
     );
   }
 
@@ -83,6 +89,8 @@ class CsMessageModel {
         'created_at': createdAt.toIso8601String(),
         'is_admin_reply': isFromAdmin,
         'is_from_admin': isFromAdmin,
+        if (imageUrl != null) 'image_url': imageUrl,
+        if (imageBase64 != null) 'image_base64': imageBase64,
       };
 }
 
@@ -698,9 +706,15 @@ class CustomerServiceService extends ChangeNotifier {
     String? senderName,
     String? senderEmail,
     String? senderRole,
+    String? imageUrl,
+    String? imageBase64,
   }) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty &&
+        (imageBase64 == null || imageBase64.isEmpty) &&
+        (imageUrl == null || imageUrl.isEmpty)) {
+      return;
+    }
 
     final idx = _threads.indexWhere((t) => t.threadId == threadId);
     CsThreadModel target;
@@ -716,6 +730,10 @@ class CustomerServiceService extends ChangeNotifier {
 
     final currentUser = DataService().currentUser;
     final now = DateTime.now();
+    final effectiveText = trimmed.isNotEmpty
+        ? trimmed
+        : (imageBase64 != null ? 'Mengunggah lampiran gambar' : '');
+
     final msg = CsMessageModel(
       id: 'cs-${now.microsecondsSinceEpoch}',
       threadId: target.threadId,
@@ -743,8 +761,10 @@ class CustomerServiceService extends ChangeNotifier {
       receiverName: isFromAdmin ? target.userName : 'Admin LiveTix',
       receiverRole: isFromAdmin ? target.userRole : 'Admin',
       isFromAdmin: isFromAdmin,
-      message: trimmed,
+      message: effectiveText,
       createdAt: now,
+      imageUrl: imageUrl,
+      imageBase64: imageBase64,
     );
 
     final updatedMessages = [...target.messages, msg];
@@ -817,12 +837,22 @@ class CustomerServiceService extends ChangeNotifier {
           ? history.sublist(history.length - 6)
           : history;
 
-      final reply = await AiCustomerService().generateCustomerServiceReply(
-        userMessage: userMsg.message,
-        role: thread.userRole,
-        chatHistory: trimmedHistory,
-        userName: thread.userName,
-      );
+      final String reply;
+      if (userMsg.imageBase64 != null && userMsg.imageBase64!.isNotEmpty) {
+        reply = await AiCustomerService().analyzeImageAndReply(
+          imageBase64: userMsg.imageBase64!,
+          userMessage: userMsg.message,
+          role: thread.userRole,
+          userName: thread.userName,
+        );
+      } else {
+        reply = await AiCustomerService().generateCustomerServiceReply(
+          userMessage: userMsg.message,
+          role: thread.userRole,
+          chatHistory: trimmedHistory,
+          userName: thread.userName,
+        );
+      }
 
       if (reply.trim().isEmpty) return;
 

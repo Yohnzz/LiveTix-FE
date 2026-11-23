@@ -1,5 +1,8 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/ai_customer_service.dart';
 import '../../services/customer_service_service.dart';
 import '../../services/data_service.dart';
@@ -40,6 +43,10 @@ class _ProducerCustomerServiceScreenState
   String? _activeThreadId;
   bool _isLoadingAiDraft = false;
   bool _isLoadingAiSummary = false;
+
+  // State lampiran gambar untuk analisis AI
+  Uint8List? _attachedImageBytes;
+  String? _attachedImageName;
 
   final List<String> _producerQuickQuestions = const [
     'Cek status verifikasi konser saya',
@@ -85,9 +92,161 @@ class _ProducerCustomerServiceScreenState
     setState(() {});
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 80,
+      );
+      if (picked != null) {
+        final bytes = await picked.readAsBytes();
+        setState(() {
+          _attachedImageBytes = bytes;
+          _attachedImageName = picked.name;
+        });
+      }
+    } catch (e) {
+      debugPrint('Gagal memilih gambar: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memilih gambar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showImagePickerSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Lampirkan Gambar untuk Analisis AI',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Kirim bukti transfer, e-tiket, atau tangkapan layar kendala untuk dianalisis langsung oleh AI.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4F46E5).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.photo_library_rounded,
+                      color: Color(0xFF4F46E5),
+                      size: 22,
+                    ),
+                  ),
+                  title: Text(
+                    'Pilih dari Galeri Foto',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13.5,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Buka galeri perangkat Anda',
+                    style: GoogleFonts.poppins(fontSize: 11.5, color: const Color(0xFF94A3B8)),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: _csPink.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_rounded,
+                      color: _csPink,
+                      size: 22,
+                    ),
+                  ),
+                  title: Text(
+                    'Ambil Foto Kamera',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13.5,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Ambil foto langsung dengan kamera',
+                    style: GoogleFonts.poppins(fontSize: 11.5, color: const Color(0xFF94A3B8)),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _sendMessage([String? presetText]) async {
     final text = (presetText ?? _messageController.text).trim();
-    if (text.isEmpty || _activeThreadId == null) return;
+    final hasImage = _attachedImageBytes != null && _attachedImageBytes!.isNotEmpty;
+    if ((text.isEmpty && !hasImage) || _activeThreadId == null) return;
+
+    String? imageBase64;
+    if (hasImage) {
+      imageBase64 = base64Encode(_attachedImageBytes!);
+      setState(() {
+        _attachedImageBytes = null;
+        _attachedImageName = null;
+      });
+    }
 
     if (presetText == null) {
       _messageController.clear();
@@ -110,6 +269,7 @@ class _ProducerCustomerServiceScreenState
           : (currentUser?.email ??
               (isProduser ? 'produser@livetix.com' : 'user@livetix.com')),
       senderRole: widget.isAdminInbox ? 'Admin' : widget.senderRole,
+      imageBase64: imageBase64,
     );
 
     _scrollToBottom();
@@ -815,6 +975,12 @@ class _ProducerCustomerServiceScreenState
     final borderColor =
         isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final systemBottomPadding = MediaQuery.of(context).viewPadding.bottom;
+    final double extraBottomSpace = bottomInset > 0
+        ? 12.0
+        : (systemBottomPadding > 0 ? (systemBottomPadding + 10.0) : 20.0);
+
     final thread = _activeThreadId != null
         ? _csService.getThreadById(_activeThreadId!)
         : null;
@@ -1205,6 +1371,35 @@ class _ProducerCustomerServiceScreenState
                               ),
                             ),
                           ),
+                        // Render Gambar Lampiran jika ada
+                        if (msg.imageBase64 != null && msg.imageBase64!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.memory(
+                                base64Decode(msg.imageBase64!),
+                                width: double.infinity,
+                                height: 200,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                              ),
+                            ),
+                          )
+                        else if (msg.imageUrl != null && msg.imageUrl!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                msg.imageUrl!,
+                                width: double.infinity,
+                                height: 200,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                              ),
+                            ),
+                          ),
                         Text(
                           msg.message,
                           style: GoogleFonts.poppins(
@@ -1315,69 +1510,147 @@ class _ProducerCustomerServiceScreenState
               ),
             ),
 
-          // Input Bar
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              border: Border(top: BorderSide(color: borderColor)),
+          // Preview Gambar yang dipilih (sebelum dikirim)
+          if (_attachedImageBytes != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                border: Border(top: BorderSide(color: borderColor)),
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      _attachedImageBytes!,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.auto_awesome, size: 14, color: Color(0xFF8B5CF6)),
+                            const SizedBox(width: 4),
+                            Text(
+                              'AI Vision Siap Menganalisis',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF8B5CF6),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          _attachedImageName ?? 'Foto terlampir',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: textSecondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close_rounded, size: 20, color: textSecondary),
+                    onPressed: () {
+                      setState(() {
+                        _attachedImageBytes = null;
+                        _attachedImageName = null;
+                      });
+                    },
+                    tooltip: 'Hapus lampiran',
+                  ),
+                ],
+              ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13.5,
-                      color: textPrimary,
+
+          // Input Bar (dilindungi SafeArea agar tidak tertutup navigation button 3-tombol sistem)
+          SafeArea(
+            top: false,
+            child: Container(
+              padding: EdgeInsets.fromLTRB(8, 10, 14, extraBottomSpace),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                border: Border(top: BorderSide(color: borderColor)),
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.add_photo_alternate_outlined,
+                      color: widget.isAdminInbox
+                          ? const Color(0xFF4F46E5)
+                          : _csPink,
+                      size: 24,
                     ),
-                    onSubmitted: (_) => _sendMessage(),
-                    decoration: InputDecoration(
-                      hintText: widget.isAdminInbox
-                          ? 'Ketik balasan untuk ${thread?.userName ?? "pengguna"}...'
-                          : 'Tulis pesan ke Admin Customer Service...',
-                      hintStyle: GoogleFonts.poppins(
-                        fontSize: 13,
-                        color: textSecondary,
+                    onPressed: _showImagePickerSheet,
+                    tooltip: 'Lampirkan Gambar (Analisis AI)',
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13.5,
+                        color: textPrimary,
                       ),
-                      filled: true,
-                      fillColor: isDark
-                          ? const Color(0xFF0F172A)
-                          : const Color(0xFFF1F5F9),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
+                      onSubmitted: (_) => _sendMessage(),
+                      decoration: InputDecoration(
+                        hintText: widget.isAdminInbox
+                            ? 'Ketik balasan untuk ${thread?.userName ?? "pengguna"}...'
+                            : 'Tulis pesan atau lampirkan foto...',
+                        hintStyle: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: textSecondary,
+                        ),
+                        filled: true,
+                        fillColor: isDark
+                            ? const Color(0xFF0F172A)
+                            : const Color(0xFFF1F5F9),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                InkWell(
-                  onTap: () => _sendMessage(),
-                  borderRadius: BorderRadius.circular(24),
-                  child: Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      gradient: widget.isAdminInbox
-                          ? const LinearGradient(
-                              colors: [Color(0xFF1B2A8C), Color(0xFF4F46E5)],
-                            )
-                          : _csPinkGradient,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.send_rounded,
-                      color: Colors.white,
-                      size: 20,
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => _sendMessage(),
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        gradient: widget.isAdminInbox
+                            ? const LinearGradient(
+                                colors: [Color(0xFF1B2A8C), Color(0xFF4F46E5)],
+                              )
+                            : _csPinkGradient,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

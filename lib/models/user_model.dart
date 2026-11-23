@@ -25,6 +25,9 @@ class UserModel {
   /// ID identitas Google (provider_id/sub). Kosong untuk akun non-Google.
   final String googleId;
 
+  /// Email akun Google yang tertaut (bisa berbeda dari email pendaftaran manual).
+  final String googleEmail;
+
   /// Status persetujuan role: kosong = role belum dipilih, `pending`,
   /// `approved`, atau `rejected`.
   final String roleVerificationStatus;
@@ -66,6 +69,7 @@ class UserModel {
     this.accountStatus = AccountStatus.approved,
     this.deactivationReason,
     this.googleId = '',
+    this.googleEmail = '',
     this.roleVerificationStatus = '',
   });
 
@@ -112,6 +116,7 @@ class UserModel {
     String? deactivationReason,
     bool clearDeactivationReason = false,
     String? googleId,
+    String? googleEmail,
     String? roleVerificationStatus,
   }) {
     return UserModel(
@@ -137,6 +142,7 @@ class UserModel {
           ? null
           : (deactivationReason ?? this.deactivationReason),
       googleId: googleId ?? this.googleId,
+      googleEmail: googleEmail ?? this.googleEmail,
       roleVerificationStatus:
           roleVerificationStatus ?? this.roleVerificationStatus,
     );
@@ -175,6 +181,7 @@ class UserModel {
       'approval_status': accountStatus.value,
       'deactivation_reason': deactivationReason,
       'google_id': googleId,
+      'google_email': googleEmail,
       'role_verification_status': roleVerificationStatus,
     };
   }
@@ -229,6 +236,7 @@ class UserModel {
           : AccountStatus.approved,
       deactivationReason: json['deactivation_reason'] as String?,
       googleId: (json['google_id'] as String?) ?? '',
+      googleEmail: (json['google_email'] as String?) ?? '',
       roleVerificationStatus:
           (json['role_verification_status'] as String?) ?? '',
     );

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/app_colors.dart';
@@ -200,6 +201,12 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         int currentUsed = result.used;
+
+        // ── Kasus khusus: Waktu scan belum dibuka (H-1 konser) ──
+        if (result.isTooEarly) {
+          return _TooEarlyModal(result: result);
+        }
+
         return StatefulBuilder(
           builder: (context, setModalState) {
             final remainingQuota = result.quota - currentUsed;
@@ -1795,5 +1802,307 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
         ],
       ),
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Modal khusus: Waktu Scan Belum Dibuka (H-1 konser)
+// ─────────────────────────────────────────────────────────────────────────────
+class _TooEarlyModal extends StatefulWidget {
+  final TicketScanValidationResult result;
+  const _TooEarlyModal({required this.result});
+
+  @override
+  State<_TooEarlyModal> createState() => _TooEarlyModalState();
+}
+
+class _TooEarlyModalState extends State<_TooEarlyModal> {
+  Timer? _timer;
+  Duration _remaining = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = widget.result.timeUntilScanOpens;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final now = DateTime.now();
+      final opensAt = widget.result.scanOpensAt;
+      if (opensAt == null || now.isAfter(opensAt)) {
+        _timer?.cancel();
+        setState(() => _remaining = Duration.zero);
+      } else {
+        setState(() => _remaining = opensAt.difference(now));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String _pad(int n) => n.toString().padLeft(2, '0');
+
+  @override
+  Widget build(BuildContext context) {
+    final days = _remaining.inDays;
+    final hours = _remaining.inHours % 24;
+    final minutes = _remaining.inMinutes % 60;
+    final seconds = _remaining.inSeconds % 60;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 48,
+              height: 5,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Icon timer
+            Container(
+              width: 76,
+              height: 76,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFFBBF24), width: 2),
+              ),
+              child: const Icon(
+                Icons.hourglass_top_rounded,
+                color: Color(0xFFD97706),
+                size: 44,
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Judul
+            const Text(
+              'WAKTU SCAN BELUM DIBUKA',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.4,
+                color: Color(0xFFB45309),
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'QR tiket ini baru bisa digunakan mulai H-1 konser (24 jam sebelum konser dimulai).',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF78350F),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Countdown card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'SCAN DIBUKA DALAM',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _timeUnit('$days', 'HARI'),
+                      _colon(),
+                      _timeUnit(_pad(hours), 'JAM'),
+                      _colon(),
+                      _timeUnit(_pad(minutes), 'MENIT'),
+                      _colon(),
+                      _timeUnit(_pad(seconds), 'DETIK'),
+                    ],
+                  ),
+                  if (widget.result.scanOpensAt != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Scan dibuka: ${_formatOpensAt(widget.result.scanOpensAt!)}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF92400E),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Info banner
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFCD34D), width: 1),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline_rounded,
+                      color: Color(0xFFD97706), size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Informasi Tiket',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF92400E),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Konser: ${widget.result.concertTitle}\n'
+                          'Pemegang: ${widget.result.attendeeName}\n'
+                          'Kategori: ${widget.result.category}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            height: 1.5,
+                            color: Color(0xFF92400E),
+                          ),
+                        ),
+                        if (widget.result.customerNik != null &&
+                            widget.result.customerNik!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'NIK: •••• •••• •••• ${widget.result.customerNik!.trim().length >= 4 ? widget.result.customerNik!.trim().substring(widget.result.customerNik!.trim().length - 4) : widget.result.customerNik!.trim()}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF92400E),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Tombol tutup
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFB45309),
+                  side: const BorderSide(color: Color(0xFFFBBF24), width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Tutup — Scan Tiket Lain',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _timeUnit(String value, String label) {
+    return Column(
+      children: [
+        Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF59E0B),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 1,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+            color: Color(0xFF92400E),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _colon() {
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 16, left: 4, right: 4),
+      child: Text(
+        ':',
+        style: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w900,
+          color: Color(0xFFD97706),
+        ),
+      ),
+    );
+  }
+
+  String _formatOpensAt(DateTime dt) {
+    const hari = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    const bulan = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+    ];
+    final d = hari[dt.weekday - 1];
+    final b = bulan[dt.month - 1];
+    final jam = '${_pad(dt.hour)}.${_pad(dt.minute)} WIB';
+    return '$d, ${dt.day} $b ${dt.year} pukul $jam';
   }
 }

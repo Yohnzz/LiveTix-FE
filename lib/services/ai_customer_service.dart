@@ -134,6 +134,143 @@ Gaya Komunikasi:
     );
   }
 
+  /// Fitur Analisis Gambar Pengguna dengan Gemini Vision (Multimodal AI)
+  /// Mengidentifikasi bukti pembayaran, struk, tangkapan layar tiket/aplikasi, atau dokumen KTP,
+  /// lalu menarik kesimpulan dan memberikan panduan solutif.
+  Future<String> analyzeImageAndReply({
+    required String imageBase64,
+    String? mimeType,
+    required String userMessage,
+    required String role,
+    String? userName,
+  }) async {
+    final normalizedRole = _normalizeRole(role);
+    final systemPrompt = _getSystemPromptForRole(normalizedRole);
+    final userNote = userMessage.trim().isNotEmpty
+        ? 'Pesan dari pengguna: "$userMessage"'
+        : 'Pengguna mengirimkan gambar untuk diperiksa.';
+
+    final prompt = '''
+$userNote
+
+Tolong analisis gambar yang dilampirkan oleh pengguna ini secara mendalam untuk Customer Service LiveTix:
+1. Apa jenis gambar ini? (Contoh: Bukti Transfer / Resi Pembayaran m-Banking/QRIS, Tangkapan Layar Kendala Tiket, E-Tiket Barcode, Foto KTP/Surat Promotor, dll)
+2. Jika ini Bukti Pembayaran: sebutkan detail penting yang terbaca (bank/e-wallet pengirim/penerima, nominal rupiah, tanggal/waktu transaksi, nomor referensi/rekening tujuan).
+3. Jika ini Kendala Aplikasi/Tiket: jelaskan apa pesan error atau kendala yang tampak di layar.
+4. Kesimpulan & Rekomendasi: Berikan kesimpulan resmi yang ramah, sopan, dan solutif dalam Bahasa Indonesia apakah data valid atau langkah apa yang harus dilakukan pengguna selanjutnya.
+''';
+
+    final apiKey = AiConfig.geminiApiKey;
+    if (apiKey.isNotEmpty) {
+      try {
+        final reply = await _callGeminiVisionApi(
+          apiKey: apiKey,
+          prompt: prompt,
+          imageBase64: imageBase64,
+          mimeType: mimeType ?? 'image/jpeg',
+          systemPrompt: systemPrompt,
+        );
+        if (reply != null && reply.trim().isNotEmpty) {
+          return reply.trim();
+        }
+      } catch (e) {
+        debugPrint('AiCustomerService.analyzeImageAndReply error: $e');
+      }
+    }
+
+    return _generateLocalImageFallback(
+      role: normalizedRole,
+      userName: userName,
+      userMessage: userMessage,
+    );
+  }
+
+  Future<String?> _callGeminiVisionApi({
+    required String apiKey,
+    required String prompt,
+    required String imageBase64,
+    required String mimeType,
+    required String systemPrompt,
+  }) async {
+    final payload = jsonEncode({
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': prompt},
+            {
+              'inlineData': {
+                'mimeType': mimeType,
+                'data': imageBase64,
+              }
+            }
+          ]
+        }
+      ],
+      'systemInstruction': {
+        'parts': [
+          {'text': systemPrompt}
+        ]
+      },
+      'generationConfig': {
+        'temperature': 0.4,
+        'maxOutputTokens': 1200,
+      },
+    });
+
+    for (final modelName in AiConfig.fallbackModels) {
+      try {
+        final url = Uri.parse(
+          '${AiConfig.baseUrl}/$modelName:generateContent?key=$apiKey',
+        );
+
+        final response = await _client
+            .post(
+              url,
+              headers: {'Content-Type': 'application/json'},
+              body: payload,
+            )
+            .timeout(const Duration(seconds: 15));
+
+        if (response.statusCode == 200) {
+          final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+          final candidates = decoded['candidates'] as List<dynamic>?;
+          if (candidates != null && candidates.isNotEmpty) {
+            final firstCandidate = candidates.first as Map<String, dynamic>;
+            final content = firstCandidate['content'] as Map<String, dynamic>?;
+            final parts = content?['parts'] as List<dynamic>?;
+            if (parts != null && parts.isNotEmpty) {
+              final text = parts.first['text'] as String?;
+              if (text != null && text.trim().isNotEmpty) {
+                return text.trim();
+              }
+            }
+          }
+        } else {
+          debugPrint('Gemini Vision $modelName returned ${response.statusCode}: ${response.body}');
+        }
+      } catch (e) {
+        debugPrint('Gemini Vision API call error to $modelName: $e');
+      }
+    }
+    return null;
+  }
+
+  String _generateLocalImageFallback({
+    required String role,
+    String? userName,
+    required String userMessage,
+  }) {
+    final greeting =
+        userName != null && userName.isNotEmpty ? 'Halo $userName' : 'Halo';
+    return '$greeting! Kami telah menerima lampiran gambar Anda di layanan Customer Service.\n\n'
+        '🔍 **Pemeriksaan Awal Sistem AI LiveTix:**\n'
+        '• Gambar lampiran telah tercatat aman di server Customer Service kami.\n'
+        '• Jika gambar berupa **Bukti Pembayaran / Transfer**: Sistem memverifikasi bahwa bukti telah diterima dan admin keuangan sedang mencocokkan mutasi rekening.\n'
+        '• Jika gambar berupa **Tangkapan Layar Kendala**: Mohon pastikan aplikasi Anda sudah versi terbaru dan coba muat ulang tiket.\n\n'
+        'Tim Admin LiveTix akan segera meninjau detail lampiran ini dan memberikan konfirmasi langsung.';
+  }
+
   /// Khusus Admin: Meringkas riwayat percakapan dalam suatu thread CS
   Future<String> summarizeThread({
     required List<CsMessageModel> messages,

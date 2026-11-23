@@ -18,6 +18,14 @@ class Step3TicketPricingScreen extends StatelessWidget {
     required this.onBack,
   });
 
+  static int calcAllInPrice(int price) {
+    if (price <= 0) return 0;
+    final tax = (price * 0.10).round();
+    final appFee = (price * 0.02).round();
+    final sub = price + tax + appFee;
+    return ((sub + 999) ~/ 1000) * 1000;
+  }
+
   void _removeTier(BuildContext context, int index) {
     final updated = List<PromoterTicketTier>.from(tiers)..removeAt(index);
     onTiersChanged(updated);
@@ -106,7 +114,11 @@ class Step3TicketPricingScreen extends StatelessWidget {
                   controller: priceCtrl,
                   keyboardType: TextInputType.number,
                   style: fieldStyle,
-                  decoration: deco('Harga (Rp)'),
+                  decoration: deco('Harga Dasar Produser (Rp)').copyWith(
+                    helperText:
+                        'Otomatis ditambah pajak 10%, biaya aplikasi 2%, & pembulatan untuk pembeli',
+                    helperMaxLines: 2,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -399,14 +411,35 @@ class Step3TicketPricingScreen extends StatelessWidget {
                                         ),
                                       ),
                                       const SizedBox(height: 3),
+                                      Row(
+                                        children: [
+                                          Text(
+                                            tier.formattedPrice,
+                                            style: TextStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: isMagentaTier
+                                                  ? const Color(0xFFC2185B)
+                                                  : const Color(0xFF1B2A8C),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            '(Dasar)',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: subtextColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
                                       Text(
-                                        tier.formattedPrice,
-                                        style: TextStyle(
-                                          fontSize: 13.5,
-                                          fontWeight: FontWeight.w800,
-                                          color: isMagentaTier
-                                              ? const Color(0xFFC2185B)
-                                              : const Color(0xFF1B2A8C),
+                                        'Tampil ke Pembeli: Rp ${PromoterTicketTier.formatNumber(calcAllInPrice(tier.price))}',
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF16A34A),
                                         ),
                                       ),
                                       const SizedBox(height: 3),

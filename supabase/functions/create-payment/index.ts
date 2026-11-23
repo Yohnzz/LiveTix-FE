@@ -99,12 +99,17 @@ serve(async (req) => {
       }
     } catch (_) {}
 
+    const unitTax = Math.round(ticketPrice * (pajakPct / 100));
+    const unitAppFee = Math.round(ticketPrice * (biayaPct / 100));
+    const unitSubtotal = ticketPrice + unitTax + unitAppFee;
+    const unitAllIn = Math.ceil(unitSubtotal / 1000) * 1000;
+    const unitRounding = unitAllIn - unitSubtotal;
+
     const hargaTiket = ticketPrice * qty;
-    const pajakHiburan = Math.round(hargaTiket * (pajakPct / 100));
-    const biayaAplikasi = Math.round(hargaTiket * (biayaPct / 100)); // 1x per transaksi
-    const subtotal = hargaTiket + pajakHiburan + biayaAplikasi;
-    const totalBayar = Math.ceil(subtotal / 1000) * 1000; // Pembulatan ke atas kelipatan Rp 1.000
-    const pembulatan = totalBayar - subtotal;
+    const pajakHiburan = unitTax * qty;
+    const biayaAplikasi = unitAppFee * qty;
+    const pembulatan = unitRounding * qty;
+    const totalBayar = unitAllIn * qty;
     const bagianProduser = hargaTiket + pajakHiburan;
     const bagianAdmin = biayaAplikasi + pembulatan;
 
@@ -113,37 +118,17 @@ serve(async (req) => {
       throw new Error(`Pelanggaran invarian: ${bagianProduser} + ${bagianAdmin} !== ${totalBayar}`);
     }
 
-    // 3. Konfigurasi Item Details Midtrans Snap Sandbox
+    // 3. Konfigurasi Item Details Midtrans Snap (All-inclusive Price)
     // Syarat Midtrans: Total harga item_details harus tepat sama dengan gross_amount (totalBayar)
+    // Menggunakan all-inclusive pricing per tiket agar pembeli melihat harga bersih tanpa biaya tambahan
     const itemDetails: Array<{ id: string; price: number; quantity: number; name: string }> = [
       {
         id: (tierId || "TIER-01").substring(0, 50),
-        price: ticketPrice,
+        price: unitAllIn,
         quantity: qty,
-        name: `${tierName} - ${concertTitle}`.substring(0, 50),
-      },
-      {
-        id: "PAJAK_HIBURAN",
-        price: pajakHiburan,
-        quantity: 1,
-        name: `Pajak Hiburan (${pajakPct}%)`.substring(0, 50),
-      },
-      {
-        id: "BIAYA_APLIKASI",
-        price: biayaAplikasi,
-        quantity: 1,
-        name: `Biaya Aplikasi (${biayaPct}%)`.substring(0, 50),
+        name: `Tiket ${tierName || "Konser"} - ${concertTitle}`.substring(0, 50),
       },
     ];
-
-    if (pembulatan > 0) {
-      itemDetails.push({
-        id: "PEMBULATAN",
-        price: pembulatan,
-        quantity: 1,
-        name: "Pembulatan",
-      });
-    }
 
     const snapPayload = {
       transaction_details: {

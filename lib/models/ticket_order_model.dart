@@ -253,6 +253,15 @@ class UserTicketModel {
   /// Data order saat masih dalam mode pembayaran pending
   final OrderModel? pendingOrder;
 
+  /// ID konser terkait di database
+  final String? concertId;
+
+  /// URL foto logo/poster konser dari database
+  final String? logoImageUrl;
+
+  /// Byte foto logo konser dari database (opsional)
+  final Uint8List? logoImageBytes;
+
   /// Identitas resmi pembeli tiket (Nama, Email, NIK)
   final String? buyerName;
   final String? buyerEmail;
@@ -293,6 +302,9 @@ class UserTicketModel {
     this.qrScansUsed = 0,
     this.paymentMethod = 'BCA Virtual Account',
     this.pendingOrder,
+    this.concertId,
+    this.logoImageUrl,
+    this.logoImageBytes,
     this.buyerName,
     this.buyerEmail,
     this.buyerNik,
@@ -301,6 +313,66 @@ class UserTicketModel {
   bool get isPendingPayment =>
       status.toLowerCase().contains('menunggu') ||
       status.toLowerCase().contains('pending');
+
+  /// Menandakan apakah tiket sudah kadaluwarsa (berdasarkan tanggal konser atau status)
+  bool get isExpired {
+    final s = status.toLowerCase();
+    if (s.contains('hangus') || s.contains('expired') || s.contains('kadaluwarsa')) {
+      return true;
+    }
+    try {
+      if (date.isNotEmpty && !date.contains('Segera')) {
+        final parsed = DateTime.tryParse(date);
+        if (parsed != null && parsed.isBefore(DateTime.now().subtract(const Duration(days: 1)))) {
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  /// Menandakan apakah kuota scan tiket sudah habis terpakai semua
+  bool get isAllScansUsed => qrScanQuota > 0 && qrScansUsed >= qrScanQuota;
+
+  /// Menentukan apakah tiket masuk ke tab 'Aktif':
+  /// - Tiket yang statusnya aktif dan belum kadaluwarsa serta belum habis discan
+  /// - KECUALI tiket yang berstatus 'Reffund' (dibatalkan) atau belum dibayar (pending) itu tetap masuk di AKTIF
+  bool get isActiveTabTicket {
+    // 1. Status Refund / Pending payment selalu masuk di Aktif
+    if (isPendingPayment) return true;
+    final s = status.toLowerCase();
+    if (isCancelled || s == 'reffund' || s == 'refund' || s.contains('pengajuan')) {
+      return true;
+    }
+    // 2. Jika sudah kadaluwarsa atau sudah discan semua atau status selesai, masuk ke Riwayat
+    if (isExpired || isAllScansUsed || isCompleted || s.contains('divalidasi') || s == 'selesai') {
+      return false;
+    }
+    // 3. Status aktif biasa
+    return true;
+  }
+
+  /// Menentukan apakah tiket masuk ke tab 'Riwayat'
+  bool get isHistoryTabTicket => !isActiveTabTicket;
+
+  /// Kode ringkas acak di bagian paling akhir untuk tampilan UI penonton
+  /// (misal 6-8 karakter acak terakhir), sedangkan kode unik lengkap tetap
+  /// tersimpan utuh di dalam QR Code agar tetap scannable oleh gate crew.
+  String get displayShortCode {
+    final code = bookingCode.trim().isNotEmpty ? bookingCode.trim() : id.trim();
+    if (code.isEmpty) return '—';
+    if (code.contains('-')) {
+      final segments = code.split('-');
+      final last = segments.last.trim();
+      if (last.isNotEmpty && last.length >= 4) {
+        return last.toUpperCase();
+      }
+    }
+    if (code.length > 6) {
+      return code.substring(code.length - 6).toUpperCase();
+    }
+    return code.toUpperCase();
+  }
 
   String get effectiveQrData {
     if (qrData != null && qrData!.trim().isNotEmpty) {
@@ -340,6 +412,9 @@ class UserTicketModel {
     int? qrScansUsed,
     String? paymentMethod,
     OrderModel? pendingOrder,
+    String? concertId,
+    String? logoImageUrl,
+    Uint8List? logoImageBytes,
     String? buyerName,
     String? buyerEmail,
     String? buyerNik,
@@ -373,6 +448,9 @@ class UserTicketModel {
       qrScansUsed: qrScansUsed ?? this.qrScansUsed,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       pendingOrder: pendingOrder ?? this.pendingOrder,
+      concertId: concertId ?? this.concertId,
+      logoImageUrl: logoImageUrl ?? this.logoImageUrl,
+      logoImageBytes: logoImageBytes ?? this.logoImageBytes,
       buyerName: buyerName ?? this.buyerName,
       buyerEmail: buyerEmail ?? this.buyerEmail,
       buyerNik: buyerNik ?? this.buyerNik,
@@ -415,6 +493,8 @@ class UserTicketModel {
       'qrScanQuota': qrScanQuota,
       'qrScansUsed': qrScansUsed,
       'paymentMethod': paymentMethod,
+      'concertId': concertId,
+      'logoImageUrl': logoImageUrl,
       'buyerName': buyerName,
       'buyerEmail': buyerEmail,
       'buyerNik': buyerNik,
@@ -449,6 +529,8 @@ class UserTicketModel {
       qrScanQuota: (json['qrScanQuota'] as num?)?.toInt() ?? q,
       qrScansUsed: (json['qrScansUsed'] as num?)?.toInt() ?? 0,
       paymentMethod: json['paymentMethod']?.toString() ?? 'QRIS',
+      concertId: json['concertId']?.toString() ?? json['concert_id']?.toString(),
+      logoImageUrl: json['logoImageUrl']?.toString() ?? json['logo_image_url']?.toString(),
       buyerName: json['buyerName']?.toString() ?? json['customer_name']?.toString(),
       buyerEmail: json['buyerEmail']?.toString() ?? json['customer_email']?.toString(),
       buyerNik: json['buyerNik']?.toString() ?? json['customer_nik']?.toString(),
@@ -489,6 +571,21 @@ class TransactionPricing {
   int get pembulatan => rounding;
   int get totalBayar => totalPay;
   int get produserShare => producerShare;
+
+  /// Harga satuan all-inclusive (harga bersih yang dilihat pembeli)
+  int get allInclusiveUnitPrice => quantity > 0 ? (totalPay ~/ quantity) : totalPay;
+
+  /// Kalkulasi harga all-in per 1 satuan tiket:
+  /// = harga awal produser + pajak hiburan (10%) + biaya aplikasi (2%) + pembulatan ke kelipatan Rp 1.000
+  /// Nominal inilah yang ditampilkan kepada user di seluruh katalog tiket, sehingga user merasa harga tiket
+  /// memang sebesar nominal tersebut (bersih tanpa penambahan biaya saat checkout).
+  static int calculateUnitAllInclusivePrice(int unitPrice) {
+    if (unitPrice <= 0) return 0;
+    final tax = (unitPrice * 0.10).round();
+    final appFee = (unitPrice * 0.02).round();
+    final subtotal = unitPrice + tax + appFee;
+    return ((subtotal + 999) ~/ 1000) * 1000;
+  }
 
   /// Kalkulasi rumus resmi transaksi LiveTix (Semua nominal Integer Rupiah)
   /// - harga_tiket = harga x jumlah (maks 4)

@@ -26,7 +26,7 @@ void main() {
         concertTitle: 'Konser Musik Akbar 2026',
         concertSubtitle: 'Stadion Utama',
         category: 'VIP Gold',
-        date: '25 Nov 2026',
+        date: '2026-11-19',
         time: '19:00 WIB',
         gate: 'Gate A',
         block: 'VIP-01',
@@ -63,7 +63,7 @@ void main() {
         concertTitle: 'Konser Musik Akbar 2026',
         concertSubtitle: 'Stadion Utama',
         category: 'Festival',
-        date: '25 Nov 2026',
+        date: '2026-11-19',
         time: '19:00 WIB',
         gate: 'Gate B',
         block: 'FEST-01',
@@ -100,7 +100,7 @@ void main() {
         concertTitle: 'Konser Musik Akbar 2026',
         concertSubtitle: 'Stadion Utama',
         category: 'Reguler',
-        date: '25 Nov 2026',
+        date: '2026-11-19',
         time: '19:00 WIB',
         gate: 'Gate A',
         block: 'REG-01',
@@ -133,7 +133,7 @@ void main() {
         concertTitle: 'Konser Musik Akbar 2026',
         concertSubtitle: 'Stadion Utama',
         category: 'VIP',
-        date: '25 Nov 2026',
+        date: '2026-11-19',
         time: '19:00 WIB',
         gate: 'Gate A',
         block: 'VIP-02',
@@ -166,7 +166,7 @@ void main() {
         concertTitle: 'Konser Musik Akbar 2026',
         concertSubtitle: 'Stadion Utama',
         category: 'Tribun VIP',
-        date: '25 Nov 2026',
+        date: '2026-11-19',
         time: '19:00 WIB',
         gate: 'Gate A',
         block: 'TRB-01',
@@ -224,7 +224,7 @@ void main() {
         concertTitle: 'Konser Musik Akbar 2026',
         concertSubtitle: 'Stadion Utama',
         category: 'Festival',
-        date: '25 Nov 2026',
+        date: '2026-11-19',
         time: '19:00 WIB',
         gate: 'Gate A',
         block: 'FEST-01',
@@ -294,9 +294,9 @@ void main() {
     test('Verifikasi NIK: 4 digit terakhir diekstrak dengan tepat', () {
       const rawNik = '3507112233445678';
       final masked = rawNik.length >= 4
-          ? '•••• •••• •••• ${rawNik.substring(rawNik.length - 4)}'
+          ? 'â€¢â€¢â€¢â€¢ â€¢â€¢â€¢â€¢ â€¢â€¢â€¢â€¢ ${rawNik.substring(rawNik.length - 4)}'
           : rawNik;
-      expect(masked, '•••• •••• •••• 5678');
+      expect(masked, 'â€¢â€¢â€¢â€¢ â€¢â€¢â€¢â€¢ â€¢â€¢â€¢â€¢ 5678');
     });
 
     testWidgets(
@@ -356,6 +356,113 @@ void main() {
 
       expect(find.text('Input Kode Tiket'), findsOneWidget);
       expect(find.text('Validasi Tiket'), findsOneWidget);
+    });
+  });
+
+  group('H-1 Scan Time Restriction Tests', () {
+    test('parseConcertDateTime: ISO date dengan time string', () {
+      final dt = GateCrewService.parseConcertDateTime('2026-12-25', '20:00');
+      expect(dt, isNotNull);
+      expect(dt!.year, 2026);
+      expect(dt.month, 12);
+      expect(dt.day, 25);
+      expect(dt.hour, 20);
+      expect(dt.minute, 0);
+    });
+
+    test('parseConcertDateTime: ISO datetime penuh', () {
+      final dt =
+          GateCrewService.parseConcertDateTime('2026-12-25T19:30:00');
+      expect(dt, isNotNull);
+      expect(dt!.hour, 19);
+      expect(dt.minute, 30);
+    });
+
+    test('parseConcertDateTime: format Indonesia teks', () {
+      final dt = GateCrewService.parseConcertDateTime(
+          'Kamis, 25 Desember 2026', '20.00 WIB');
+      expect(dt, isNotNull);
+      expect(dt!.year, 2026);
+      expect(dt.month, 12);
+      expect(dt.day, 25);
+      expect(dt.hour, 20);
+    });
+
+    test('parseConcertDateTime: format singkat "12 Okt 2026"', () {
+      final dt =
+          GateCrewService.parseConcertDateTime('12 Okt 2026', '19:00');
+      expect(dt, isNotNull);
+      expect(dt!.year, 2026);
+      expect(dt.month, 10);
+      expect(dt.day, 12);
+    });
+
+    test('parseConcertDateTime: null/kosong mengembalikan null', () {
+      expect(GateCrewService.parseConcertDateTime(null), isNull);
+      expect(GateCrewService.parseConcertDateTime(''), isNull);
+      expect(GateCrewService.parseConcertDateTime('   '), isNull);
+    });
+
+    test('formatCountdown: durasi tepat menampilkan format benar', () {
+      const d = Duration(days: 2, hours: 5, minutes: 30, seconds: 15);
+      final s = formatCountdown(d);
+      expect(s, contains('2 Hari'));
+      expect(s, contains('5 Jam'));
+      expect(s, contains('30 Menit'));
+      expect(s, contains('15 Detik'));
+    });
+
+    test('formatCountdown: kurang dari 1 hari tidak tampilkan Hari', () {
+      const d = Duration(hours: 3, minutes: 20, seconds: 5);
+      final s = formatCountdown(d);
+      expect(s, isNot(contains('Hari')));
+      expect(s, contains('3 Jam'));
+      expect(s, contains('20 Menit'));
+      expect(s, contains('5 Detik'));
+    });
+
+    test('TicketScanValidationResult: isTooEarly default false', () {
+      const r = TicketScanValidationResult(isValid: true, status: 'Berhasil');
+      expect(r.isTooEarly, false);
+      expect(r.scanOpensAt, isNull);
+      expect(r.eventDateTime, isNull);
+      expect(r.timeUntilScanOpens, Duration.zero);
+    });
+
+    test('TicketScanValidationResult: isTooEarly true + timeUntilScanOpens', () {
+      final opensAt = DateTime.now().add(const Duration(hours: 10));
+      final r = TicketScanValidationResult(
+        isValid: false,
+        isTooEarly: true,
+        status: 'Ditolak (Belum Waktunya)',
+        scanOpensAt: opensAt,
+      );
+      expect(r.isTooEarly, true);
+      expect(r.timeUntilScanOpens.inMinutes, greaterThan(0));
+    });
+
+    test('executeCheckIn: ditolak jika isTooEarly', () async {
+      final service = GateCrewService();
+      final opensAt = DateTime.now().add(const Duration(hours: 5));
+      final ticket = TicketScanValidationResult(
+        isValid: false,
+        isTooEarly: true,
+        status: 'Ditolak (Belum Waktunya)',
+        ticketId: 'tck-early',
+        quota: 1,
+        used: 0,
+        scanOpensAt: opensAt,
+      );
+      final result = await service.executeCheckIn(
+        ticket: ticket,
+        countToUse: 1,
+        gateName: 'Gate A',
+        crewId: 'crew-1',
+        crewName: 'Petugas Test',
+        crewEmail: 'test@gate.com',
+        concertTitle: 'Test Concert',
+      );
+      expect(result, false);
     });
   });
 }

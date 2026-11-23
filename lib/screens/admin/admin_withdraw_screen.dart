@@ -35,33 +35,7 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
   bool _isLoading = true;
   bool _isSubmitting = false;
   List<Map<String, dynamic>> _withdrawalHistory = [];
-
-  final List<Map<String, dynamic>> _feeHistory = [
-    {
-      'concert': 'Soundwave Fest 2026',
-      'orderId': 'ORD-20261109-8891',
-      'gross': 1500000,
-      'appFee': 30000,
-      'rounding': 600,
-      'date': 'Hari ini, 14:20 WIB',
-    },
-    {
-      'concert': 'Harmoni Nusantara 2026',
-      'orderId': 'ORD-20261109-7712',
-      'gross': 2800000,
-      'appFee': 56000,
-      'rounding': 800,
-      'date': 'Hari ini, 11:05 WIB',
-    },
-    {
-      'concert': 'Jazz Kota Lama 2026',
-      'orderId': 'ORD-20261108-6623',
-      'gross': 950000,
-      'appFee': 19000,
-      'rounding': 400,
-      'date': 'Kemarin, 19:40 WIB',
-    },
-  ];
+  List<Map<String, dynamic>> _feeHistory = [];
 
   @override
   void initState() {
@@ -82,12 +56,41 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
     final results = await Future.wait([
       PaymentGatewayService().getAdminBalance(),
       PaymentGatewayService().fetchAdminWithdrawalHistory(),
+      PaymentGatewayService().fetchAdminFeeHistory(),
     ]);
 
     if (mounted) {
+      final rawFeeHistory = results[2] as List<Map<String, dynamic>>;
+      final mappedFees = <Map<String, dynamic>>[];
+      for (final f in rawFeeHistory) {
+        final concertTitle = f['concert_title']?.toString() ??
+            f['description']?.toString() ??
+            'Transaksi Tiket Konser';
+        final orderId = f['order_id']?.toString() ?? f['id']?.toString() ?? '-';
+        final gross = (f['gross_amount'] as num?)?.toInt() ?? 0;
+        final appFee = (f['application_fee'] as num?)?.toInt() ??
+            (f['entry_type'] == 'FEE_APLIKASI' ? (f['amount'] as num?)?.toInt() ?? 0 : 0);
+        final rounding = (f['rounding'] as num?)?.toInt() ??
+            (f['entry_type'] == 'PEMBULATAN' ? (f['amount'] as num?)?.toInt() ?? 0 : 0);
+        final rawDt = f['created_at']?.toString() ?? '';
+        final dt = DateTime.tryParse(rawDt)?.toLocal();
+        final dateStr = dt != null
+            ? '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')} WIB'
+            : rawDt;
+        mappedFees.add({
+          'concert': concertTitle,
+          'orderId': orderId,
+          'gross': gross,
+          'appFee': appFee,
+          'rounding': rounding,
+          'date': dateStr,
+        });
+      }
+
       setState(() {
         _balance = results[0] as AdminBalanceResult;
         _withdrawalHistory = results[1] as List<Map<String, dynamic>>;
+        _feeHistory = mappedFees;
         _isLoading = false;
         if (_balance.availableFeeBalance > 0 && _amountController.text.isEmpty) {
           _amountController.text = _formatCurrencyRaw(_balance.availableFeeBalance);
@@ -872,7 +875,18 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        ..._feeHistory.map((h) => Padding(
+                        if (_feeHistory.isEmpty)
+                          AdminCard(
+                            padding: const EdgeInsets.all(18),
+                            child: Center(
+                              child: Text(
+                                'Belum ada riwayat fee transaksi konser dari database.',
+                                style: TextStyle(fontSize: 13, color: textSec),
+                              ),
+                            ),
+                          )
+                        else
+                          ..._feeHistory.map((h) => Padding(
                               padding: const EdgeInsets.only(bottom: 10),
                               child: AdminCard(
                                 padding: const EdgeInsets.all(14),

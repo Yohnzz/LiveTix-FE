@@ -193,12 +193,18 @@ class _AdminRefundMonitoringScreenState
 
   Widget _buildTabContent(
       BuildContext context, List<RefundMonitoringModel> items) {
-    if (_selectedTab != 'Berjalan') {
+    final filtered = items.where((it) {
+      if (_selectedTab == 'Berjalan') return it.status == 'Berjalan';
+      if (_selectedTab == 'Selesai') return it.status == 'Selesai';
+      return it.needDataTickets > 0;
+    }).toList();
+
+    if (filtered.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'Tidak ada refund dengan status ${_selectedTab.toLowerCase()}.',
+            'Tidak ada konser dalam status refund ${_selectedTab.toLowerCase()}.',
             style: TextStyle(
               fontSize: 14,
               color: AdminColors.textSecondaryOf(context),
@@ -211,10 +217,10 @@ class _AdminRefundMonitoringScreenState
 
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      itemCount: items.length,
+      itemCount: filtered.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        final item = items[index];
+        final item = filtered[index];
         return _buildMonitoringCard(context, item);
       },
     );

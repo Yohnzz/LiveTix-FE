@@ -34,6 +34,16 @@ class TicketTierModel {
   bool get isEffectivelySoldOut =>
       isSoldOut || (effectiveTotalQuota > 0 && availableStock <= 0);
 
+  /// Harga tiket all-inclusive (harga awal produser + pajak 10% + biaya aplikasi 2% + pembulatan)
+  /// yang dilihat pembeli di seluruh UI pembelian tiket.
+  int get allInclusivePrice {
+    if (price <= 0) return 0;
+    final tax = (price * 0.10).round();
+    final appFee = (price * 0.02).round();
+    final subtotal = price + tax + appFee;
+    return ((subtotal + 999) ~/ 1000) * 1000;
+  }
+
   TicketTierModel copyWith({
     String? id,
     String? name,
@@ -58,7 +68,21 @@ class TicketTierModel {
     );
   }
 
+  /// Format rupiah harga all-inclusive untuk pembeli (misal: "Rp56.000")
   String get formattedPrice {
+    final buffer = StringBuffer('Rp');
+    final str = allInclusivePrice.toString();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(str[i]);
+    }
+    return buffer.toString();
+  }
+
+  /// Format rupiah harga dasar dari produser (sebelum pajak & biaya aplikasi)
+  String get formattedBasePrice {
     final buffer = StringBuffer('Rp');
     final str = price.toString();
     for (int i = 0; i < str.length; i++) {
@@ -331,9 +355,24 @@ class ConcertModel {
     };
   }
 
+  /// Harga terendah all-inclusive konser untuk ditampilkan ke pembeli
+  int get allInclusivePrice {
+    if (ticketTiers.isNotEmpty) {
+      final available = ticketTiers.where((t) => !t.isEffectivelySoldOut).toList();
+      final listToUse = available.isNotEmpty ? available : ticketTiers;
+      final minPrice = listToUse.map((t) => t.allInclusivePrice).reduce((a, b) => a < b ? a : b);
+      return minPrice;
+    }
+    if (price <= 0) return 0;
+    final tax = (price * 0.10).round();
+    final appFee = (price * 0.02).round();
+    final subtotal = price + tax + appFee;
+    return ((subtotal + 999) ~/ 1000) * 1000;
+  }
+
   String get formattedPrice {
     final buffer = StringBuffer('Rp');
-    final str = price.toString();
+    final str = allInclusivePrice.toString();
     for (int i = 0; i < str.length; i++) {
       if (i > 0 && (str.length - i) % 3 == 0) {
         buffer.write('.');
@@ -344,8 +383,9 @@ class ConcertModel {
   }
 
   String get formattedPriceShort {
-    if (price >= 1000) {
-      final rb = (price / 1000).round();
+    final p = allInclusivePrice;
+    if (p >= 1000) {
+      final rb = (p / 1000).round();
       return 'Rp${rb}rb';
     }
     return formattedPrice;

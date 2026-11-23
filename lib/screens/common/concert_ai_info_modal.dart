@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../core/app_colors.dart';
 import '../../models/concert_model.dart';
 import '../../services/ai_backend_service.dart';
@@ -31,6 +32,7 @@ class ConcertAiInfoModal extends StatefulWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => ConcertAiInfoModal(initialQuery: initialQuery),
     );
@@ -126,7 +128,13 @@ class _ConcertAiInfoModalState extends State<ConcertAiInfoModal> {
   Widget build(BuildContext context) {
     final isDark = AppColors.isDark(context);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final systemBottomPadding = MediaQuery.of(context).viewPadding.bottom;
     final screenHeight = MediaQuery.of(context).size.height;
+
+    // Menghindari tertutup navigation button 3-tombol pada Android
+    final double extraBottomSpace = bottomInset > 0
+        ? 14.0
+        : (systemBottomPadding > 0 ? (systemBottomPadding + 10.0) : 18.0);
 
     final sheetBg = isDark ? const Color(0xFF1E293B) : Colors.white;
     final surfaceColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
@@ -316,9 +324,9 @@ class _ConcertAiInfoModalState extends State<ConcertAiInfoModal> {
               ),
             ),
 
-          // Query Input Box
+          // Query Input Box (terlindungi dari tombol navigasi 3-tombol sistem)
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+            padding: EdgeInsets.fromLTRB(16, 10, 16, extraBottomSpace),
             decoration: BoxDecoration(
               color: sheetBg,
               border: Border(top: BorderSide(color: borderColor)),
@@ -465,12 +473,57 @@ class _ConcertAiInfoModalState extends State<ConcertAiInfoModal> {
               ],
             ),
             const SizedBox(height: 8),
-            SelectableText(
-              msg.text,
-              style: TextStyle(
-                fontSize: 13.5,
-                color: textPrimary,
-                height: 1.45,
+            MarkdownBody(
+              data: msg.text,
+              selectable: true,
+              styleSheet: MarkdownStyleSheet(
+                p: TextStyle(
+                  fontSize: 13.5,
+                  color: textPrimary,
+                  height: 1.45,
+                ),
+                strong: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  height: 1.45,
+                ),
+                em: TextStyle(
+                  fontSize: 13.5,
+                  fontStyle: FontStyle.italic,
+                  color: textPrimary,
+                  height: 1.45,
+                ),
+                listBullet: TextStyle(
+                  fontSize: 13.5,
+                  color: textPrimary,
+                  height: 1.45,
+                ),
+                h1: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+                h2: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+                h3: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+                blockquote: TextStyle(
+                  fontSize: 13,
+                  color: textSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+                code: TextStyle(
+                  fontSize: 12.5,
+                  color: isDark ? const Color(0xFFA5B4FC) : const Color(0xFF4338CA),
+                  backgroundColor: isDark ? const Color(0xFF1E1B4B) : const Color(0xFFEEF2FF),
+                ),
               ),
             ),
 

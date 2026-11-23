@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/promoter_models.dart';
+import '../../services/data_service.dart';
+import '../../services/payment_gateway_service.dart';
 import '../../services/promoter_data_service.dart';
 import 'promoter_income_detail_screen.dart';
 import 'promoter_withdrawal_screen.dart';
@@ -13,6 +15,26 @@ class PromoterFinanceScreen extends StatefulWidget {
 
 class _PromoterFinanceScreenState extends State<PromoterFinanceScreen> {
   String _selectedPeriod = 'Semua Periode';
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshFinanceData();
+  }
+
+  Future<void> _refreshFinanceData() async {
+    final user = DataService().currentUser;
+    if (user != null && user.id.isNotEmpty) {
+      PaymentGatewayService().getPromoterBalance(user.id).then((bal) {
+        if (mounted) {
+          final service = PromoterDataService();
+          service.activeBalanceNotifier.value = bal.availableBalance;
+          service.pendingBalanceNotifier.value = bal.pendingBalance;
+        }
+      });
+    }
+    await PromoterDataService().fetchPromoterConcertsFromSupabase();
+  }
 
   void _showPeriodFilterDialog() {
     showModalBottomSheet(
@@ -79,9 +101,13 @@ class _PromoterFinanceScreenState extends State<PromoterFinanceScreen> {
         final cardBorder =
             isDarkMode ? Colors.white12 : const Color(0xFFE4E7EC);
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
+        return RefreshIndicator(
+          color: const Color(0xFFC2185B),
+          onRefresh: _refreshFinanceData,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Top Bar with Title "Pembayaran" & Sun Theme Icon
@@ -355,7 +381,8 @@ class _PromoterFinanceScreenState extends State<PromoterFinanceScreen> {
               const SizedBox(height: 28),
             ],
           ),
-        );
+        ),
+      );
       },
     );
   }
