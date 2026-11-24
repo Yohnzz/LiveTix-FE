@@ -185,6 +185,21 @@ class ConcertModel {
   /// ID Produser pemilik konser
   final String? producerId;
 
+  /// Nama Produser pemilik konser (misal: "Hindia", "Java Promotor")
+  final String? producerName;
+
+  /// URL Foto Profil Produser
+  final String? producerAvatarUrl;
+
+  /// Deskripsi lengkap konser
+  final String description;
+
+  /// Galeri foto highlight panggung konser (3 foto panggung)
+  final List<String> highlights;
+
+  /// Pesan singkat / badges pada banner (maks 3, maks 15 huruf, misal: ['Festival • 17+', 'Seru!'])
+  final List<String> shortMessages;
+
   /// Warna gradien banner highlight persegi panjang saat produser belum mengunggah foto
   final List<Color> highlightGradientColors;
 
@@ -211,6 +226,11 @@ class ConcertModel {
     this.totalCapacity = 0,
     this.likesCount = 0,
     this.producerId,
+    this.producerName,
+    this.producerAvatarUrl,
+    this.description = '',
+    this.highlights = const [],
+    this.shortMessages = const ['Festival • 17+', 'Seru!'],
     this.highlightGradientColors = const [Color(0xFF271C80), Color(0xFF971C91)],
   });
 
@@ -241,6 +261,11 @@ class ConcertModel {
     int? totalCapacity,
     int? likesCount,
     String? producerId,
+    String? producerName,
+    String? producerAvatarUrl,
+    String? description,
+    List<String>? highlights,
+    List<String>? shortMessages,
     List<Color>? highlightGradientColors,
   }) {
     return ConcertModel(
@@ -269,6 +294,11 @@ class ConcertModel {
       totalCapacity: totalCapacity ?? this.totalCapacity,
       likesCount: likesCount ?? this.likesCount,
       producerId: producerId ?? this.producerId,
+      producerName: producerName ?? this.producerName,
+      producerAvatarUrl: producerAvatarUrl ?? this.producerAvatarUrl,
+      description: description ?? this.description,
+      highlights: highlights ?? this.highlights,
+      shortMessages: shortMessages ?? this.shortMessages,
       highlightGradientColors:
           highlightGradientColors ?? this.highlightGradientColors,
     );
@@ -307,12 +337,49 @@ class ConcertModel {
       iconCol = const Color(0xFF2563EB);
     }
 
+    List<String> parsedHighlights = [];
+    if (json['highlights'] is List) {
+      parsedHighlights = (json['highlights'] as List)
+          .map((e) => e?.toString() ?? '')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+    }
+
+    List<String> parsedShortMessages = [];
+    if (json['short_messages'] is List) {
+      parsedShortMessages = (json['short_messages'] as List)
+          .map((e) => e?.toString() ?? '')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+    } else if (json['shortMessages'] is List) {
+      parsedShortMessages = (json['shortMessages'] as List)
+          .map((e) => e?.toString() ?? '')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+    }
+    if (parsedShortMessages.isEmpty) {
+      parsedShortMessages = const ['Festival • 17+', 'Seru!'];
+    }
+
+    final rawDate = (json['date'] as String?) ?? '';
+    final timeStr = (json['time'] as String?) ?? '19:00 WIB';
+    final cleanDate = rawDate
+        .replaceAll(
+          RegExp(r'(\s*[-–—·•|]\s*\d{1,2}[:.]\d{2}(\s*WIB)?)+',
+              caseSensitive: false),
+          '',
+        )
+        .trim();
+
     return ConcertModel(
       id: (json['id'] as String?) ?? '',
       title: (json['title'] as String?) ?? '',
       subtitle: (json['subtitle'] as String?) ?? '',
-      date: (json['date'] as String?) ?? '',
-      time: (json['time'] as String?) ?? '',
+      date: cleanDate.isNotEmpty ? cleanDate : rawDate,
+      time: timeStr.isNotEmpty ? timeStr : '19:00 WIB',
       venue: (json['venue'] as String?) ?? '',
       price: (json['price'] as num?)?.toInt() ?? 0,
       category: cat,
@@ -331,6 +398,13 @@ class ConcertModel {
           ? (json['likes_count'] as num).toInt()
           : (int.tryParse(json['likes_count']?.toString() ?? '0') ?? 0),
       producerId: json['producer_id'] as String?,
+      producerName: (json['producer_name'] ?? json['producerName']) as String?,
+      producerAvatarUrl: (json['producer_avatar_url'] ??
+              json['producerAvatarUrl'] ??
+              json['producer_avatar']) as String?,
+      description: (json['description'] as String?) ?? '',
+      highlights: parsedHighlights,
+      shortMessages: parsedShortMessages,
     );
   }
 
@@ -352,6 +426,11 @@ class ConcertModel {
       'total_capacity': totalCapacity,
       'likes_count': likesCount,
       if (producerId != null) 'producer_id': producerId,
+      if (producerName != null) 'producer_name': producerName,
+      if (producerAvatarUrl != null) 'producer_avatar_url': producerAvatarUrl,
+      'description': description,
+      'highlights': highlights,
+      'short_messages': shortMessages,
     };
   }
 

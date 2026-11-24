@@ -386,7 +386,7 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: isWideDesktop ? 3 : 2,
-                              mainAxisExtent: 185,
+                              mainAxisExtent: 220,
                               crossAxisSpacing: 14,
                               mainAxisSpacing: 14,
                             ),
@@ -498,12 +498,16 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
       return;
     }
 
-    if (concert.status == ConcertStatus.ditolak) {
+    if (concert.status == ConcertStatus.ditolak ||
+        concert.cancellationStatus == ConcertCancellationStatus.disetujui) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => ConcertStatusDetailScreen(
             concertTitle: concert.title,
+            concertId: concert.id,
+            concert: concert,
+            status: ConcertStatus.ditolak,
           ),
         ),
       );
@@ -754,7 +758,10 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
           dotColor = const Color(0xFFD92D20);
           statusBgColor = const Color(0xFFFEF3F2);
           statusTextColor = const Color(0xFFB42318);
-          statusLabel = 'DITOLAK';
+          statusLabel = (concert.isCancellationApproved ||
+                  concert.cancellationStatus == ConcertCancellationStatus.disetujui)
+              ? 'DIBATALKAN'
+              : 'DITOLAK';
           break;
         case ConcertStatus.draft:
           dotColor = const Color(0xFF475467);
@@ -773,13 +780,19 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
 
     String actionCtaText;
     Color actionCtaColor;
-    if (concert.status == ConcertStatus.disetujui) {
+    if (concert.cancellationStatus == ConcertCancellationStatus.disetujui ||
+        concert.isCancellationApproved ||
+        concert.status == ConcertStatus.ditolak) {
+      actionCtaText = (concert.isCancellationApproved ||
+              concert.cancellationStatus == ConcertCancellationStatus.disetujui)
+          ? 'Detail Pembatalan'
+          : 'Lihat Alasan Penolakan';
+      actionCtaColor = const Color(0xFFD92D20); // Red
+    } else if (concert.status == ConcertStatus.disetujui) {
       actionCtaText = 'Kelola Konser';
       actionCtaColor = const Color(0xFF1B2A8C); // Navy
-    } else if (concert.status == ConcertStatus.ditolak) {
-      actionCtaText = 'Lihat Alasan';
-      actionCtaColor = const Color(0xFFD92D20); // Red
-    } else if (concert.status == ConcertStatus.menunggu) {
+    } else if (concert.status == ConcertStatus.menunggu ||
+        concert.cancellationStatus == ConcertCancellationStatus.menungguAdmin) {
       actionCtaText = 'Pantau Review';
       actionCtaColor = const Color(0xFFD97706); // Amber
     } else {
@@ -794,6 +807,22 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
             context,
             MaterialPageRoute(
               builder: (_) => PromoterManageConcertScreen(concert: concert),
+            ),
+          );
+          return;
+        }
+        if (concert.status == ConcertStatus.ditolak ||
+            concert.cancellationStatus == ConcertCancellationStatus.disetujui ||
+            concert.isCancellationApproved) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ConcertStatusDetailScreen(
+                concertTitle: concert.title,
+                concertId: concert.id,
+                concert: concert,
+                status: ConcertStatus.ditolak,
+              ),
             ),
           );
           return;
@@ -972,7 +1001,7 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
                           const SizedBox(width: 5),
                           Expanded(
                             child: Text(
-                              '${concert.date} · ${concert.time}',
+                              concert.formattedDateTime,
                               style: const TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w600,

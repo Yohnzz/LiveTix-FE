@@ -41,11 +41,8 @@ class _PromoterCancelConcertScreenState
         ? widget.concert.cancellationCategory
         : 'Perizinan';
 
-    final initialReason = widget.concert.cancellationReason.isNotEmpty
-        ? widget.concert.cancellationReason
-        : 'izin keramaian dari kepolisian belum terbit sehingga acara tidak dapat dilaksanakan sesuai jadwal. Kami memutuskan membatalkan konser.';
-
-    _reasonController = TextEditingController(text: initialReason);
+    // Alasan pembatalan default kosong agar produser menulis sendiri
+    _reasonController = TextEditingController(text: '');
     _attachedFileName = widget.concert.cancellationAttachment;
   }
 
@@ -225,6 +222,14 @@ class _PromoterCancelConcertScreenState
                   onPressed: () {
                     Navigator.pop(ctx); // Close modal
 
+                    final now = DateTime.now();
+                    const months = [
+                      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+                      'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'
+                    ];
+                    final dateStr =
+                        '${now.day} ${months[now.month - 1]} ${now.year}, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} WIB';
+
                     // Submit to service
                     PromoterDataService().submitConcertCancellation(
                       concertId: widget.concert.id,
@@ -240,7 +245,7 @@ class _PromoterCancelConcertScreenState
                       cancellationCategory: _selectedCategory,
                       cancellationReason: _reasonController.text.trim(),
                       cancellationAttachment: _attachedFileName,
-                      cancellationSubmissionDate: '19 Okt 2026, 14:02',
+                      cancellationSubmissionDate: dateStr,
                     );
 
                     Navigator.pushReplacement(

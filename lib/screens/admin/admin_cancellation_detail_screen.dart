@@ -25,6 +25,19 @@ class AdminCancellationDetailScreen extends StatelessWidget {
         ? (concert.soldTickets / concert.totalCapacity).clamp(0.0, 1.0)
         : 0.84;
 
+    final isCancelled = concert.status.toLowerCase() == 'cancelled' ||
+        concert.cancellationStatus == 'approved' ||
+        concert.cancellationStatus == 'disetujui' ||
+        concert.approvalStatus == AccountStatus.cancelled;
+    final isCancellationRejected = concert.cancellationStatus == 'rejected' ||
+        concert.cancellationStatus == 'ditolak';
+    final isPendingCancellation = !isCancelled &&
+        !isCancellationRejected &&
+        (concert.cancellationStatus == 'pending' ||
+            concert.approvalStatus == AccountStatus.pending ||
+            concert.status == 'cancellation_pending' ||
+            concert.requestType == 'cancellation');
+
     return AdminScope(
       child: Builder(
         builder: (context) {
@@ -82,7 +95,11 @@ class AdminCancellationDetailScreen extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(999),
                                     ),
                                     child: Text(
-                                      'Pembatalan',
+                                      isCancelled
+                                          ? 'Dibatalkan'
+                                          : (isCancellationRejected
+                                              ? 'Pembatalan Ditolak'
+                                              : 'Pembatalan'),
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
@@ -170,8 +187,9 @@ class AdminCancellationDetailScreen extends StatelessWidget {
                                           ),
                                           const SizedBox(width: 8),
                                           Text(
-                                            concert.cancellationDate ??
-                                                '19 Okt 2026, 14:02',
+                                            concert.cancellationDate?.isNotEmpty == true
+                                                ? concert.cancellationDate!
+                                                : 'Baru saja',
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: textSec,
@@ -181,8 +199,9 @@ class AdminCancellationDetailScreen extends StatelessWidget {
                                       ),
                                       const SizedBox(height: 10),
                                       Text(
-                                        concert.cancellationReason ??
-                                            'Izin keramaian dari kepolisian belum terbit sehingga acara tidak dapat dilaksanakan sesuai jadwal. Kami memutuskan membatalkan konser.',
+                                        concert.cancellationReason?.isNotEmpty == true
+                                            ? concert.cancellationReason!
+                                            : 'Alasan belum diisi oleh produser',
                                         style: TextStyle(
                                           fontSize: 13,
                                           height: 1.5,
@@ -190,26 +209,48 @@ class AdminCancellationDetailScreen extends StatelessWidget {
                                         ),
                                       ),
                                       const SizedBox(height: 12),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: surfaceAlt,
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          border: Border.all(color: border),
-                                        ),
-                                        child: Text(
-                                          'Lampiran: ${concert.attachmentName ?? 'surat_izin_polres.pdf'}',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                            color: accent,
+                                      if (concert.attachmentName?.isNotEmpty == true)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: surfaceAlt,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            border: Border.all(color: border),
+                                          ),
+                                          child: Text(
+                                            'Lampiran: ${concert.attachmentName}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                              color: accent,
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: surfaceAlt,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            border: Border.all(color: border),
+                                          ),
+                                          child: Text(
+                                            'Tidak ada dokumen lampiran',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                              color: textSec,
+                                            ),
                                           ),
                                         ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -416,67 +457,72 @@ class AdminCancellationDetailScreen extends StatelessWidget {
                 ),
               ],
             ),
-            bottomNavigationBar: Container(
-              decoration: BoxDecoration(
-                color: surface,
-                border: Border(top: BorderSide(color: border)),
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-              child: SafeArea(
-                top: false,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        key: const Key('admin_cancellation_reject_button'),
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) =>
-                                  AdminReviewCancellationScreen(concert: concert),
+            bottomNavigationBar: isPendingCancellation
+                ? Container(
+                    decoration: BoxDecoration(
+                      color: surface,
+                      border: Border(top: BorderSide(color: border)),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                    child: SafeArea(
+                      top: false,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              key:
+                                  const Key('admin_cancellation_reject_button'),
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        AdminReviewCancellationScreen(
+                                            concert: concert),
+                                  ),
+                                );
+                              },
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(48),
+                                foregroundColor: dangerCol,
+                                side: BorderSide(color: dangerCol, width: 1.2),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                textStyle: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              child: const Text('Tolak Pembatalan'),
                             ),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                          foregroundColor: dangerCol,
-                          side: BorderSide(color: dangerCol, width: 1.2),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
                           ),
-                          textStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              key: const Key(
+                                  'admin_cancellation_approve_button'),
+                              onPressed: () => _openConfirmationSheet(context),
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(48),
+                                backgroundColor:
+                                    AdminColors.primaryButtonBgOf(context),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                textStyle: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              child: const Text('Setujui Pembatalan'),
+                            ),
                           ),
-                        ),
-                        child: const Text('Tolak Pembatalan'),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        key: const Key('admin_cancellation_approve_button'),
-                        onPressed: () => _openConfirmationSheet(context),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                          backgroundColor:
-                              AdminColors.primaryButtonBgOf(context),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        child: const Text('Setujui Pembatalan'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                  )
+                : null,
           );
         },
       ),

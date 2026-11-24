@@ -40,6 +40,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
   String? _squareLogoDataUrl;
   List<String> _highlights = [];
   List<String> _highlightNames = [];
+  List<String> _shortMessages = ['Festival • 17+', 'Seru!'];
 
   // Step 2 State
   late String _venueName;
@@ -66,12 +67,16 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
     if (editing != null) {
       _nameController = TextEditingController(text: editing.title);
       final dateStr = editing.date;
-      final timeStr = editing.time;
-      final bool alreadyHasTime = timeStr.isNotEmpty && dateStr.contains(timeStr);
+      final timeStr = editing.time.isNotEmpty ? editing.time : '19:00 WIB';
+      final cleanDate = dateStr
+          .replaceAll(
+            RegExp(r'(\s*[-–—·•|]\s*\d{1,2}[:.]\d{2}(\s*WIB)?)+',
+                caseSensitive: false),
+            '',
+          )
+          .trim();
       _dateTimeController = TextEditingController(
-        text: (timeStr.isNotEmpty && !alreadyHasTime)
-            ? '$dateStr - $timeStr'
-            : dateStr,
+        text: cleanDate.isNotEmpty ? '$cleanDate - $timeStr' : dateStr,
       );
       _descriptionController = TextEditingController(text: editing.description);
       _posterFileName = editing.posterFileName;
@@ -80,6 +85,9 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       _squareLogoDataUrl = editing.squareLogoDataUrl;
       _highlights = List<String>.from(editing.highlights);
       _highlightNames = List<String>.from(editing.highlightNames);
+      _shortMessages = editing.shortMessages.isNotEmpty
+          ? List<String>.from(editing.shortMessages)
+          : ['Festival • 17+', 'Seru!'];
       _venueName = editing.venueName;
       _venueAddress = editing.venueAddress;
       _venueSearchQuery = editing.venueName;
@@ -97,6 +105,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       _squareLogoDataUrl = null;
       _highlights = [];
       _highlightNames = [];
+      _shortMessages = ['Festival • 17+', 'Seru!'];
       _venueName = '';
       _venueAddress = '';
       _venueSearchQuery = '';
@@ -399,14 +408,28 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
           : original.title;
       final resolvedVenue =
           _venueName.trim().isNotEmpty ? _venueName.trim() : original.venueName;
-      final resolvedDate = _dateTimeController.text.trim().isNotEmpty
+      final rawDateText = _dateTimeController.text.trim().isNotEmpty
           ? _dateTimeController.text.trim()
           : original.date;
+      final cleanDate = rawDateText
+          .replaceAll(
+            RegExp(r'(\s*[-–—·•|]\s*\d{1,2}[:.]\d{2}(\s*WIB)?)+',
+                caseSensitive: false),
+            '',
+          )
+          .trim();
+      final timeMatch = RegExp(r'(\d{1,2}[:.]\d{2}\s*WIB)', caseSensitive: false)
+          .firstMatch(rawDateText);
+      final resolvedTime = timeMatch != null
+          ? timeMatch.group(1)!
+          : (original.time.isNotEmpty ? original.time : '19:00 WIB');
+      final resolvedDate = cleanDate.isNotEmpty ? cleanDate : rawDateText;
 
       final updatedConcert = original.copyWith(
         title: resolvedTitle,
         dateAndVenue: '$resolvedDate · $resolvedVenue',
         date: resolvedDate,
+        time: resolvedTime,
         venueName: resolvedVenue,
         venueAddress: _venueAddress.trim().isNotEmpty
             ? _venueAddress.trim()
@@ -427,6 +450,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
         highlights: _highlights.isNotEmpty ? _highlights : original.highlights,
         highlightNames:
             _highlightNames.isNotEmpty ? _highlightNames : original.highlightNames,
+        shortMessages: _shortMessages,
         status: ConcertStatus.menunggu,
         tiers: _ticketTiers.isNotEmpty ? _ticketTiers : original.tiers,
       );
@@ -498,9 +522,21 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
         : 'Konser Baru LiveTix';
     final resolvedVenue =
         _venueName.trim().isNotEmpty ? _venueName.trim() : 'Venue Konser';
-    final resolvedDate = _dateTimeController.text.trim().isNotEmpty
+    final rawNewDate = _dateTimeController.text.trim().isNotEmpty
         ? _dateTimeController.text.trim()
         : 'Jadwal Segera Diumumkan';
+    final cleanNewDate = rawNewDate
+        .replaceAll(
+          RegExp(r'(\s*[-–—·•|]\s*\d{1,2}[:.]\d{2}(\s*WIB)?)+',
+              caseSensitive: false),
+          '',
+        )
+        .trim();
+    final newTimeMatch = RegExp(r'(\d{1,2}[:.]\d{2}\s*WIB)', caseSensitive: false)
+        .firstMatch(rawNewDate);
+    final resolvedNewTime =
+        newTimeMatch != null ? newTimeMatch.group(1)! : '19:00 WIB';
+    final resolvedDate = cleanNewDate.isNotEmpty ? cleanNewDate : rawNewDate;
 
     final assignedGates = invitedCrew?.values
             .map((v) => v.trim())
@@ -514,6 +550,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       title: resolvedTitle,
       dateAndVenue: '$resolvedDate · $resolvedVenue',
       date: resolvedDate,
+      time: resolvedNewTime,
       venueName: resolvedVenue,
       venueAddress: _venueAddress.trim(),
       venueLatitude: _venueLatitude,
@@ -528,6 +565,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       squareLogoDataUrl: _squareLogoDataUrl,
       highlights: _highlights,
       highlightNames: _highlightNames,
+      shortMessages: _shortMessages,
       status: ConcertStatus.menunggu,
       likesCount: '0',
       tiers: _ticketTiers,
@@ -597,6 +635,8 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
           squareLogoDataUrl: _squareLogoDataUrl,
           highlights: _highlights,
           highlightNames: _highlightNames,
+          shortMessages: _shortMessages,
+          onShortMessagesChanged: (msgs) => setState(() => _shortMessages = msgs),
           onPickPoster: _pickPosterFile,
           onRemovePoster: _removePosterFile,
           onPickSquareLogo: _pickSquareLogoFile,

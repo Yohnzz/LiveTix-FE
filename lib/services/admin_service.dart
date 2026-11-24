@@ -761,7 +761,18 @@ class AdminService {
       producersNotifier.value.where((p) => p.approvalStatus == status).length;
 
   int get pendingConcertCount => concertsNotifier.value
-      .where((c) => c.approvalStatus == AccountStatus.pending)
+      .where((c) {
+        final isCancelled = c.status.toLowerCase() == 'cancelled' ||
+            c.cancellationStatus == 'approved' ||
+            c.cancellationStatus == 'disetujui' ||
+            c.approvalStatus == AccountStatus.cancelled;
+        final isRejected = c.cancellationStatus == 'rejected' ||
+            c.cancellationStatus == 'ditolak';
+        if (isCancelled || isRejected) return false;
+        return c.approvalStatus == AccountStatus.pending ||
+            c.cancellationStatus == 'pending' ||
+            c.status == 'cancellation_pending';
+      })
       .length;
 
   int get pendingGateCrewCount => GateCrewService()
@@ -773,8 +784,8 @@ class AdminService {
   int get pendingTotal =>
       pendingProducerCount + pendingConcertCount + pendingGateCrewCount;
 
-  /// Pengajuan menunggu, yang terbaru di atas.
-  List<ApprovalQueueItem> recentPending({int limit = 2}) {
+  /// Pengajuan menunggu dan status approval terkini, yang terbaru di atas.
+  List<ApprovalQueueItem> recentPending({int limit = 5}) {
     final items = <ApprovalQueueItem>[
       for (final p in producersNotifier.value)
         if (p.approvalStatus == AccountStatus.pending)
@@ -785,15 +796,35 @@ class AdminService {
                 ? '${p.companyName} → ${p.pendingName}'
                 : p.companyName,
             submittedAt: p.submittedAt,
+            approvalStatus: p.approvalStatus,
+            promoterName: p.companyName,
           ),
       for (final c in concertsNotifier.value)
-        if (c.approvalStatus == AccountStatus.pending)
-          ApprovalQueueItem(
-            kind: ApprovalKind.concert,
-            id: c.id,
-            title: c.title,
-            submittedAt: c.submittedAt,
-          ),
+        if ((c.status.toLowerCase() != 'cancelled' &&
+                c.cancellationStatus != 'approved' &&
+                c.cancellationStatus != 'disetujui' &&
+                c.approvalStatus != AccountStatus.cancelled) &&
+            (c.cancellationStatus != 'rejected' &&
+                c.cancellationStatus != 'ditolak'))
+          if (c.approvalStatus == AccountStatus.pending ||
+              c.requestType == 'cancellation' ||
+              c.cancellationStatus == 'pending' ||
+              c.status == 'cancellation_pending')
+            ApprovalQueueItem(
+              kind: ApprovalKind.concert,
+              id: c.id,
+              title: c.title,
+              submittedAt: c.submittedAt,
+              approvalStatus: AccountStatus.pending,
+              requestType: (c.requestType == 'cancellation' ||
+                      c.cancellationStatus == 'pending' ||
+                      c.status == 'cancellation_pending')
+                  ? 'cancellation'
+                  : c.requestType,
+              promoterName: c.promoterName,
+              cancellationDate: c.cancellationDate,
+              concert: c,
+            ),
     ]..sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
     return items.take(limit).toList();
   }
@@ -1694,7 +1725,8 @@ class AdminService {
     if (current == null) return null;
     final updated = current.copyWith(
       status: 'cancelled',
-      approvalStatus: AccountStatus.approved,
+      approvalStatus: AccountStatus.cancelled,
+      cancellationStatus: 'approved',
     );
     _replaceConcert(updated);
     final stats = statsNotifier.value;
@@ -1715,6 +1747,14 @@ class AdminService {
           .eq('id', id)
           .catchError((err) {
             debugPrint('Error approve cancellation in Supabase: $err');
+          });
+      // Sinkronkan seluruh tiket penonton menjadi DIBATALKAN
+      SupabaseService.client
+          .from('tickets')
+          .update({'status': 'DIBATALKAN'})
+          .eq('concert_id', id)
+          .catchError((err) {
+            debugPrint('Error update tickets to DIBATALKAN: $err');
           });
       _recomputeRefundsFromConcerts(concertsNotifier.value);
       _rebuildNotificationsFromDatabase();

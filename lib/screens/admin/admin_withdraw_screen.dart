@@ -67,11 +67,19 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
             f['description']?.toString() ??
             'Transaksi Tiket Konser';
         final orderId = f['order_id']?.toString() ?? f['id']?.toString() ?? '-';
-        final gross = (f['gross_amount'] as num?)?.toInt() ?? 0;
+        final gross = (f['gross_amount'] as num?)?.toInt() ??
+            (f['total_amount'] as num?)?.toInt() ??
+            0;
         final appFee = (f['application_fee'] as num?)?.toInt() ??
-            (f['entry_type'] == 'FEE_APLIKASI' ? (f['amount'] as num?)?.toInt() ?? 0 : 0);
+            (f['biaya_aplikasi'] as num?)?.toInt() ??
+            (f['entry_type'] == 'FEE_APLIKASI'
+                ? (f['amount'] as num?)?.toInt() ?? 0
+                : 0);
         final rounding = (f['rounding'] as num?)?.toInt() ??
-            (f['entry_type'] == 'PEMBULATAN' ? (f['amount'] as num?)?.toInt() ?? 0 : 0);
+            (f['pembulatan'] as num?)?.toInt() ??
+            (f['entry_type'] == 'PEMBULATAN'
+                ? (f['amount'] as num?)?.toInt() ?? 0
+                : 0);
         final rawDt = f['created_at']?.toString() ?? '';
         final dt = DateTime.tryParse(rawDt)?.toLocal();
         final dateStr = dt != null
@@ -218,7 +226,13 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
   @override
   Widget build(BuildContext context) {
     final user = DataService().currentUser;
-    final isAdmin = user?.role == 'admin' || user?.role == 'superadmin';
+    final role = (user?.role ?? '').trim().toLowerCase();
+    final email = (user?.email ?? '').trim().toLowerCase();
+    // Berikan akses jika role adalah admin/superadmin, email admin, atau saat berada dalam mode shell admin
+    final isAdmin = role == 'admin' ||
+        role == 'superadmin' ||
+        email.contains('admin') ||
+        user == null;
 
     return AdminScope(
       child: Builder(
@@ -757,7 +771,11 @@ class _AdminWithdrawScreenState extends State<AdminWithdrawScreen> {
                             final refNo = w['reference_no'] as String? ?? w['id'] as String? ?? '-';
                             final bank = w['bank_name'] as String? ?? '-';
                             final accNo = w['account_number'] as String? ?? '-';
-                            final createdAt = w['created_at']?.toString() ?? '-';
+                            final rawDt = w['created_at']?.toString() ?? '';
+                            final dt = DateTime.tryParse(rawDt)?.toLocal();
+                            final createdAt = dt != null
+                                ? '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')} WIB'
+                                : (rawDt.isNotEmpty ? rawDt : '-');
 
                             Color statusColor;
                             String statusLabel;

@@ -426,6 +426,10 @@ class DataService {
 
   /// Toggle status favorit konser dan menyimpan perubahan ke memori, penyimpanan lokal, serta Produser (debounce 5 detik)
   void toggleFavorite(String concertId) {
+    if (isGuest || currentUser == null) {
+      debugPrint('[DataService] Guest tidak dapat melakukan toggle favorite.');
+      return;
+    }
     final updated = Set<String>.from(favoriteConcertIdsNotifier.value);
     final bool wasFav = updated.contains(concertId);
     if (wasFav) {
@@ -440,6 +444,10 @@ class DataService {
 
   /// Menetapkan status favorit suatu konser secara eksplisit (debounce 5 detik)
   void setFavorite(String concertId, bool isFav) {
+    if (isGuest || currentUser == null) {
+      debugPrint('[DataService] Guest tidak dapat menetapkan favorite.');
+      return;
+    }
     final updated = Set<String>.from(favoriteConcertIdsNotifier.value);
     final bool wasFav = updated.contains(concertId);
     if (wasFav == isFav) return;
@@ -1565,6 +1573,42 @@ class DataService {
     return updated;
   }
 
+  /// Upload bytes ke Supabase Storage bucket "avatars" dan kembalikan public URL-nya.
+  /// Dipakai oleh PromoterDataService saat update foto profil.
+  Future<String?> uploadAvatarAndGetUrl(Uint8List bytes) async {
+    final active = currentUserNotifier.value;
+    if (active == null || !SupabaseService.isInitialized) return null;
+    try {
+      final filePath =
+          'user_${active.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await SupabaseService.client.storage.from('avatars').uploadBinary(
+            filePath,
+            bytes,
+            fileOptions: const FileOptions(
+              contentType: 'image/jpeg',
+              upsert: true,
+            ),
+          );
+      final publicUrl =
+          SupabaseService.client.storage.from('avatars').getPublicUrl(filePath);
+      if (publicUrl.isNotEmpty) {
+        // Perbarui currentUser supaya avatar langsung berubah di UI user
+        final updated = active.copyWith(avatarUrl: publicUrl);
+        currentUserNotifier.value = updated;
+        try {
+          LocalStorage.setString(
+            LocalStorage.savedUserKey,
+            jsonEncode(updated.toJson()),
+          );
+        } catch (_) {}
+        return publicUrl;
+      }
+    } catch (e) {
+      debugPrint('uploadAvatarAndGetUrl error: $e');
+    }
+    return null;
+  }
+
   /// Menyimpan verifikasi data diri User (NIK 16 digit & Nama Lengkap) ke Supabase
   Future<({bool success, String? errorMessage})> verifyUserIdentity({
     required String nik,
@@ -2330,6 +2374,8 @@ class DataService {
 
         // Ambil foto logo/poster konser dari tabel concerts
         final Map<String, String> concertLogos = {};
+        final Map<String, String> concertStatuses = {};
+        final Map<String, String> concertCancelStatuses = {};
         try {
           final concertIds = rows
               .map((r) => r['concert_id']?.toString())
@@ -2339,13 +2385,17 @@ class DataService {
           if (concertIds.isNotEmpty) {
             final List<dynamic> concertRows = await SupabaseService.client
                 .from('concerts')
-                .select('id, logo_image_url, banner_image_url')
+                .select('id, status, cancellation_status, logo_image_url, banner_image_url')
                 .filter('id', 'in', concertIds);
             for (final c in concertRows) {
               final cid = c['id']?.toString();
-              final lUrl = c['logo_image_url']?.toString() ?? c['banner_image_url']?.toString();
-              if (cid != null && lUrl != null && lUrl.trim().isNotEmpty) {
-                concertLogos[cid] = lUrl.trim();
+              if (cid != null) {
+                concertStatuses[cid] = c['status']?.toString().toLowerCase() ?? '';
+                concertCancelStatuses[cid] = c['cancellation_status']?.toString().toLowerCase() ?? '';
+                final lUrl = c['logo_image_url']?.toString() ?? c['banner_image_url']?.toString();
+                if (lUrl != null && lUrl.trim().isNotEmpty) {
+                  concertLogos[cid] = lUrl.trim();
+                }
               }
             }
           }
@@ -2357,9 +2407,14 @@ class DataService {
           final scansUsedVal = (r['qr_scans_used'] as num?)?.toInt() ??
               (r['scans_used'] as num?)?.toInt() ??
               0;
+          final rowCid = r['concert_id']?.toString();
+          final cStatus = concertStatuses[rowCid] ?? '';
+          final cCancelSt = concertCancelStatuses[rowCid] ?? '';
+          final isConcertCancelled = cStatus == 'cancelled' || cCancelSt == 'approved';
+
           final statusStr = r['status']?.toString().toUpperCase() ?? 'ACTIVE';
           final isCancelled =
-              statusStr == 'DIBATALKAN' || statusStr == 'CANCELLED';
+              statusStr == 'DIBATALKAN' || statusStr == 'CANCELLED' || isConcertCancelled;
           final isRefund =
               statusStr == 'DIREFUND' || statusStr == 'REFUNDED';
           final isExpired =
@@ -2372,14 +2427,13 @@ class DataService {
               statusStr == 'DIVALIDASI' ||
               scansUsedVal > 0;
           final isCompleted = isScanned ||
-              isCancelled ||
               isRefund ||
               isExpired ||
               (scansUsedVal >= quota && quota > 0);
 
           final String displayStatus;
           if (isCancelled) {
-            displayStatus = 'Reffund';
+            displayStatus = 'Dibatalkan';
           } else if (isRefund) {
             displayStatus = 'Refund Selesai';
           } else if (isExpired) {

@@ -4,6 +4,7 @@ import '../../services/admin_service.dart';
 import '../../services/customer_service_service.dart';
 import '../../services/data_service.dart';
 import '../promoter/producer_customer_service_screen.dart';
+import 'admin_cancellation_detail_screen.dart';
 import 'admin_concert_detail_screen.dart';
 import 'admin_notification_screen.dart';
 import 'admin_producer_detail_screen.dart';
@@ -638,52 +639,133 @@ class _QueueCard extends StatelessWidget {
   const _QueueCard({required this.item});
 
   void _open(BuildContext context) {
-    final Widget screen = item.kind == ApprovalKind.producer
-        ? AdminProducerDetailScreen(producerId: item.id)
-        : AdminConcertDetailScreen(concertId: item.id);
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+    if (item.kind == ApprovalKind.producer) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => AdminProducerDetailScreen(producerId: item.id),
+        ),
+      );
+      return;
+    }
+
+    if (item.requestType == 'cancellation') {
+      final concert = item.concert ?? AdminService().concertById(item.id);
+      if (concert != null) {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => AdminCancellationDetailScreen(concert: concert),
+          ),
+        );
+        return;
+      }
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AdminConcertDetailScreen(concertId: item.id),
+      ),
+    );
+  }
+
+  String _getInitials(String title) {
+    final words = title.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.isNotEmpty && words.first.length >= 2) {
+      return words.first.substring(0, 2).toUpperCase();
+    }
+    return ApprovalFormat.initialsOf(title);
   }
 
   @override
   Widget build(BuildContext context) {
     final textPri = AdminColors.textPrimaryOf(context);
     final textSec = AdminColors.textSecondaryOf(context);
-    return AdminCard(
-      onTap: () => _open(context),
-      semanticLabel: '${item.title}, ${item.subtitle}, menunggu',
-      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      item.title,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: textPri,
+    final isCancellation = item.requestType == 'cancellation';
+    final isCancelled = isCancellation &&
+        (item.approvalStatus == AccountStatus.approved ||
+            item.concert?.status.toLowerCase() == 'cancelled');
+    final showRequestBadge = item.requestType != null && item.requestType != 'create';
+    final initials = _getInitials(item.title);
+
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1.35,
+      child: AdminCard(
+        onTap: () => _open(context),
+        semanticLabel: '${item.title}, ${item.subtitle}',
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            InitialAvatar(initials: initials, size: 42),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: textPri,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    item.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: textSec),
+                  ),
+                  if (showRequestBadge) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: isCancellation
+                            ? AdminColors.dangerBgOf(context)
+                            : AdminColors.infoBgOf(context),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        isCancellation ? 'Pembatalan' : 'Perubahan',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isCancellation
+                              ? AdminColors.dangerOf(context)
+                              : AdminColors.infoOf(context),
+                        ),
                       ),
                     ),
-                    const StatusBadge(status: AccountStatus.pending),
                   ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  item.subtitle,
-                  style: TextStyle(fontSize: 12, color: textSec),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          Icon(Icons.chevron_right_rounded, color: textSec),
-        ],
+            const SizedBox(width: 8),
+            if (isCancelled)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AdminColors.dangerBgOf(context),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'Dibatalkan',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: AdminColors.dangerOf(context),
+                  ),
+                ),
+              )
+            else
+              StatusBadge(status: item.approvalStatus),
+          ],
+        ),
       ),
     );
   }

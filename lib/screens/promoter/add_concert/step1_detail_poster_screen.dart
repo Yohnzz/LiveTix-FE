@@ -15,6 +15,8 @@ class Step1DetailPosterScreen extends StatelessWidget {
   final String? squareLogoDataUrl;
   final List<String> highlights;
   final List<String> highlightNames;
+  final List<String> shortMessages;
+  final ValueChanged<List<String>>? onShortMessagesChanged;
   final VoidCallback onPickPoster;
   final VoidCallback onRemovePoster;
   final VoidCallback onPickSquareLogo;
@@ -37,6 +39,8 @@ class Step1DetailPosterScreen extends StatelessWidget {
     this.squareLogoDataUrl,
     this.highlights = const [],
     this.highlightNames = const [],
+    this.shortMessages = const ['Festival • 17+', 'Seru!'],
+    this.onShortMessagesChanged,
     required this.onPickPoster,
     required this.onRemovePoster,
     required this.onPickSquareLogo,
@@ -260,7 +264,28 @@ class Step1DetailPosterScreen extends StatelessWidget {
 
               const SizedBox(height: 22),
 
-              // Form Field 4: GAMBAR LOGO PERSEGI (1:1)
+              // Form Field 4: PESAN SINGKAT / BADGES BANNER (MAKS 3)
+              _buildFieldLabel('PESAN SINGKAT / BADGES BANNER (MAKS 3) *', labelColor),
+              const SizedBox(height: 4),
+              Text(
+                'Badge informasi singkat di atas judul banner konser (maksimal 3 badge, maksimal 15 huruf per badge).',
+                style: TextStyle(fontSize: 11.5, color: subtextColor),
+              ),
+              const SizedBox(height: 10),
+              _ShortMessagesSection(
+                initialMessages: shortMessages,
+                onChanged: onShortMessagesChanged ?? (_) {},
+                isDarkMode: isDarkMode,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                fieldBg: fieldBg,
+                fieldBorder: fieldBorder,
+                cardBg: cardBg,
+              ),
+
+              const SizedBox(height: 22),
+
+              // Form Field 5: GAMBAR LOGO PERSEGI (1:1)
               _buildFieldLabel('GAMBAR LOGO PERSEGI (1:1) *', labelColor),
               const SizedBox(height: 4),
               Text(
@@ -1211,6 +1236,262 @@ class _AiDescriptionFieldState extends State<_AiDescriptionField> {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _ShortMessagesSection extends StatefulWidget {
+  final List<String> initialMessages;
+  final ValueChanged<List<String>> onChanged;
+  final bool isDarkMode;
+  final Color textColor;
+  final Color subtextColor;
+  final Color fieldBg;
+  final Color fieldBorder;
+  final Color cardBg;
+
+  const _ShortMessagesSection({
+    required this.initialMessages,
+    required this.onChanged,
+    required this.isDarkMode,
+    required this.textColor,
+    required this.subtextColor,
+    required this.fieldBg,
+    required this.fieldBorder,
+    required this.cardBg,
+  });
+
+  @override
+  State<_ShortMessagesSection> createState() => _ShortMessagesSectionState();
+}
+
+class _ShortMessagesSectionState extends State<_ShortMessagesSection> {
+  late List<TextEditingController> _controllers;
+
+  @override
+  void initState() {
+    super.initState();
+    final source = widget.initialMessages.isNotEmpty
+        ? widget.initialMessages.take(3).toList()
+        : ['Festival • 17+', 'Seru!'];
+    _controllers = source.map((m) => TextEditingController(text: m)).toList();
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _notifyChange() {
+    final list = _controllers
+        .map((c) => c.text.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    widget.onChanged(list.isNotEmpty ? list : ['Festival • 17+', 'Seru!']);
+    setState(() {});
+  }
+
+  void _addMessage() {
+    if (_controllers.length >= 3) return;
+    setState(() {
+      _controllers.add(TextEditingController());
+    });
+    _notifyChange();
+  }
+
+  void _removeMessage(int index) {
+    if (_controllers.length <= 1) return;
+    setState(() {
+      final removed = _controllers.removeAt(index);
+      removed.dispose();
+    });
+    _notifyChange();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentValues = _controllers
+        .map((c) => c.text.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Daftar input pesan singkat (maks 3)
+        ...List.generate(_controllers.length, (index) {
+          final ctrl = _controllers[index];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: widget.fieldBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: widget.fieldBorder),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                    child: Row(
+                      children: [
+                        Text(
+                          '#${index + 1}',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1B2A8C),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: ctrl,
+                            maxLength: 15,
+                            onChanged: (_) => _notifyChange(),
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              color: widget.textColor,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: index == 0
+                                  ? 'Contoh: Festival • 17+'
+                                  : (index == 1 ? 'Contoh: Seru!' : 'Contoh: Outdoor'),
+                              hintStyle: TextStyle(
+                                fontSize: 13,
+                                color: widget.subtextColor.withValues(alpha: 0.6),
+                              ),
+                              border: InputBorder.none,
+                              counterText: '',
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                        ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: ctrl,
+                          builder: (context, val, _) {
+                            final len = val.text.characters.length;
+                            return Text(
+                              '$len/15',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: len >= 15
+                                    ? Colors.red
+                                    : widget.subtextColor.withValues(alpha: 0.7),
+                                fontWeight: len >= 15 ? FontWeight.w700 : FontWeight.w500,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (_controllers.length > 1) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Colors.redAccent),
+                    onPressed: () => _removeMessage(index),
+                    tooltip: 'Hapus pesan singkat',
+                  ),
+                ],
+              ],
+            ),
+          );
+        }),
+
+        // Tombol Tambah Pesan Singkat (jika < 3)
+        if (_controllers.length < 3)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _addMessage,
+              icon: const Icon(Icons.add_rounded, size: 18, color: Color(0xFF1B2A8C)),
+              label: Text(
+                'Tambah Pesan Singkat (${_controllers.length}/3)',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1B2A8C),
+                ),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: const Color(0xFF1B2A8C).withValues(alpha: 0.3)),
+                ),
+              ),
+            ),
+          ),
+
+        // Live Preview Badges di Banner
+        if (currentValues.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: widget.isDarkMode
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: widget.fieldBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pratinjau Badge pada Banner Konser:',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: widget.subtextColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: List.generate(currentValues.length, (idx) {
+                    final msg = currentValues[idx];
+                    final icon = idx == 0
+                        ? Icons.star_rounded
+                        : (idx == 1 ? Icons.local_fire_department_rounded : Icons.campaign_rounded);
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFBBF24), // Warm yellow from design
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(icon, size: 13, color: const Color(0xFF1E1B4B)),
+                          const SizedBox(width: 4),
+                          Text(
+                            msg,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1E1B4B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

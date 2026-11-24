@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide LocalStorage;
 import '../models/approval_models.dart';
@@ -71,6 +72,40 @@ class PromoterDataService {
   List<PromoterConcertItem> get activeConcerts =>
       concertsNotifier.value.where((c) => !c.isCompleted).toList();
 
+  /// Upload foto profil dari bytes (hasil pick dari device) ke Supabase Storage
+  /// kemudian sinkron URL ke `profiles` dan `concerts`.
+  Future<void> updateProfilePhotoWithBytes(Uint8List bytes) async {
+    final photoUrl =
+        await DataService().uploadAvatarAndGetUrl(bytes) ?? avatarUrlNotifier.value;
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      avatarUrlNotifier.value = photoUrl;
+      await _syncProducerAvatarToDatabase(photoUrl);
+    }
+  }
+
+  /// Sinkronkan URL foto profil ke tabel `profiles` dan semua konser milik produser ini.
+  Future<void> _syncProducerAvatarToDatabase(String photoUrl) async {
+    final uid = DataService().currentUser?.id;
+    if (uid == null || !SupabaseService.isInitialized) return;
+    try {
+      await SupabaseService.client
+          .from('profiles')
+          .update({'url_foto': photoUrl, 'avatar_url': photoUrl})
+          .eq('id', uid);
+    } catch (e) {
+      debugPrint('Error sync avatar ke profiles: $e');
+    }
+    try {
+      await SupabaseService.client
+          .from('concerts')
+          .update({'producer_avatar_url': photoUrl})
+          .eq('producer_id', uid);
+    } catch (e) {
+      debugPrint('Error sync avatar ke concerts: $e');
+    }
+  }
+
+  /// @deprecated – hanya disisakan agar call lama di dialog tidak error.
   Future<void> updateProfilePhotoDirectly(String fileName) async {
     avatarUrlNotifier.value = fileName;
     DataService().updateProfile(avatarUrl: fileName);
@@ -202,6 +237,8 @@ class PromoterDataService {
         return 'NONAKTIF';
       case AccountStatus.rejected:
         return 'DITOLAK';
+      case AccountStatus.cancelled:
+        return 'DIBATALKAN';
     }
   }
 
@@ -331,10 +368,9 @@ class PromoterDataService {
         refundDoneCount: 0,
         refundProcessingCount: 0,
         refundPendingAccountCount: 0,
-        cancellationSubmissionDate: '19 Okt 2026, 14:02',
-        cancellationApprovalDate: '20 Okt 2026, 09:15',
-        cancellationReason:
-            'Izin keramaian dari kepolisian belum terbit sehingga acara tidak dapat dilaksanakan sesuai jadwal. Kami memutuskan membatalkan konser.',
+        cancellationSubmissionDate: '',
+        cancellationApprovalDate: '',
+        cancellationReason: '',
         tiers: [
           PromoterTicketTier(
             id: 't1',
@@ -467,7 +503,7 @@ class PromoterDataService {
         final cap = c.totalCapacity > 0 ? c.totalCapacity : 5000;
         final sold = c.ticketsSold;
         final gross = c.resolvedGrossRevenue;
-        final fee = (gross * 0.05).round();
+        final fee = (gross * 0.02).round();
         final net = gross - fee;
         summaries.add(
           PromoterConcertFinanceSummary(
@@ -476,7 +512,7 @@ class PromoterDataService {
             ticketsSold: sold,
             totalCapacity: cap,
             grossAmount: gross,
-            systemFeePercent: 5.0,
+            systemFeePercent: 2.0,
             systemFeeAmount: fee,
             netAmount: net,
             payoutStatus: c.isCompleted ? 'Payout Selesai' : 'Aktif Berjalan',
@@ -515,6 +551,12 @@ class PromoterDataService {
             (profileRow['name'] ?? profileRow['full_name'])?.toString();
         if (name != null && name.trim().isNotEmpty) {
           promoterNameNotifier.value = name.trim();
+        }
+        // ── Avatar ────────────────────────────────────────────────────────
+        final avatarRaw =
+            (profileRow['url_foto'] ?? profileRow['avatar_url'])?.toString();
+        if (avatarRaw != null && avatarRaw.trim().isNotEmpty) {
+          avatarUrlNotifier.value = avatarRaw.trim();
         }
         final pin = profileRow['pin_code']?.toString();
         if (pin != null && pin.trim().isNotEmpty) {
@@ -944,6 +986,8 @@ class PromoterDataService {
             parsed = parsed.copyWith(
               ticketsSold: actualSold,
               grossRevenue: actualRev,
+              totalRefundAmount: actualRev,
+              affectedBuyersCount: actualSold,
             );
 
             final cachedReason =
@@ -1872,9 +1916,11 @@ class PromoterDataService {
       }
     }
 
+    final producerAvatar = DataService().currentUser?.avatarUrl;
     final concertJson = resolvedConcert.toSupabaseMap(
       promoterId: currentUserId,
       producerName: promoterName,
+      producerAvatarUrl: producerAvatar,
     );
     concertJson['status'] = status;
     concertJson['approval_status'] = approvalStatus;
@@ -2075,6 +2121,14 @@ class PromoterDataService {
     required String reason,
     String? attachmentName,
   }) {
+    final now = DateTime.now();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'
+    ];
+    final dateStr =
+        '${now.day} ${months[now.month - 1]} ${now.year}, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} WIB';
+
     final list = List<PromoterConcertItem>.from(concertsNotifier.value);
     final idx = list.indexWhere((c) => c.id == concertId);
     if (idx != -1) {
@@ -2084,7 +2138,7 @@ class PromoterDataService {
         cancellationCategory: category,
         cancellationReason: reason,
         cancellationAttachment: attachmentName,
-        cancellationSubmissionDate: '19 Okt 2026, 14:02',
+        cancellationSubmissionDate: dateStr,
       );
       concertsNotifier.value = list;
     }
@@ -2099,7 +2153,8 @@ class PromoterDataService {
             'cancellation_category': category,
             'cancellation_reason': reason,
             'cancellation_attachment': attachmentName,
-            'cancellation_date': '19 Okt 2026, 14:02',
+            'cancellation_date': dateStr,
+            'cancelled_at': DateTime.now().toUtc().toIso8601String(),
           })
           .eq('id', concertId)
           .catchError((err) {
@@ -2114,6 +2169,7 @@ class PromoterDataService {
         approvalStatus: AccountStatus.pending,
         requestType: 'cancellation',
         cancellationReason: reason,
+        cancellationDate: dateStr,
         attachmentName: attachmentName,
       );
       adminService.concertsNotifier.value = [
@@ -2172,6 +2228,7 @@ class PromoterDataService {
     if (idx != -1) {
       final old = list[idx];
       list[idx] = old.copyWith(
+        status: ConcertStatus.ditolak,
         cancellationStatus: ConcertCancellationStatus.disetujui,
         cancellationApprovalDate: '20 Okt 2026, 09:15',
       );

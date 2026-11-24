@@ -1,13 +1,16 @@
 import '../../models/user_model.dart';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../services/data_service.dart';
 import '../../services/google_auth_service.dart';
 import '../../services/promoter_data_service.dart';
 import '../../utils/file_picker_helper.dart';
+import '../../utils/photo_picker.dart';
 import '../home/home_screen.dart';
 import 'producer_customer_service_screen.dart';
 import 'promoter_withdrawal_history_screen.dart';
 import 'verification/producer_verification_flow.dart';
+import 'widgets/concert_image_widget.dart';
 
 class PromoterProfileScreen extends StatefulWidget {
   final VoidCallback? onSwitchToUserMode;
@@ -74,13 +77,22 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
         final cardBorder =
             isDarkMode ? Colors.white12 : const Color(0xFFE4E7EC);
 
-        return ValueListenableBuilder<String>(
-          valueListenable: service.promoterNameNotifier,
-          builder: (context, promoterName, _) {
-            return ValueListenableBuilder<String?>(
-              valueListenable: service.pendingNameChangeNotifier,
-              builder: (context, pendingName, _) {
-                return SingleChildScrollView(
+        return ValueListenableBuilder<String?>(
+          valueListenable: service.avatarUrlNotifier,
+          builder: (context, avatarUrl, _) {
+            final effectiveAvatar =
+                (avatarUrl?.isNotEmpty == true)
+                    ? avatarUrl!
+                    : (DataService().currentUser?.avatarUrl?.isNotEmpty == true
+                        ? DataService().currentUser!.avatarUrl!
+                        : null);
+            return ValueListenableBuilder<String>(
+              valueListenable: service.promoterNameNotifier,
+              builder: (context, promoterName, _) {
+                return ValueListenableBuilder<String?>(
+                  valueListenable: service.pendingNameChangeNotifier,
+                  builder: (context, pendingName, _) {
+                    return SingleChildScrollView(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   child: Column(
@@ -156,22 +168,30 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
                                   onTap: () => _pickProfilePhoto(context),
                                   child: Stack(
                                     children: [
-                                      Container(
-                                        width: 58,
-                                        height: 58,
-                                        decoration: const BoxDecoration(
-                                          color: Color(0xFFF3E8FF),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            service.promoterInitials,
-                                            style: const TextStyle(
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.w800,
-                                              color: Color(0xFF7E22CE),
-                                            ),
-                                          ),
+                                      ClipOval(
+                                        child: SizedBox(
+                                          width: 58,
+                                          height: 58,
+                                          child: effectiveAvatar != null
+                                              ? ConcertImageWidget(
+                                                  imageSource: effectiveAvatar,
+                                                  fit: BoxFit.cover,
+                                                  fallbackIcon: Icons.person_rounded,
+                                                  fallbackLabel: service.promoterInitials,
+                                                )
+                                              : Container(
+                                                  color: const Color(0xFFF3E8FF),
+                                                  child: Center(
+                                                    child: Text(
+                                                      service.promoterInitials,
+                                                      style: const TextStyle(
+                                                        fontSize: 20,
+                                                        fontWeight: FontWeight.w800,
+                                                        color: Color(0xFF7E22CE),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
                                         ),
                                       ),
                                       Positioned(
@@ -650,19 +670,21 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
             );
           },
         );
+          },
+        );
       },
     );
   }
 
   Future<void> _pickProfilePhoto(BuildContext context) async {
-    final picked = await pickNativeFile();
-    if (picked == null || !context.mounted) return;
-    await PromoterDataService().updateProfilePhotoDirectly(picked);
+    final bytes = await PhotoPicker.pickImageBytes();
+    if (bytes == null || !context.mounted) return;
+    await PromoterDataService().updateProfilePhotoWithBytes(bytes);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Foto profil berhasil diperbarui ($picked).'),
-        backgroundColor: const Color(0xFF039855),
+      const SnackBar(
+        content: Text('Foto profil berhasil diperbarui.'),
+        backgroundColor: Color(0xFF039855),
       ),
     );
   }
@@ -673,6 +695,8 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
     final oldPassCtrl = TextEditingController();
     final newPassCtrl = TextEditingController();
     String? selectedPhoto = service.avatarUrlNotifier.value;
+    // bytes dari picker — null jika belum dipilih di sesi dialog ini
+    Uint8List? pickedBytes;
 
     showDialog<void>(
       context: context,
@@ -699,15 +723,31 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
                   // Foto Profil (Langsung berubah)
                   Row(
                     children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: const Color(0xFFF3E8FF),
-                        child: Text(
-                          service.promoterInitials,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF7E22CE),
-                          ),
+                      ClipOval(
+                        child: SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: pickedBytes != null
+                              ? Image.memory(pickedBytes!, fit: BoxFit.cover)
+                              : (selectedPhoto?.isNotEmpty == true
+                                  ? ConcertImageWidget(
+                                      imageSource: selectedPhoto!,
+                                      fit: BoxFit.cover,
+                                      fallbackIcon: Icons.person_rounded,
+                                      fallbackLabel: service.promoterInitials,
+                                    )
+                                  : Container(
+                                      color: const Color(0xFFF3E8FF),
+                                      child: Center(
+                                        child: Text(
+                                          service.promoterInitials,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            color: Color(0xFF7E22CE),
+                                          ),
+                                        ),
+                                      ),
+                                    )),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -724,7 +764,9 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
                               ),
                             ),
                             Text(
-                              selectedPhoto ?? 'Belum ada foto baru dipilih',
+                              pickedBytes != null
+                                  ? 'Foto baru dipilih'
+                                  : (selectedPhoto ?? 'Belum ada foto'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -737,9 +779,12 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
                       ),
                       TextButton(
                         onPressed: () async {
-                          final file = await pickNativeFile();
-                          if (file != null) {
-                            setDialogState(() => selectedPhoto = file);
+                          final bytes = await PhotoPicker.pickImageBytes();
+                          if (bytes != null) {
+                            setDialogState(() {
+                              pickedBytes = bytes;
+                              selectedPhoto = 'foto_baru';
+                            });
                           }
                         },
                         child: const Text('Pilih Foto'),
@@ -838,7 +883,10 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
                 ),
                 onPressed: () async {
                   final messages = <String>[];
-                  if (selectedPhoto != null &&
+                  if (pickedBytes != null) {
+                    await service.updateProfilePhotoWithBytes(pickedBytes!);
+                    messages.add('Foto profil diperbarui');
+                  } else if (selectedPhoto != null &&
                       selectedPhoto != service.avatarUrlNotifier.value) {
                     await service.updateProfilePhotoDirectly(selectedPhoto!);
                     messages.add('Foto profil diperbarui');

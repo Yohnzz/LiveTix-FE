@@ -10,7 +10,8 @@ enum AccountStatus {
   pending('pending', 'Menunggu', 'Menunggu persetujuan'),
   approved('approved', 'Disetujui', 'Disetujui'),
   rejected('rejected', 'Ditolak', 'Ditolak'),
-  nonaktif('nonaktif', 'Nonaktif', 'Dinonaktifkan');
+  nonaktif('nonaktif', 'Nonaktif', 'Dinonaktifkan'),
+  cancelled('cancelled', 'Dibatalkan', 'Dibatalkan');
 
   const AccountStatus(this.value, this.label, this.description);
 
@@ -36,6 +37,11 @@ enum AccountStatus {
       case 'rejected':
       case 'ditolak':
         return AccountStatus.rejected;
+      case 'cancelled':
+      case 'canceled':
+      case 'dibatalkan':
+      case 'batal':
+        return AccountStatus.cancelled;
       case 'nonaktif':
       case 'deactivated':
       case 'inactive':
@@ -72,6 +78,7 @@ enum AccountStatus {
         AccountStatus.approved => Icons.verified_rounded,
         AccountStatus.rejected => Icons.cancel_rounded,
         AccountStatus.nonaktif => Icons.block_rounded,
+        AccountStatus.cancelled => Icons.event_busy_rounded,
       };
 
   /// Warna teks/ikon status.
@@ -80,6 +87,7 @@ enum AccountStatus {
         AccountStatus.approved => const Color(0xFF15803D),
         AccountStatus.rejected => const Color(0xFFB91C1C),
         AccountStatus.nonaktif => const Color(0xFF475467),
+        AccountStatus.cancelled => const Color(0xFFD92D20),
       };
 
   /// Warna latar chip status.
@@ -88,6 +96,7 @@ enum AccountStatus {
         AccountStatus.approved => const Color(0xFFDCFCE7),
         AccountStatus.rejected => const Color(0xFFFEE2E2),
         AccountStatus.nonaktif => const Color(0xFFEAECF0),
+        AccountStatus.cancelled => const Color(0xFFFEE4E2),
       };
 
   /// Alasan yang harus ditampilkan, sesuai status.

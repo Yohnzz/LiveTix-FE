@@ -203,6 +203,7 @@ class PromoterConcertItem {
   final String? squareLogoDataUrl;
   final List<String> highlights;
   final List<String> highlightNames;
+  final List<String> shortMessages;
   final ConcertStatus status;
   final String likesCount;
   final List<PromoterTicketTier> tiers;
@@ -244,6 +245,7 @@ class PromoterConcertItem {
     this.squareLogoDataUrl,
     this.highlights = const [],
     this.highlightNames = const [],
+    this.shortMessages = const ['Festival • 17+', 'Seru!'],
     this.status = ConcertStatus.disetujui,
     this.likesCount = '0',
     this.tiers = const [],
@@ -275,6 +277,23 @@ class PromoterConcertItem {
       (squareLogoDataUrl != null && squareLogoDataUrl!.isNotEmpty)
           ? squareLogoDataUrl!
           : squareLogoFileName;
+
+  /// Tanggal dan waktu yang bersih tanpa pengulangan pola jam
+  String get formattedDateTime {
+    var cleanDate = date.trim();
+    final timePattern = RegExp(
+      r'(\s*[-–—·•|]\s*\d{1,2}[:.]\d{2}(\s*WIB)?)+',
+      caseSensitive: false,
+    );
+    cleanDate = cleanDate.replaceAll(timePattern, '').trim();
+
+    final cleanTime = time.trim().isNotEmpty ? time.trim() : '19:00 WIB';
+
+    if (cleanDate.isNotEmpty) {
+      return '$cleanDate · $cleanTime';
+    }
+    return cleanTime;
+  }
 
   int get numericLikes {
     final cleaned = likesCount.trim().toLowerCase();
@@ -332,9 +351,16 @@ class PromoterConcertItem {
     return '${PromoterTicketTier.formatNumber(ticketsSold)} tiket';
   }
 
+  int get resolvedRefundAmount =>
+      totalRefundAmount > 0 ? totalRefundAmount : resolvedGrossRevenue;
+
+  int get resolvedAffectedBuyers =>
+      affectedBuyersCount > 0 ? affectedBuyersCount : ticketsSold;
+
   String get formattedTotalRefund {
+    final refund = resolvedRefundAmount;
     final buffer = StringBuffer('Rp');
-    final str = totalRefundAmount.toString();
+    final str = refund.toString();
     for (int i = 0; i < str.length; i++) {
       if (i > 0 && (str.length - i) % 3 == 0) {
         buffer.write('.');
@@ -363,6 +389,7 @@ class PromoterConcertItem {
     String? squareLogoDataUrl,
     List<String>? highlights,
     List<String>? highlightNames,
+    List<String>? shortMessages,
     ConcertStatus? status,
     String? likesCount,
     List<PromoterTicketTier>? tiers,
@@ -403,6 +430,7 @@ class PromoterConcertItem {
       squareLogoDataUrl: squareLogoDataUrl ?? this.squareLogoDataUrl,
       highlights: highlights ?? this.highlights,
       highlightNames: highlightNames ?? this.highlightNames,
+      shortMessages: shortMessages ?? this.shortMessages,
       status: status ?? this.status,
       likesCount: likesCount ?? this.likesCount,
       tiers: tiers ?? this.tiers,
@@ -456,23 +484,45 @@ class PromoterConcertItem {
   }
 
   factory PromoterConcertItem.fromJson(Map<String, dynamic> json) {
-    ConcertStatus parseStatus(String? statusStr) {
-      switch (statusStr?.toLowerCase()) {
-        case 'published':
-        case 'disetujui':
-        case 'approved':
-          return ConcertStatus.disetujui;
-        case 'pending':
-        case 'menunggu':
-          return ConcertStatus.menunggu;
-        case 'cancelled':
-        case 'ditolak':
-        case 'rejected':
-          return ConcertStatus.ditolak;
-        case 'draft':
-        default:
-          return ConcertStatus.draft;
-      }
+    final rawCancelStatus = json['cancellation_status']?.toString().toLowerCase();
+    final rawAppStatus = json['approval_status']?.toString().toLowerCase();
+    final rawConcertStatus = json['status']?.toString().toLowerCase();
+
+    ConcertCancellationStatus cancellationStatus = ConcertCancellationStatus.none;
+    if (rawCancelStatus == 'approved' || rawConcertStatus == 'cancelled') {
+      cancellationStatus = ConcertCancellationStatus.disetujui;
+    } else if (rawCancelStatus == 'pending' ||
+        rawAppStatus == 'pending_cancel' ||
+        rawConcertStatus == 'cancellation_pending') {
+      cancellationStatus = ConcertCancellationStatus.menungguAdmin;
+    } else if (rawCancelStatus == 'rejected') {
+      cancellationStatus = ConcertCancellationStatus.ditolak;
+    }
+
+    ConcertStatus resolvedStatus;
+    if (cancellationStatus == ConcertCancellationStatus.disetujui ||
+        rawConcertStatus == 'cancelled' ||
+        rawConcertStatus == 'rejected' ||
+        rawConcertStatus == 'ditolak' ||
+        rawAppStatus == 'rejected' ||
+        rawAppStatus == 'ditolak') {
+      resolvedStatus = ConcertStatus.ditolak;
+    } else if (cancellationStatus == ConcertCancellationStatus.menungguAdmin ||
+        rawConcertStatus == 'cancellation_pending' ||
+        rawAppStatus == 'pending_cancel' ||
+        rawConcertStatus == 'pending' ||
+        rawAppStatus == 'pending' ||
+        rawAppStatus == 'pending_create') {
+      resolvedStatus = ConcertStatus.menunggu;
+    } else if (rawConcertStatus == 'published' ||
+        rawConcertStatus == 'approved' ||
+        rawConcertStatus == 'disetujui' ||
+        rawAppStatus == 'approved') {
+      resolvedStatus = ConcertStatus.disetujui;
+    } else if (rawConcertStatus == 'draft') {
+      resolvedStatus = ConcertStatus.draft;
+    } else {
+      resolvedStatus = ConcertStatus.draft;
     }
 
     final rawTiers = json['ticket_tiers'] as List<dynamic>?;
@@ -481,7 +531,16 @@ class PromoterConcertItem {
             .toList() ??
         [];
 
-    final resolvedDate = json['date']?.toString() ?? json['date_time']?.toString() ?? '';
+    final rawDate = json['date']?.toString() ?? json['date_time']?.toString() ?? '';
+    final timeStr = json['time']?.toString() ?? '19:00 WIB';
+    final cleanDate = rawDate
+        .replaceAll(
+          RegExp(r'(\s*[-–—·•|]\s*\d{1,2}[:.]\d{2}(\s*WIB)?)+',
+              caseSensitive: false),
+          '',
+        )
+        .trim();
+    final resolvedDate = cleanDate.isNotEmpty ? cleanDate : rawDate;
 
     return PromoterConcertItem(
       id: json['id']?.toString() ?? '',
@@ -489,7 +548,7 @@ class PromoterConcertItem {
       dateAndVenue: json['subtitle']?.toString() ??
           '$resolvedDate · ${json['venue'] ?? ''}',
       date: resolvedDate,
-      time: json['time']?.toString() ?? '19:00 WIB',
+      time: timeStr,
       venueName: json['venue']?.toString() ?? '',
       venueAddress: json['venue_address']?.toString() ??
           (json['venue']?.toString() ?? ''),
@@ -519,9 +578,21 @@ class PromoterConcertItem {
               ?.map((e) => e.toString())
               .toList() ??
           const [],
-      status: parseStatus(
-        json['approval_status']?.toString() ?? json['status']?.toString(),
-      ),
+      shortMessages: (json['short_messages'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          (json['shortMessages'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const ['Festival • 17+', 'Seru!'],
+      status: resolvedStatus,
+      cancellationStatus: cancellationStatus,
+      cancellationCategory: json['cancellation_category']?.toString() ?? 'Perizinan',
+      cancellationReason: json['cancellation_reason']?.toString() ?? '',
+      cancellationAttachment: json['cancellation_attachment']?.toString(),
+      cancellationSubmissionDate: json['cancellation_date']?.toString() ??
+          (json['cancelled_at'] != null ? json['cancelled_at'].toString().split('T').first : '19 Okt 2026, 14:02'),
+      cancellationApprovalDate: json['cancellation_approval_date']?.toString() ?? '20 Okt 2026, 09:15',
       likesCount: json['likes_count']?.toString() ?? '0',
       tiers: tiersList,
       gates: (json['gates'] as List<dynamic>?)
@@ -549,6 +620,7 @@ class PromoterConcertItem {
   Map<String, dynamic> toSupabaseMap({
     String? promoterId,
     String? producerName,
+    String? producerAvatarUrl,
   }) {
     String statusString;
     switch (status) {
@@ -585,6 +657,8 @@ class PromoterConcertItem {
       if (isValidUuid) 'producer_id': promoterId,
       if (producerName != null && producerName.trim().isNotEmpty)
         'producer_name': producerName.trim(),
+      if (producerAvatarUrl != null && producerAvatarUrl.trim().isNotEmpty)
+        'producer_avatar_url': producerAvatarUrl.trim(),
       'title': title,
       'subtitle': dateAndVenue,
       'date': date,
@@ -602,6 +676,7 @@ class PromoterConcertItem {
         'square_logo_url': logoValue,
       'highlights': highlights,
       'highlight_names': highlightNames,
+      'short_messages': shortMessages,
       'status': statusString,
       'total_capacity': totalCapacity,
       'price': tiers.isNotEmpty

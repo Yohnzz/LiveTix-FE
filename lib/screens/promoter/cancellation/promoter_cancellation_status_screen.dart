@@ -393,7 +393,7 @@ class _PromoterCancellationStatusScreenState
                                     ),
                                   ),
                                   Text(
-                                    '${PromoterTicketTier.formatNumber(widget.concert.affectedBuyersCount)} orang',
+                                    '${PromoterTicketTier.formatNumber(widget.concert.resolvedAffectedBuyers)} orang',
                                     style: TextStyle(
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w800,

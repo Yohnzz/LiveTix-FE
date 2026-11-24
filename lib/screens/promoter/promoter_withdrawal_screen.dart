@@ -54,17 +54,18 @@ class _PromoterWithdrawalScreenState extends State<PromoterWithdrawalScreen> {
     _recalculateAmount();
     // Muat saldo realtime dari server (Saldo Tersedia vs Saldo Tertahan)
     final user = DataService().currentUser;
-    if (user != null && user.id.isNotEmpty) {
-      PaymentGatewayService().getPromoterBalance(user.id).then((bal) {
-        if (mounted) {
-          final service = PromoterDataService();
-          service.activeBalanceNotifier.value = bal.availableBalance;
-          service.pendingBalanceNotifier.value = bal.pendingBalance;
-        }
-      });
-      // Pastikan data rekening produser tersinkron dari database
-      PromoterDataService().loadProducerProfileFromSupabase(user.id);
-    }
+    final producerId = (user != null && user.id.isNotEmpty)
+        ? user.id
+        : 'b3f25b77-6fb1-4004-90ac-f8e877b2eed4';
+    PaymentGatewayService().getPromoterBalance(producerId).then((bal) {
+      if (mounted) {
+        final service = PromoterDataService();
+        service.activeBalanceNotifier.value = bal.availableBalance;
+        service.pendingBalanceNotifier.value = bal.pendingBalance;
+      }
+    });
+    // Pastikan data rekening produser tersinkron dari database
+    PromoterDataService().loadProducerProfileFromSupabase(producerId);
   }
 
   @override

@@ -49,19 +49,24 @@ class _TicketScreenState extends State<TicketScreen> {
       return;
     }
 
-    if (ticket.status.toLowerCase().contains('expired') ||
-        ticket.status.toLowerCase().contains('cancelled') ||
-        ticket.status == 'Dibatalkan') {
+    // Jika pesanan belum dibayar dan sudah expired/hangus
+    if (ticket.isPendingPayment && ticket.status.toLowerCase().contains('expired')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Pesanan tiket ini telah dibatalkan atau melewati batas waktu pembayaran.'),
+          content: Text('Pesanan tiket ini telah melewati batas waktu pembayaran.'),
           backgroundColor: Color(0xFFB91C1C),
         ),
       );
       return;
     }
 
-    if (ticket.status == 'Reffund' || ticket.isCancelled) {
+    final isCancelledOrRefund = ticket.isCancelled ||
+        ticket.status == 'Reffund' ||
+        ticket.status.toLowerCase().contains('refund') ||
+        ticket.status.toLowerCase().contains('cancelled') ||
+        ticket.status == 'Dibatalkan';
+
+    if (isCancelledOrRefund) {
       if (ticket.refundData != null) {
         // Jika sudah diajukan, tampilkan tracking status refund
         Navigator.push(
@@ -79,6 +84,7 @@ class _TicketScreenState extends State<TicketScreen> {
           ),
         );
       }
+      return;
     } else if (_selectedTabIndex == 1 &&
         (ticket.isCompleted || ticket.status.toLowerCase() == 'selesai') &&
         !ticket.isValidated) {
@@ -1155,7 +1161,11 @@ class _TicketScreenState extends State<TicketScreen> {
 
   Widget _buildFigmaTicketCard(UserTicketModel ticket) {
     final isPending = ticket.isPendingPayment;
-    final isRefund = ticket.status == 'Reffund' || ticket.isCancelled;
+    final isRefund = ticket.status == 'Reffund' ||
+        ticket.isCancelled ||
+        ticket.status == 'Dibatalkan' ||
+        ticket.status.toLowerCase().contains('cancelled') ||
+        ticket.status.toLowerCase().contains('refund');
     final stripeColor = ticket.stripeColor ??
         (isPending
             ? const Color(0xFFF59E0B)
@@ -1283,8 +1293,6 @@ class _TicketScreenState extends State<TicketScreen> {
                                             fontWeight: FontWeight.w700,
                                             color: isDark ? AppColors.primaryDark : stripeColor,
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
                                     ],
@@ -1422,11 +1430,25 @@ class _TicketScreenState extends State<TicketScreen> {
                                     ),
                                   SizedBox(
                                     height: 44,
-                                    child: ElevatedButton(
+                                    child: ElevatedButton.icon(
                                       onPressed: () =>
                                           _onViewTicketPressed(ticket),
+                                      icon: isRefund
+                                          ? const Icon(Icons.replay_circle_filled_rounded, size: 16)
+                                          : const Icon(Icons.confirmation_number_outlined, size: 16),
+                                      label: Text(
+                                        isRefund
+                                            ? (ticket.refundData != null ? 'Status Refund' : 'Ajukan Refund')
+                                            : 'Lihat tiket',
+                                        style: const TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF1D2939),
+                                        backgroundColor: isRefund
+                                            ? const Color(0xFFB02A8F)
+                                            : const Color(0xFF1D2939),
                                         foregroundColor: Colors.white,
                                         elevation: 0,
                                         padding: const EdgeInsets.symmetric(
@@ -1435,13 +1457,6 @@ class _TicketScreenState extends State<TicketScreen> {
                                         shape: RoundedRectangleBorder(
                                           borderRadius:
                                               BorderRadius.circular(10),
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'Lihat tiket',
-                                        style: TextStyle(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                     ),
@@ -1467,6 +1482,12 @@ class _TicketScreenState extends State<TicketScreen> {
 
   Widget _buildStatusBadge(UserTicketModel ticket) {
     final status = ticket.status;
+    final isCancelled = ticket.isCancelled ||
+        status == 'Dibatalkan' ||
+        status == 'Reffund' ||
+        status.toLowerCase().contains('cancelled') ||
+        status.toLowerCase().contains('refund');
+
     Color bg;
     Color text;
     IconData? icon;
@@ -1475,6 +1496,10 @@ class _TicketScreenState extends State<TicketScreen> {
       bg = const Color(0xFFEFF6FF);
       text = const Color(0xFF1D4ED8);
       icon = Icons.verified_rounded;
+    } else if (isCancelled) {
+      bg = const Color(0xFFFEE2E2);
+      text = const Color(0xFFB91C1C);
+      icon = Icons.cancel_outlined;
     } else if (status == 'Aktif') {
       bg = const Color(0xFFECFDF5);
       text = const Color(0xFF065F46);
@@ -1484,20 +1509,20 @@ class _TicketScreenState extends State<TicketScreen> {
       bg = const Color(0xFFFEF3C7);
       text = const Color(0xFF92400E);
       icon = null;
-    } else if (status == 'Reffund' ||
-        status.toLowerCase().contains('refund') ||
-        status.toLowerCase().contains('expired') ||
-        status.toLowerCase().contains('cancelled')) {
-      bg = const Color(0xFFFEE2E2);
-      text = const Color(0xFF991B1B);
-      icon = null;
     } else {
       bg = const Color(0xFFF2F4F7);
       text = const Color(0xFF475467);
       icon = null;
     }
 
-    final label = ticket.isValidated ? 'Sudah Divalidasi' : status;
+    final String label;
+    if (ticket.isValidated) {
+      label = 'Sudah Divalidasi';
+    } else if (isCancelled) {
+      label = ticket.refundData != null ? 'Refund Diproses' : 'Dibatalkan';
+    } else {
+      label = status;
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

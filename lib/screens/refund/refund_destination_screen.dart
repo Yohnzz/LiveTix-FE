@@ -53,15 +53,36 @@ class _RefundDestinationScreenState extends State<RefundDestinationScreen> {
     setState(() {
       _selectedMethodTab = index;
       _selectedProvider = index == 0 ? _bankProviders.first : _ewalletProviders.first;
-      if (index == 1) {
-        _accountNumberController.text = '0812 3456 7890';
-      } else {
-        _accountNumberController.text = '8808 1234 5678 9012';
-      }
+      _accountNumberController.text = '';
     });
   }
 
   void _showConfirmationBottomSheet() {
+    final accountName = _nameController.text.trim();
+    final accountNumber = _accountNumberController.text.trim();
+
+    if (accountNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_selectedMethodTab == 0
+              ? 'Nomor rekening tujuan refund wajib diisi'
+              : 'Nomor HP e-wallet tujuan refund wajib diisi'),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+      return;
+    }
+
+    if (accountName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nama pemilik rekening / e-wallet wajib diisi'),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+      return;
+    }
+
     if (!_isConfirmed) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -74,8 +95,6 @@ class _RefundDestinationScreenState extends State<RefundDestinationScreen> {
 
     final methodType = _selectedMethodTab == 0 ? 'Bank' : 'E-wallet';
     final provider = _selectedProvider;
-    final accountName = _nameController.text.trim();
-    final accountNumber = _accountNumberController.text.trim();
 
     showModalBottomSheet(
       context: context,
@@ -389,14 +408,22 @@ class _RefundDestinationScreenState extends State<RefundDestinationScreen> {
                 letterSpacing: 0.5,
               ),
               decoration: InputDecoration(
+                hintText: _selectedMethodTab == 0
+                    ? 'Masukkan nomor rekening'
+                    : 'Masukkan nomor HP e-wallet (contoh: 0812...)',
+                hintStyle: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.normal,
+                  color: AppColors.textGrey,
+                ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFF1B2A8C), width: 1.5),
+                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFF1B2A8C), width: 2),
+                  borderSide: const BorderSide(color: Color(0xFF1B2A8C), width: 1.5),
                 ),
               ),
             ),

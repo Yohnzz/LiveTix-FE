@@ -341,7 +341,7 @@ class UserTicketModel {
     // 1. Status Refund / Pending payment selalu masuk di Aktif
     if (isPendingPayment) return true;
     final s = status.toLowerCase();
-    if (isCancelled || s == 'reffund' || s == 'refund' || s.contains('pengajuan')) {
+    if (isCancelled || s == 'reffund' || s == 'refund' || s == 'dibatalkan' || s.contains('batal') || s.contains('pengajuan')) {
       return true;
     }
     // 2. Jika sudah kadaluwarsa atau sudah discan semua atau status selesai, masuk ke Riwayat

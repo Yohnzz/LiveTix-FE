@@ -437,6 +437,7 @@ class ConcertSubmissionModel {
   final String? requestInfo;
   final String? cancellationReason;
   final String? cancellationDate;
+  final String? cancellationStatus;
   final String? attachmentName;
   final int soldTickets;
   final int affectedBuyers;
@@ -466,6 +467,7 @@ class ConcertSubmissionModel {
     this.requestInfo,
     this.cancellationReason,
     this.cancellationDate,
+    this.cancellationStatus,
     this.attachmentName,
     this.soldTickets = 4200,
     this.affectedBuyers = 1860,
@@ -519,6 +521,7 @@ class ConcertSubmissionModel {
       requestInfo: json['request_info'] as String?,
       cancellationReason: json['cancellation_reason'] as String?,
       cancellationDate: json['cancellation_date'] as String?,
+      cancellationStatus: json['cancellation_status'] as String?,
       attachmentName: json['attachment_name'] as String?,
       soldTickets: (json['sold_tickets'] as int?) ?? 4200,
       affectedBuyers: (json['affected_buyers'] as int?) ?? 1860,
@@ -546,6 +549,7 @@ class ConcertSubmissionModel {
         if (requestInfo != null) 'request_info': requestInfo,
         if (cancellationReason != null) 'cancellation_reason': cancellationReason,
         if (cancellationDate != null) 'cancellation_date': cancellationDate,
+        if (cancellationStatus != null) 'cancellation_status': cancellationStatus,
         if (attachmentName != null) 'attachment_name': attachmentName,
         'sold_tickets': soldTickets,
         'affected_buyers': affectedBuyers,
@@ -573,6 +577,7 @@ class ConcertSubmissionModel {
     String? requestInfo,
     String? cancellationReason,
     String? cancellationDate,
+    String? cancellationStatus,
     String? attachmentName,
     int? soldTickets,
     int? affectedBuyers,
@@ -603,6 +608,7 @@ class ConcertSubmissionModel {
       requestInfo: requestInfo ?? this.requestInfo,
       cancellationReason: cancellationReason ?? this.cancellationReason,
       cancellationDate: cancellationDate ?? this.cancellationDate,
+      cancellationStatus: cancellationStatus ?? this.cancellationStatus,
       attachmentName: attachmentName ?? this.attachmentName,
       soldTickets: soldTickets ?? this.soldTickets,
       affectedBuyers: affectedBuyers ?? this.affectedBuyers,
@@ -662,19 +668,32 @@ class ApprovalQueueItem {
   final String id;
   final String title;
   final DateTime submittedAt;
+  final AccountStatus approvalStatus;
+  final String? requestType; // 'create' | 'edit' | 'cancellation'
+  final String? promoterName;
+  final String? cancellationDate;
+  final ConcertSubmissionModel? concert;
 
   const ApprovalQueueItem({
     required this.kind,
     required this.id,
     required this.title,
     required this.submittedAt,
+    this.approvalStatus = AccountStatus.pending,
+    this.requestType,
+    this.promoterName,
+    this.cancellationDate,
+    this.concert,
   });
 
   String get subtitle => switch (kind) {
         ApprovalKind.producer =>
           'Pengajuan: Produser Baru · ${ApprovalFormat.dayMonth(submittedAt)}',
-        ApprovalKind.concert =>
-          'Pengajuan: Konser Baru · ${ApprovalFormat.dayMonth(submittedAt)}',
+        ApprovalKind.concert => requestType == 'cancellation'
+            ? '${promoterName ?? 'Produser'} · ${cancellationDate != null ? cancellationDate!.split(',').first.trim() : ApprovalFormat.dayMonth(submittedAt)}'
+            : (requestType == 'edit'
+                ? '${promoterName ?? 'Produser'} · Perubahan Data'
+                : '${promoterName ?? 'Produser'} · ${ApprovalFormat.dayMonth(submittedAt)}'),
         ApprovalKind.gatecrew =>
           'Pengajuan: Gate Crew · ${ApprovalFormat.dayMonth(submittedAt)}',
       };

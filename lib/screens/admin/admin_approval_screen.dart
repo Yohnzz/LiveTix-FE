@@ -47,8 +47,35 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
       case ApprovalKind.producer:
         return _service.producerCountByStatus(status);
       case ApprovalKind.concert:
+        if (status == AccountStatus.cancelled) {
+          return _service.concertsNotifier.value
+              .where((c) =>
+                  c.status.toLowerCase() == 'cancelled' ||
+                  c.cancellationStatus == 'approved' ||
+                  c.cancellationStatus == 'disetujui' ||
+                  c.approvalStatus == AccountStatus.cancelled)
+              .length;
+        }
+        if (status == AccountStatus.pending) {
+          return _service.concertsNotifier.value
+              .where((c) =>
+                  (c.approvalStatus == AccountStatus.pending ||
+                      c.cancellationStatus == 'pending' ||
+                      c.status == 'cancellation_pending' ||
+                      c.requestType == 'cancellation') &&
+                  c.status.toLowerCase() != 'cancelled' &&
+                  c.cancellationStatus != 'approved' &&
+                  c.cancellationStatus != 'disetujui' &&
+                  c.approvalStatus != AccountStatus.cancelled)
+              .length;
+        }
         return _service.concertsNotifier.value
-            .where((c) => c.approvalStatus == status)
+            .where((c) =>
+                c.approvalStatus == status &&
+                c.status.toLowerCase() != 'cancelled' &&
+                c.cancellationStatus != 'approved' &&
+                c.cancellationStatus != 'disetujui' &&
+                c.approvalStatus != AccountStatus.cancelled)
             .length;
       case ApprovalKind.gatecrew:
         return _gateCrewService.teamCrewNotifier.value
@@ -59,7 +86,10 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
 
   String _statusTabLabel(ApprovalKind kind, AccountStatus status) {
     final count = _statusCount(kind, status);
-    final label = status.shortLabel;
+    final label = (kind == ApprovalKind.concert &&
+            status == AccountStatus.cancelled)
+        ? 'Pembatalan'
+        : status.shortLabel;
     return count > 0 ? '$label ($count)' : label;
   }
 
@@ -146,6 +176,10 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
                 _status == AccountStatus.nonaktif) {
               _status = AccountStatus.pending;
             }
+            if (value != ApprovalKind.concert &&
+                _status == AccountStatus.cancelled) {
+              _status = AccountStatus.pending;
+            }
             AdminNavigation.approvalKind.value = value;
           },
         ),
@@ -167,6 +201,11 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
               AdminTabItem(
                 _statusTabLabel(kind, AccountStatus.nonaktif),
                 AccountStatus.nonaktif,
+              ),
+            if (kind == ApprovalKind.concert)
+              AdminTabItem(
+                _statusTabLabel(kind, AccountStatus.cancelled),
+                AccountStatus.cancelled,
               ),
           ],
           selected: _status,
@@ -359,7 +398,25 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
 
   Widget _concertList() {
     final items = _service.concertsNotifier.value.where((c) {
-      if (c.approvalStatus != _status) return false;
+      final isConcertCancelled = c.status.toLowerCase() == 'cancelled' ||
+          c.cancellationStatus == 'approved' ||
+          c.cancellationStatus == 'disetujui' ||
+          c.approvalStatus == AccountStatus.cancelled;
+
+      if (_status == AccountStatus.cancelled) {
+        if (!isConcertCancelled) return false;
+      } else if (_status == AccountStatus.pending) {
+        final isPending = (c.approvalStatus == AccountStatus.pending ||
+                c.cancellationStatus == 'pending' ||
+                c.status == 'cancellation_pending' ||
+                c.requestType == 'cancellation') &&
+            !isConcertCancelled;
+        if (!isPending) return false;
+      } else {
+        if (isConcertCancelled) return false;
+        if (c.approvalStatus != _status) return false;
+      }
+
       if (_month != 0 && c.dateTime.month != _month) return false;
       final q = _query.trim().toLowerCase();
       if (q.isEmpty) return true;
@@ -911,7 +968,12 @@ class _ConcertRow extends StatelessWidget {
       maxScaleFactor: 1.35,
       child: AdminCard(
         onTap: () {
-          if (item.requestType == 'cancellation') {
+          final isConcertCancelled =
+              item.status.toLowerCase() == 'cancelled' ||
+                  item.cancellationStatus == 'approved' ||
+                  item.cancellationStatus == 'disetujui' ||
+                  item.approvalStatus == AccountStatus.cancelled;
+          if (item.requestType == 'cancellation' || isConcertCancelled) {
             Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => AdminCancellationDetailScreen(concert: item),
@@ -996,7 +1058,14 @@ class _ConcertRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  StatusBadge(status: item.approvalStatus),
+                  StatusBadge(
+                    status: (item.status.toLowerCase() == 'cancelled' ||
+                            item.cancellationStatus == 'approved' ||
+                            item.cancellationStatus == 'disetujui' ||
+                            item.approvalStatus == AccountStatus.cancelled)
+                        ? AccountStatus.cancelled
+                        : item.approvalStatus,
+                  ),
                   if (item.requestInfo != null) ...[
                     const SizedBox(height: 6),
                     Text(

@@ -91,8 +91,14 @@ class _ConcertStatusDetailScreenState extends State<ConcertStatusDetailScreen> {
             if (idx != -1) resolvedConcert = concertList[idx];
           }
 
+          final bool isCancelledConcert = (resolvedConcert?.isCancellationApproved == true) ||
+              (resolvedConcert?.cancellationStatus == ConcertCancellationStatus.disetujui) ||
+              (resolvedConcert?.cancellationReason.isNotEmpty == true);
+
           final String actualRejectionReason = resolvedConcert != null
-              ? service.getConcertRejectionReason(resolvedConcert)
+              ? (isCancelledConcert && resolvedConcert.cancellationReason.isNotEmpty
+                  ? resolvedConcert.cancellationReason
+                  : service.getConcertRejectionReason(resolvedConcert))
               : (widget.rejectionReason ??
                   'Pengajuan konser ditolak oleh Admin. Silakan periksa kembali kelengkapan informasi konser Anda.');
 
@@ -185,11 +191,13 @@ class _ConcertStatusDetailScreenState extends State<ConcertStatusDetailScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        isPending
-                            ? 'Pengajuan baru sedang ditinjau kurasi LiveTix'
-                            : (isApproved
-                                ? 'Konser telah disetujui & live di katalog publik'
-                                : 'Informasi hasil peninjauan kelayakan konser Anda'),
+                        isCancelledConcert
+                            ? 'Konser resmi dibatalkan dan proses refund penonton aktif'
+                            : (isPending
+                                ? 'Pengajuan baru sedang ditinjau kurasi LiveTix'
+                                : (isApproved
+                                    ? 'Konser telah disetujui & live di katalog publik'
+                                    : 'Informasi hasil peninjauan kelayakan konser Anda')),
                         style: TextStyle(
                           fontSize: 12.5,
                           color: subtextColor,
@@ -203,34 +211,57 @@ class _ConcertStatusDetailScreenState extends State<ConcertStatusDetailScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _buildStatusDot(
-                              label: 'Draft',
-                              color: const Color(0xFF1B2A8C),
-                              isActive: true,
-                            ),
-                            _buildStatusDot(
-                              label: 'Diajukan',
-                              color: const Color(0xFF1B2A8C),
-                              isActive: true,
-                            ),
-                            _buildStatusDot(
-                              label: 'Ditinjau',
-                              color: isPending
-                                  ? const Color(0xFFD97706)
-                                  : const Color(0xFF1B2A8C),
-                              isActive: true,
-                            ),
-                            _buildStatusDot(
-                              label: isRejected ? 'Ditolak' : 'Disetujui',
-                              color: isRejected
-                                  ? const Color(0xFFC2185B)
-                                  : (isApproved
-                                      ? const Color(0xFF039855)
-                                      : const Color(0xFF98A2B3)),
-                              isActive: isApproved || isRejected,
-                            ),
-                          ],
+                          children: isCancelledConcert
+                              ? [
+                                  _buildStatusDot(
+                                    label: 'Diajukan',
+                                    color: const Color(0xFF1B2A8C),
+                                    isActive: true,
+                                  ),
+                                  _buildStatusDot(
+                                    label: 'Disetujui',
+                                    color: const Color(0xFF1B2A8C),
+                                    isActive: true,
+                                  ),
+                                  _buildStatusDot(
+                                    label: 'Pengajuan Batal',
+                                    color: const Color(0xFF1B2A8C),
+                                    isActive: true,
+                                  ),
+                                  _buildStatusDot(
+                                    label: 'Dibatalkan',
+                                    color: const Color(0xFFD92D20),
+                                    isActive: true,
+                                  ),
+                                ]
+                              : [
+                                  _buildStatusDot(
+                                    label: 'Draft',
+                                    color: const Color(0xFF1B2A8C),
+                                    isActive: true,
+                                  ),
+                                  _buildStatusDot(
+                                    label: 'Diajukan',
+                                    color: const Color(0xFF1B2A8C),
+                                    isActive: true,
+                                  ),
+                                  _buildStatusDot(
+                                    label: 'Ditinjau',
+                                    color: isPending
+                                        ? const Color(0xFFD97706)
+                                        : const Color(0xFF1B2A8C),
+                                    isActive: true,
+                                  ),
+                                  _buildStatusDot(
+                                    label: isRejected ? 'Ditolak' : 'Disetujui',
+                                    color: isRejected
+                                        ? const Color(0xFFC2185B)
+                                        : (isApproved
+                                            ? const Color(0xFF039855)
+                                            : const Color(0xFF98A2B3)),
+                                    isActive: isApproved || isRejected,
+                                  ),
+                                ],
                         ),
                       ),
 
@@ -372,9 +403,11 @@ class _ConcertStatusDetailScreenState extends State<ConcertStatusDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Alasan Penolakan Admin:',
-                                style: TextStyle(
+                              Text(
+                                isCancelledConcert
+                                    ? 'Alasan Pembatalan Konser:'
+                                    : 'Alasan Penolakan Admin:',
+                                style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFFC2185B),
@@ -395,59 +428,141 @@ class _ConcertStatusDetailScreenState extends State<ConcertStatusDetailScreen> {
 
                         const SizedBox(height: 14),
 
-                        // Card 2: Jeda Waktu Pengajuan Ulang (Realtime Hari, Jam, Menit, Detik)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: cardBg,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: cardBorder),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Jeda Waktu Pengajuan Ulang',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: textColor,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Icon(
-                                    isCooldownActive
-                                        ? Icons.timer_outlined
-                                        : Icons.check_circle_outline,
-                                    size: 16,
-                                    color: isCooldownActive
-                                        ? const Color(0xFFC2185B)
-                                        : const Color(0xFF039855),
+                        if (isCancelledConcert) ...[
+                          // Card 2 untuk Konser Dibatalkan: Rincian Refund & Dana Terkunci
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: cardBorder),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Rincian Pengembalian Dana (Refund)',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: textColor,
                                   ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      countdownDisplay,
-                                      style: TextStyle(
-                                        fontSize: 12,
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('Estimasi Total Refund',
+                                        style: TextStyle(fontSize: 12.5, color: subtextColor)),
+                                    Text(
+                                      resolvedConcert?.formattedTotalRefund ?? 'Rp 0',
+                                      style: const TextStyle(
+                                        fontSize: 13.5,
                                         fontWeight: FontWeight.w700,
-                                        color: isCooldownActive
-                                            ? const Color(0xFFC2185B)
-                                            : const Color(0xFF039855),
+                                        color: Color(0xFFD92D20),
+                                      ),
+
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('Tiket Terjual Terdampak',
+                                        style: TextStyle(fontSize: 12.5, color: subtextColor)),
+                                    Text(
+                                      '${resolvedConcert?.resolvedAffectedBuyers ?? 0} Tiket',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: textColor,
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('Status Saldo Penjualan',
+                                        style: TextStyle(fontSize: 12.5, color: subtextColor)),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFEF3F2),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'Terkunci (Escrow Refund)',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFFD92D20),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
+                        ] else ...[
+                          // Card 2 untuk Penolakan Baru: Jeda Waktu Pengajuan Ulang
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: cardBorder),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Jeda Waktu Pengajuan Ulang',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: textColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      isCooldownActive
+                                          ? Icons.timer_outlined
+                                          : Icons.check_circle_outline,
+                                      size: 16,
+                                      color: isCooldownActive
+                                          ? const Color(0xFFC2185B)
+                                          : const Color(0xFF039855),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        countdownDisplay,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: isCooldownActive
+                                              ? const Color(0xFFC2185B)
+                                              : const Color(0xFF039855),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
 
                       const SizedBox(height: 24),
@@ -462,7 +577,64 @@ class _ConcertStatusDetailScreenState extends State<ConcertStatusDetailScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (isRejected) ...[
+                    if (isCancelledConcert) ...[
+                      // Button untuk Konser Dibatalkan: Hubungi CS & Kembali
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ProducerCustomerServiceScreen(
+                                  subjectTitle: 'Bantuan Konser Dibatalkan - ${widget.concertTitle}',
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.support_agent_rounded, size: 20),
+                          label: const Text(
+                            'Hubungi Customer Service LiveTix',
+                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1B2A8C),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: cardBg,
+                            side: BorderSide(
+                              color: isDarkMode ? const Color(0xFF4A6CF7) : const Color(0xFF1B2A8C),
+                              width: 1.2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'Tutup & Kembali ke Daftar Konser',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: isDarkMode ? Colors.white : const Color(0xFF1B2A8C),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ] else if (isRejected) ...[
                       // Button: Ajukan Ulang Verifikasi (Aktif otomatis setelah waktu cooldown habis)
                       SizedBox(
                         width: double.infinity,
@@ -548,7 +720,8 @@ class _ConcertStatusDetailScreenState extends State<ConcertStatusDetailScreen> {
                           ),
                         ),
                       ),
-                    ] else ...[
+                    ]
+                    else ...[
                       // Primary Button for Pending & Approved
                       SizedBox(
                         width: double.infinity,
