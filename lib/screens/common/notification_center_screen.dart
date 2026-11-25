@@ -78,8 +78,7 @@ class NotificationCenterScreen extends StatelessWidget {
                     return _NotificationCard(
                       notification: notification,
                       accentColor: colors.primary,
-                      onTap: () =>
-                          _handleNotificationTap(context, notification),
+                      onTap: () => _handleNotificationTap(context, notification),
                     );
                   },
                 );
@@ -107,32 +106,95 @@ Future<void> _handleNotificationTap(
     return;
   }
 
-  if (notification.action != 'request_refund' ||
-      notification.targetKind != 'ticket' ||
-      notification.targetId == null) {
-    return;
-  }
-
-  await DataService().fetchUserTicketsFromSupabase();
-  final tickets = DataService().userTicketsNotifier.value;
-  final ticketIndex =
-      tickets.indexWhere((ticket) => ticket.id == notification.targetId);
-  if (ticketIndex < 0) {
+  // Redirect berdasarkan targetKind dan targetId
+  if (notification.targetId == null || notification.targetId!.isEmpty) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Detail tiket belum berhasil dimuat.')),
+        const SnackBar(content: Text('Notifikasi tidak memiliki target')),
       );
     }
     return;
   }
 
-  final UserTicketModel ticket = tickets[ticketIndex];
-  if (!context.mounted) return;
-  await Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => CancelledTicketDetailScreen(ticket: ticket),
-    ),
-  );
+  // Handle different notification types based on targetKind
+  if (notification.targetKind == 'concert') {
+    // Notifikasi konser baru - arahkan ke detail konser
+    if (!context.mounted) return;
+    // TODO: Implementasikan redirect ke ConcertDetailScreen
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fitur detail konser akan segera tersedia')),
+      );
+    }
+    return;
+  }
+
+  if (notification.targetKind == 'ticket') {
+    // Notifikasi terkait tiket
+    if (notification.action == 'payment_expired') {
+      // Pembayaran kedaluwarsa - arahkan ke halaman pembayaran
+      if (!context.mounted) return;
+      // TODO: Implementasikan redirect ke pembayaran gagal screen
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Fitur pembayaran akan segera tersedia')),
+        );
+      }
+      return;
+    }
+
+    if (notification.action == 'request_refund') {
+      // Permintaan refund - arahkan ke detail tiket refund
+      final tickets = await _fetchTicketsIfNeeded(context);
+      final ticketIndex =
+          tickets.indexWhere((ticket) => ticket.id == notification.targetId);
+      if (ticketIndex < 0 || !context.mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CancelledTicketDetailScreen(ticket: tickets[ticketIndex]),
+        ),
+      );
+      return;
+    }
+
+    // Notifikasi tiket lainnya - arahkan ke detail tiket
+    final tickets = await _fetchTicketsIfNeeded(context);
+    final ticketIndex =
+        tickets.indexWhere((ticket) => ticket.id == notification.targetId);
+    if (ticketIndex < 0 || !context.mounted) return;
+    // TODO: Implementasikan redirect ke detail tiket aktif
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fitur detail tiket akan segera tersedia')),
+      );
+    }
+    return;
+  }
+
+  if (notification.targetKind == 'producer') {
+    // Notifikasi produsen - arahkan ke detail produsen
+    if (!context.mounted) return;
+    // TODO: Implementasikan redirect ke detail produsen
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fitur detail produsen akan segera tersedia')),
+      );
+    }
+    return;
+  }
+
+  // Fallback: tampilkan snack bar dan tidak redirect
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Aksi notifikasi tidak didukung')),
+    );
+  }
+}
+
+Future<List<UserTicketModel>> _fetchTicketsIfNeeded(BuildContext context) async {
+  if (!context.mounted) return [];
+  await DataService().fetchUserTicketsFromSupabase();
+  return DataService().userTicketsNotifier.value;
 }
 
 class _NotificationCard extends StatelessWidget {
@@ -244,4 +306,4 @@ class _MessageState extends StatelessWidget {
       ],
     );
   }
-}
+}

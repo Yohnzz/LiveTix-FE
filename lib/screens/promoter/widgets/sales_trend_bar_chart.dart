@@ -121,6 +121,8 @@ class _SalesTrendBarChartState extends State<SalesTrendBarChart> {
       0.0,
     ];
 
+    final totalSoldAllDays = _data.fold<int>(0, (s, d) => s + d.ticketsSold);
+
     final selected =
         _selectedBarIndex != null ? _data[_selectedBarIndex!] : null;
 
@@ -143,105 +145,109 @@ class _SalesTrendBarChartState extends State<SalesTrendBarChart> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header info: Active day selection tooltip or summary
-          if (selected != null) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              '${selected.fullDayName} (${selected.dayLabel})',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            selected != null && maxValueK > 0
+                                ? '${selected.fullDayName} (${selected.dayLabel})'
+                                : 'Aktivitas 7 Hari Terakhir',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : const Color(0xFF101828),
+                            ),
+                          ),
+                        ),
+                        if (selected != null && selected.isPeak && maxValueK > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF4EBFF),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'PEAK TERTINGGI',
                               style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: isDark ? Colors.white : const Color(0xFF101828),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF7C3AED),
+                                letterSpacing: 0.3,
                               ),
                             ),
                           ),
-                          if (selected.isPeak) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF4EBFF),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'PEAK TERTINGGI',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF7C3AED),
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      selected != null && maxValueK > 0
+                          ? '${_formatNumber(selected.ticketsSold)} Tiket Terjual · ${_formatRupiah(selected.revenueAmount)}'
+                          : '0 Tiket Terjual · Rp 0',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                        color: selected != null && selected.isPeak && maxValueK > 0
+                            ? const Color(0xFF8B5CF6)
+                            : axisTextColor,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${_formatNumber(selected.ticketsSold)} Tiket Terjual · ${_formatRupiah(selected.revenueAmount)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                          color: selected.isPeak
-                              ? const Color(0xFF8B5CF6)
-                              : axisTextColor,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF222B3D)
-                        : const Color(0xFFF9FAFB),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: cardBorder),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: peakBarColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Total 22k',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white70 : const Color(0xFF344054),
-                        ),
-                      ),
-                    ],
-                  ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF222B3D)
+                      : const Color(0xFFF9FAFB),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: cardBorder),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: peakBarColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      totalSoldAllDays > 0
+                          ? 'Total ${_formatNumber(totalSoldAllDays)} Tiket'
+                          : 'Total 0 Tiket',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white70 : const Color(0xFF344054),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
 
           // Chart Area: Y-Axis + Grid Lines + Bars
           SizedBox(
@@ -249,18 +255,27 @@ class _SalesTrendBarChartState extends State<SalesTrendBarChart> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Y-Axis Labels Column (4k, 3k, 2k, 1k, 0)
+                // Y-Axis Labels Column
                 SizedBox(
-                  width: 24,
+                  width: 44,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: yGridValues.map((val) {
-                      final label = val == 0.0 ? '0' : '${val.toInt()}k';
+                      String label;
+                      if (val <= 0.0) {
+                        label = '0';
+                      } else if (val >= 1000) {
+                        label = '${(val / 1000).toStringAsFixed(1)}jt';
+                      } else {
+                        label = '${val.toInt()}k';
+                      }
                       return Text(
                         label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w500,
                           color: axisTextColor,
                         ),

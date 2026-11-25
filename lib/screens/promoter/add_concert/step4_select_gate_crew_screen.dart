@@ -7,6 +7,8 @@ import '../widgets/promoter_step_indicator.dart';
 class Step4SelectGateCrewScreen extends StatefulWidget {
   final Map<String, String> selectedCrewWithGate; // crewId -> gateName
   final ValueChanged<Map<String, String>> onCrewAssignmentsChanged;
+  final List<String>? initialGates;
+  final ValueChanged<List<String>>? onGatesChanged;
   final VoidCallback onNext;
   final VoidCallback onBack;
 
@@ -14,6 +16,8 @@ class Step4SelectGateCrewScreen extends StatefulWidget {
     super.key,
     required this.selectedCrewWithGate,
     required this.onCrewAssignmentsChanged,
+    this.initialGates,
+    this.onGatesChanged,
     required this.onNext,
     required this.onBack,
   });
@@ -35,6 +39,13 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
   void initState() {
     super.initState();
     _assignments = Map<String, String>.from(widget.selectedCrewWithGate);
+    if (widget.initialGates != null) {
+      for (final gate in widget.initialGates!) {
+        if (!_gateOptions.contains(gate)) {
+          _gateOptions.add(gate);
+        }
+      }
+    }
     // Masukkan gate yang sudah ada dari assignments jika ada
     for (final gate in _assignments.values) {
       if (!_gateOptions.contains(gate)) {
@@ -108,52 +119,21 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
   }
 
   void _showAddGateDialog(bool isDarkMode) {
-    final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => Theme(
-        data: ThemeData.light(),
-        child: AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Tambah Pos Gate Baru',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: InputDecoration(
-              hintText: 'Gate VIP, Gate Barat, dll',
-              border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final text = controller.text.trim();
-                final exists = _gateOptions
-                    .any((g) => g.toLowerCase() == text.toLowerCase());
-                if (text.isNotEmpty && !exists) {
-                  setState(() {
-                    _gateOptions.add(text);
-                  });
-                }
-                Navigator.pop(ctx);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1B2A8C),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Tambah Gate'),
-            ),
-          ],
-        ),
+      builder: (ctx) => _AddGateDialog(
+        onAdd: (text) {
+          final exists = _gateOptions
+              .any((g) => g.toLowerCase() == text.toLowerCase());
+          if (!exists) {
+            setState(() {
+              _gateOptions.add(text);
+            });
+            widget.onGatesChanged?.call(List<String>.from(_gateOptions));
+          }
+        },
       ),
-    ).then((_) => controller.dispose());
+    );
   }
 
   /// Dialog "Invite Crewgate": produser memilih crew dari daftar crew yang
@@ -562,6 +542,7 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
                                           _assignments.removeWhere(
                                               (k, v) => v == gate);
                                         });
+                                        widget.onGatesChanged?.call(List<String>.from(_gateOptions));
                                         _notify();
                                       },
                                       shape: RoundedRectangleBorder(
@@ -896,6 +877,79 @@ class _Step4SelectGateCrewScreenState extends State<Step4SelectGateCrewScreen> {
           },
         );
       },
+    );
+  }
+}
+
+class _AddGateDialog extends StatefulWidget {
+  final ValueChanged<String> onAdd;
+
+  const _AddGateDialog({required this.onAdd});
+
+  @override
+  State<_AddGateDialog> createState() => _AddGateDialogState();
+}
+
+class _AddGateDialogState extends State<_AddGateDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final text = _controller.text.trim();
+    if (text.isNotEmpty) {
+      widget.onAdd(text);
+    }
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'Tambah Pos Gate Baru',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF0F172A),
+        ),
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _submit(),
+        decoration: InputDecoration(
+          hintText: 'Gate VIP, Gate Barat, dll',
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Batal'),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF1B2A8C),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Tambah Gate'),
+        ),
+      ],
     );
   }
 }

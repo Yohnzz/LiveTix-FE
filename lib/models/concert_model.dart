@@ -230,11 +230,25 @@ class ConcertModel {
     this.producerAvatarUrl,
     this.description = '',
     this.highlights = const [],
-    this.shortMessages = const ['Festival • 17+', 'Seru!'],
+    this.shortMessages = const [],
     this.highlightGradientColors = const [Color(0xFF271C80), Color(0xFF971C91)],
   });
 
   bool get isPublished => status.toLowerCase() == 'published';
+
+  /// Total tiket yang telah terjual dari seluruh kategori tiket (tiers)
+  int get totalSoldTickets {
+    return ticketTiers.fold<int>(0, (sum, tier) => sum + tier.soldCount);
+  }
+
+  /// Menghitung skor popularitas otomatis untuk perangkingan highlight dan trending:
+  /// - 1 tiket terjual bernilai 10 poin (faktor penentu utama)
+  /// - 1 suka/like bernilai 1 poin (faktor pendorong/tambahan)
+  int calculatePopularityScore({int extraLikes = 0, int extraSold = 0}) {
+    final effectiveSold = totalSoldTickets + extraSold;
+    final effectiveLikes = likesCount + extraLikes;
+    return (effectiveSold * 10) + effectiveLikes;
+  }
 
   ConcertModel copyWith({
     String? id,
@@ -360,10 +374,6 @@ class ConcertModel {
           .where((s) => s.isNotEmpty)
           .toList();
     }
-    if (parsedShortMessages.isEmpty) {
-      parsedShortMessages = const ['Festival • 17+', 'Seru!'];
-    }
-
     final rawDate = (json['date'] as String?) ?? '';
     final timeStr = (json['time'] as String?) ?? '19:00 WIB';
     final cleanDate = rawDate

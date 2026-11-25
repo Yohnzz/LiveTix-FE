@@ -5,6 +5,7 @@ import 'add_concert/add_concert_flow.dart';
 import 'concert_status_detail_screen.dart';
 import 'promoter_manage_concert_screen.dart';
 import 'widgets/concert_image_widget.dart';
+import 'package:flutter/services.dart';
 
 class PromoterConcertListScreen extends StatefulWidget {
   final VoidCallback? onAddConcertPressed;
@@ -80,8 +81,14 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
               ),
             ),
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          body: RefreshIndicator(
+            onRefresh: () async {
+              await service.refreshAllData();
+            },
+            color: const Color(0xFF1B2A8C),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -128,51 +135,6 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
                 ),
 
                 const SizedBox(height: 14),
-
-                // Quota Alert Banner (Pink border & pink text)
-                ValueListenableBuilder<int>(
-                  valueListenable: service.quotaRemainingNotifier,
-                  builder: (context, remainingQuota, _) {
-                    return Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: isDarkMode
-                            ? const Color(0xFF2A1525)
-                            : const Color(0xFFFDF2F8),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: const Color(0xFFC2185B).withValues(alpha: 0.5),
-                          width: 1.2,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.info_outline_rounded,
-                            size: 18,
-                            color: Color(0xFFC2185B),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Sisa kuota pengajuan: $remainingQuota dari maksimal ${service.quotaMax} konser per hari.',
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFFC2185B),
-                                height: 1.35,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 16),
 
                 // Toggle Filter Aktif vs Selesai (Riwayat Konser & Pendapatan)
                 Container(
@@ -432,9 +394,10 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
               ],
             ),
           ),
-        );
-      },
-    );
+        ),
+      );
+    },
+  );
   }
 
   Widget _buildFilterChip({
@@ -715,6 +678,49 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
     );
   }
 
+  Future<void> _confirmDeleteDraft(
+    BuildContext context,
+    PromoterConcertItem concert,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('Hapus Draft Konser?'),
+        content: Text(
+          'Data draft "${concert.title}" akan dihapus permanen dan tidak bisa dikembalikan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD92D20),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await PromoterDataService().deleteConcert(concert.id);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Draft "${concert.title}" telah dihapus.'),
+        backgroundColor: const Color(0xFFC2185B),
+      ),
+    );
+  }
+
   Widget _buildConcertCard({
     required PromoterConcertItem concert,
     required Color cardBg,
@@ -795,6 +801,9 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
         concert.cancellationStatus == ConcertCancellationStatus.menungguAdmin) {
       actionCtaText = 'Pantau Review';
       actionCtaColor = const Color(0xFFD97706); // Amber
+    } else if (concert.status == ConcertStatus.draft) {
+      actionCtaText = 'Lanjut Isi Data';
+      actionCtaColor = const Color(0xFF1B2A8C);
     } else {
       actionCtaText = 'Lanjut Edit';
       actionCtaColor = const Color(0xFF1B2A8C);
@@ -802,6 +811,23 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
 
     return InkWell(
       onTap: () {
+        if (concert.status == ConcertStatus.draft) {
+          final service = PromoterDataService();
+          final draftStep = service.getDraftStep(concert.id);
+          final draftAssignments = service.getDraftCrewAssignments(concert.id);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AddConcertFlow(
+                initialStep: draftStep,
+                editingConcert: concert,
+                isDraftResume: true,
+                savedCrewAssignments: draftAssignments,
+              ),
+            ),
+          );
+          return;
+        }
         if (concert.status == ConcertStatus.disetujui) {
           Navigator.push(
             context,
@@ -1103,6 +1129,28 @@ class _PromoterConcertListScreenState extends State<PromoterConcertListScreen> {
                     ],
                   ),
                 ),
+                if (concert.status == ConcertStatus.draft &&
+                    concert.cancellationStatus ==
+                        ConcertCancellationStatus.none) ...[
+                  TextButton.icon(
+                    onPressed: () => _confirmDeleteDraft(context, concert),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFD92D20),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      minimumSize: const Size(0, 30),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 15),
+                    label: const Text(
+                      'Hapus',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                ],
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

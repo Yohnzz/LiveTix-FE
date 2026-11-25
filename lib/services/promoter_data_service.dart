@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide LocalStorage;
 import '../models/approval_models.dart';
-import '../screens/promoter/widgets/concert_image_widget.dart';
 import '../screens/promoter/widgets/sales_trend_bar_chart.dart';
 import '../models/promoter_models.dart';
 import '../utils/local_storage.dart';
@@ -25,12 +25,9 @@ class PromoterDataService {
   // Notifiers
   final ValueNotifier<List<PromoterConcertItem>> concertsNotifier =
       ValueNotifier<List<PromoterConcertItem>>([]);
-  final ValueNotifier<int> quotaRemainingNotifier = ValueNotifier<int>(2);
   final ValueNotifier<bool> isDarkModeNotifier = ValueNotifier<bool>(false);
-  final ValueNotifier<int> activeBalanceNotifier =
-      ValueNotifier<int>(1845000000);
-  final ValueNotifier<int> pendingBalanceNotifier =
-      ValueNotifier<int>(450000000);
+  final ValueNotifier<int> activeBalanceNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<int> pendingBalanceNotifier = ValueNotifier<int>(0);
   final ValueNotifier<List<PromoterTransactionItem>> transactionsNotifier =
       ValueNotifier<List<PromoterTransactionItem>>([]);
   final ValueNotifier<List<PromoterConcertFinanceSummary>>
@@ -42,13 +39,13 @@ class PromoterDataService {
 
   // Reactive Promoter Identity, Verification, PIN, and Pending Profile Changes
   final ValueNotifier<String> promoterNameNotifier =
-      ValueNotifier<String>('Java Promotor');
+      ValueNotifier<String>('');
   final ValueNotifier<String?> pendingPromoterNameNotifier =
       ValueNotifier<String?>(null);
   final ValueNotifier<String> ktpDocumentNotifier =
-      ValueNotifier<String>('ktp_rafi_firmansyah.jpg');
+      ValueNotifier<String>('');
   final ValueNotifier<String> responsibilityLetterNotifier =
-      ValueNotifier<String>('lembar_penanggung_jawab_rafi.doc');
+      ValueNotifier<String>('');
   final ValueNotifier<String?> pendingKtpDocumentNotifier =
       ValueNotifier<String?>(null);
   final ValueNotifier<String?> pendingResponsibilityLetterNotifier =
@@ -64,6 +61,7 @@ class PromoterDataService {
 
   String get promoterEmail =>
       DataService().currentUser?.email ?? 'official@javapromotor.com';
+  String get currentUserId => DataService().currentUser?.id ?? '';
   String get promoterPhone =>
       (DataService().currentUser?.phone.isNotEmpty == true)
           ? DataService().currentUser!.phone
@@ -178,6 +176,8 @@ class PromoterDataService {
       ValueNotifier<String>('');
   final ValueNotifier<String> bankAccountHolderNotifier =
       ValueNotifier<String>('');
+  final ValueNotifier<DateTime?> bankUpdatedAtNotifier =
+      ValueNotifier<DateTime?>(null);
 
   bool get hasBankAccount =>
       bankNameNotifier.value.trim().isNotEmpty &&
@@ -200,6 +200,7 @@ class PromoterDataService {
     bankNameNotifier.value = '';
     bankAccountNumberNotifier.value = '';
     bankAccountHolderNotifier.value = '';
+    bankUpdatedAtNotifier.value = null;
     pinCodeNotifier.value = '';
     rejectionReasonNotifier.value = null;
     deactivationReasonNotifier.value = null;
@@ -271,8 +272,6 @@ class PromoterDataService {
     return parts.isNotEmpty ? parts[0][0].toUpperCase() : 'JP';
   }
 
-  final int quotaMax = 3;
-
   // Dashboard Metrics (Dihitung akurat dari data konser & pesanan yang lunas)
   int get totalConcerts {
     return concertsNotifier.value.length;
@@ -301,7 +300,8 @@ class PromoterDataService {
 
   int get ticketsSold => totalPaidTickets;
 
-  final String ticketsSoldGrowth = '+15% bulan ini';
+  String get ticketsSoldGrowth =>
+      ticketsSold > 0 ? '+100% bulan ini' : 'Belum ada penjualan';
 
   int get totalRevenue {
     return concertsNotifier.value.fold<int>(
@@ -310,179 +310,142 @@ class PromoterDataService {
     );
   }
 
-  final double revenueGrowth = 8.2;
+  double get revenueGrowth => 0.0;
 
   // 7 Days Sales Trend (values relative to max height)
-  final List<double> weeklySalesRatios = [
-    0.35,
-    0.50,
-    0.28,
-    0.60,
-    0.82,
-    0.52,
-    0.95
-  ];
+  final List<double> weeklySalesRatios = [0, 0, 0, 0, 0, 0, 0];
+
+  // Draft Concert (Tersimpan Sementara di Local)
+  final ValueNotifier<PromoterConcertItem?> draftConcertNotifier =
+      ValueNotifier<PromoterConcertItem?>(null);
+  int _draftStep = 1;
+  Map<String, String> _draftCrewAssignments = {};
+
+  int getDraftStep(String concertId) => _draftStep;
+  Map<String, String> getDraftCrewAssignments(String concertId) =>
+      Map<String, String>.from(_draftCrewAssignments);
+
+  String get _draftStorageKey =>
+      'producer_concert_draft_${currentUserId.isNotEmpty ? currentUserId : "active"}';
+
+  Future<void> saveConcertDraft({
+    required PromoterConcertItem draftItem,
+    required int currentStep,
+    Map<String, String>? selectedCrewWithGate,
+  }) async {
+    _draftStep = currentStep;
+    if (selectedCrewWithGate != null) {
+      _draftCrewAssignments = Map<String, String>.from(selectedCrewWithGate);
+    }
+    draftConcertNotifier.value = draftItem;
+
+    final list = List<PromoterConcertItem>.from(concertsNotifier.value);
+    final idx = list.indexWhere((c) => c.id == draftItem.id);
+    if (idx != -1) {
+      list[idx] = draftItem;
+    } else {
+      list.insert(0, draftItem);
+    }
+    concertsNotifier.value = list;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final draftMap = {
+        'step': currentStep,
+        'crew_assignments': _draftCrewAssignments,
+        'concert': {
+          'id': draftItem.id,
+          'title': draftItem.title,
+          'subtitle': draftItem.dateAndVenue,
+          'date': draftItem.date,
+          'time': draftItem.time,
+          'venue': draftItem.venueName,
+          'venue_address': draftItem.venueAddress,
+          'venue_latitude': draftItem.venueLatitude,
+          'venue_longitude': draftItem.venueLongitude,
+          'venue_place_id': draftItem.venuePlaceId,
+          'description': draftItem.description,
+          'banner_image_url': draftItem.posterFileName,
+          'poster_data_url': draftItem.posterDataUrl,
+          'logo_image_url': draftItem.squareLogoFileName,
+          'square_logo_data_url': draftItem.squareLogoDataUrl,
+          'highlights': draftItem.highlights,
+          'highlight_names': draftItem.highlightNames,
+          'short_messages': draftItem.shortMessages,
+          'status': 'draft',
+          'likes_count': draftItem.likesCount,
+          'gates': draftItem.gates,
+          'ticket_tiers': draftItem.tiers.map((t) => t.toJson()).toList(),
+        },
+      };
+      await prefs.setString(_draftStorageKey, jsonEncode(draftMap));
+    } catch (e) {
+      debugPrint('Error saving concert draft: $e');
+    }
+  }
+
+  Future<void> loadConcertDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_draftStorageKey);
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final draftStep = decoded['step'] as int? ?? 1;
+      final crewAssignments = decoded['crew_assignments'] != null
+          ? Map<String, String>.from(decoded['crew_assignments'] as Map)
+          : <String, String>{};
+      final cMap = decoded['concert'] as Map<String, dynamic>;
+      final draftItem = PromoterConcertItem.fromJson(cMap);
+
+      // Kalau konser dengan id ini sudah ada di daftar (artinya draft sudah
+      // pernah diajukan dan status resminya ada di database), draft lokal
+      // dibuang supaya status 'draft' tidak menimpa status approval admin.
+      if (concertsNotifier.value.any((c) => c.id == draftItem.id)) {
+        await prefs.remove(_draftStorageKey);
+        return;
+      }
+
+      _draftStep = draftStep;
+      _draftCrewAssignments = crewAssignments;
+      draftConcertNotifier.value = draftItem;
+
+      final list = List<PromoterConcertItem>.from(concertsNotifier.value);
+      list.insert(0, draftItem);
+      concertsNotifier.value = list;
+    } catch (e) {
+      debugPrint('Error loading concert draft: $e');
+    }
+  }
+
+  Future<void> clearConcertDraft() async {
+    draftConcertNotifier.value = null;
+    _draftStep = 1;
+    _draftCrewAssignments = {};
+    final list = List<PromoterConcertItem>.from(concertsNotifier.value);
+    list.removeWhere((c) => c.id.startsWith('draft_'));
+
+    // Use addPostFrameCallback to schedule the notifier update after
+    // the current frame completes, preventing "setState() or markNeedsBuild()"
+    // called when widget tree was locked errors during bottom sheet dismissal.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      concertsNotifier.value = list;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_draftStorageKey);
+    } catch (e) {
+      debugPrint('Error clearing concert draft: $e');
+    }
+  }
 
   void _initData() {
-    // Jika Supabase sudah terhubung, semua data dimuat dari database — tidak ada dummy
-    if (SupabaseService.isInitialized) {
-      transactionsNotifier.value = [];
-      withdrawalRecordsNotifier.value = [];
-      concertsNotifier.value = [];
-      concertFinanceSummariesNotifier.value = [];
-      return;
-    }
-
-    // Fallback mode pengujian unit/widget test (Supabase tidak diinisialisasi) ↓
     transactionsNotifier.value = [];
     withdrawalRecordsNotifier.value = [];
-
-    // Jika terhubung ke Supabase, inisialisasi kosong — data akan dimuat saat pengguna login sebagai Produser
-    if (SupabaseService.isInitialized) {
-      concertsNotifier.value = [];
-      concertFinanceSummariesNotifier.value = [];
-      return;
-    }
-
-    // Fallback khusus mode pengujian unit/widget test (ketika Supabase tidak diinisialisasi)
-    concertsNotifier.value = [
-      const PromoterConcertItem(
-        id: '1',
-        title: 'Soundwave Fest 2026',
-        dateAndVenue: '12 Okt · Stadion Gajayana',
-        date: 'Minggu, 12 Oktober 2026',
-        time: 'Gerbang 17.00 · Mulai 19.00',
-        venueName: 'Stadion Gajayana',
-        venueAddress:
-            'Jl. Tangkuban Perahu, Kauman, Kec. Klojen, Kota Malang, Jawa Timur 65119',
-        status: ConcertStatus.disetujui,
-        likesCount: '4.2k',
-        posterFileName: 'poster_soundwave.png',
-        squareLogoFileName: 'logo_soundwave_square.png',
-        posterDataUrl: ConcertImageWidget.sampleSoundwavePng,
-        squareLogoDataUrl: ConcertImageWidget.sampleSoundwavePng,
-        ticketsSold: 0,
-        grossRevenue: 0,
-        affectedBuyersCount: 0,
-        totalRefundAmount: 0,
-        refundDoneCount: 0,
-        refundProcessingCount: 0,
-        refundPendingAccountCount: 0,
-        cancellationSubmissionDate: '',
-        cancellationApprovalDate: '',
-        cancellationReason: '',
-        tiers: [
-          PromoterTicketTier(
-            id: 't1',
-            name: 'VIP Lounge',
-            price: 750000,
-            quota: 250,
-            quotaType: 'Kursi',
-            accentColor: Color(0xFFC2185B),
-          ),
-          PromoterTicketTier(
-            id: 't2',
-            name: 'Festival',
-            price: 350000,
-            quota: 2000,
-            quotaType: 'Orang',
-            accentColor: Color(0xFF1B2A8C),
-          ),
-        ],
-      ),
-      const PromoterConcertItem(
-        id: '2',
-        title: 'Symphony Under the Stars',
-        dateAndVenue: '24 Nov · Amphitheater Ijen',
-        date: 'Selasa, 24 November 2026',
-        time: 'Gerbang 18.00 · Mulai 19.30',
-        venueName: 'Amphitheater Ijen',
-        venueAddress: 'Kawasan Wisata Ijen Nirwana, Kota Malang',
-        status: ConcertStatus.menunggu,
-        likesCount: '1.8k',
-        posterFileName: 'poster_symphony.png',
-        squareLogoFileName: 'logo_symphony_square.png',
-        posterDataUrl: ConcertImageWidget.sampleSymphonyPng,
-        squareLogoDataUrl: ConcertImageWidget.sampleSymphonyPng,
-        ticketsSold: 0,
-        affectedBuyersCount: 0,
-        totalRefundAmount: 0,
-        refundDoneCount: 0,
-        refundProcessingCount: 0,
-        refundPendingAccountCount: 0,
-        tiers: [
-          PromoterTicketTier(
-            id: 't3',
-            name: 'Amphitheater Seat',
-            price: 450000,
-            quota: 800,
-            quotaType: 'Kursi',
-            accentColor: Color(0xFFC2185B),
-          ),
-        ],
-      ),
-      const PromoterConcertItem(
-        id: '3',
-        title: 'Rock Anthem Vol. II',
-        dateAndVenue: '05 Des · Dome Universitas',
-        date: 'Sabtu, 05 Desember 2026',
-        time: 'Gerbang 16.30 · Mulai 18.00',
-        venueName: 'Dome Universitas',
-        venueAddress: 'Jl. Sumbersari No. 1, Lowokwaru, Kota Malang',
-        status: ConcertStatus.draft,
-        likesCount: '250',
-        posterFileName: 'poster_rock_anthem.png',
-        squareLogoFileName: 'logo_rock_anthem_square.png',
-        posterDataUrl: ConcertImageWidget.sampleRockAnthemPng,
-        squareLogoDataUrl: ConcertImageWidget.sampleRockAnthemPng,
-        tiers: [
-          PromoterTicketTier(
-            id: 't4',
-            name: 'General Admission',
-            price: 250000,
-            quota: 1200,
-            quotaType: 'Orang',
-            accentColor: Color(0xFF1B2A8C),
-          ),
-        ],
-      ),
-      const PromoterConcertItem(
-        id: '4',
-        title: 'Festival Gajayana',
-        dateAndVenue: '14 Nov · Stadion Gajayana',
-        date: 'Sabtu, 14 November 2026',
-        time: 'Gerbang 17.00 · Mulai 19.00',
-        venueName: 'Stadion Gajayana',
-        venueAddress: 'Jl. Tangkuban Perahu, Kauman, Kec. Klojen, Kota Malang',
-        status: ConcertStatus.ditolak,
-        likesCount: '0',
-        posterFileName: 'poster_harmoni_final.png',
-        squareLogoFileName: 'logo_harmoni_square.png',
-        posterDataUrl: ConcertImageWidget.sampleFestivalGajayanaPng,
-        squareLogoDataUrl: ConcertImageWidget.sampleFestivalGajayanaPng,
-        tiers: [
-          PromoterTicketTier(
-            id: 't5',
-            name: 'VIP Nusantara',
-            price: 750000,
-            quota: 200,
-            quotaType: 'Kursi',
-            accentColor: Color(0xFFC2185B),
-          ),
-          PromoterTicketTier(
-            id: 't6',
-            name: 'Festival',
-            price: 350000,
-            quota: 1500,
-            quotaType: 'Orang',
-            accentColor: Color(0xFF1B2A8C),
-          ),
-        ],
-      ),
-    ];
-
+    concertsNotifier.value = [];
     concertFinanceSummariesNotifier.value = [];
-    _rebuildFinanceSummariesFromConcerts();
+    weeklySalesNotifier.value = [];
+    loadConcertDraft();
   }
 
   void toggleTheme() {
@@ -587,6 +550,13 @@ class PromoterDataService {
           bankAccountNumberNotifier.value = pNum;
           bankAccountHolderNotifier.value = pHolder;
         }
+        final pBankUpdatedAt = profileRow['bank_updated_at']?.toString();
+        if (pBankUpdatedAt != null && pBankUpdatedAt.isNotEmpty) {
+          bankUpdatedAtNotifier.value =
+              DateTime.tryParse(pBankUpdatedAt)?.toLocal();
+        } else {
+          bankUpdatedAtNotifier.value = null;
+        }
       }
 
       Map<String, dynamic>? promoterRow = await SupabaseService.client
@@ -678,10 +648,8 @@ class PromoterDataService {
 
       // Ambil saldo ledger realtime (saldo tertahan dan saldo tersedia)
       PaymentGatewayService().getPromoterBalance(targetId).then((bal) {
-        if (bal.availableBalance > 0 || bal.pendingBalance > 0) {
-          activeBalanceNotifier.value = bal.availableBalance;
-          pendingBalanceNotifier.value = bal.pendingBalance;
-        }
+        activeBalanceNotifier.value = bal.availableBalance;
+        pendingBalanceNotifier.value = bal.pendingBalance;
       }).catchError((err) {
         debugPrint('Error getPromoterBalance: $err');
       });
@@ -726,6 +694,70 @@ class PromoterDataService {
     }
 
     _ensureStatusRealtime();
+  }
+
+  /// Memperbarui rekening bank Produser dengan aturan pembatasan cooldown 7 hari.
+  /// Waktu update disimpan ke kolom `bank_updated_at` pada tabel `profiles`.
+  Future<({bool success, String message})> updateProducerBankAccount({
+    required String bankName,
+    required String accountNumber,
+    required String accountHolder,
+  }) async {
+    final uid = DataService().currentUser?.id;
+    if (uid == null || !SupabaseService.isInitialized) {
+      return (success: false, message: 'Koneksi database tidak tersedia.');
+    }
+
+    final lastUpdated = bankUpdatedAtNotifier.value;
+    if (lastUpdated != null) {
+      final nextAllowed = lastUpdated.add(const Duration(days: 7));
+      final now = DateTime.now();
+      if (now.isBefore(nextAllowed)) {
+        final rem = nextAllowed.difference(now);
+        final d = rem.inDays;
+        final h = rem.inHours % 24;
+        final m = rem.inMinutes % 60;
+        final s = rem.inSeconds % 60;
+        return (
+          success: false,
+          message:
+              'Perubahan rekening hanya dapat dilakukan 1x dalam 7 hari. Sisa waktu: $d hari $h jam $m menit $s detik.',
+        );
+      }
+    }
+
+    final nowUtc = DateTime.now().toUtc();
+    try {
+      await SupabaseService.client.from('profiles').update({
+        'bank_name': bankName.trim(),
+        'bank_account_number': accountNumber.trim(),
+        'bank_account_holder': accountHolder.trim(),
+        'bank_updated_at': nowUtc.toIso8601String(),
+      }).eq('id', uid);
+
+      try {
+        await SupabaseService.client.from('promoter_profiles').update({
+          'bank_name': bankName.trim(),
+          'bank_account_number': accountNumber.trim(),
+          'bank_account_holder': accountHolder.trim(),
+        }).eq('user_id', uid);
+      } catch (_) {}
+
+      bankNameNotifier.value = bankName.trim();
+      bankAccountNumberNotifier.value = accountNumber.trim();
+      bankAccountHolderNotifier.value = accountHolder.trim();
+      bankUpdatedAtNotifier.value = nowUtc.toLocal();
+
+      return (
+        success: true,
+        message: 'Rekening bank tujuan berhasil diperbarui.',
+      );
+    } catch (e) {
+      return (
+        success: false,
+        message: 'Gagal memperbarui rekening bank: $e',
+      );
+    }
   }
 
   String? _statusTargetUserId;
@@ -841,6 +873,19 @@ class PromoterDataService {
     }
   }
 
+  /// Merefresh seluruh data Produser dari Supabase (profil, konser, dan draft)
+  Future<void> refreshAllData() async {
+    try {
+      await Future.wait([
+        loadProducerProfileFromSupabase(),
+        fetchPromoterConcertsFromSupabase(),
+        loadConcertDraft(),
+      ]);
+    } catch (e) {
+      debugPrint('Error refreshAllData Produser: $e');
+    }
+  }
+
   /// Memuat daftar konser Produser langsung dari Supabase Cloud (tanpa dummy)
   Future<void> fetchPromoterConcertsFromSupabase() async {
     if (!SupabaseService.isInitialized) return;
@@ -852,18 +897,104 @@ class PromoterDataService {
     startRealtimeStockSync();
     try {
       final currentUserId = currentUser?.id;
+      if (currentUserId == null || currentUserId.isEmpty) return;
 
-      // Ambil metrik penjualan aktual langsung dari tabel orders / tickets Supabase
+      // 1. Ambil HANYA konser milik Produser yang sedang login
+      final response = await SupabaseService.client
+          .from('concerts')
+          .select('*, ticket_tiers(*)')
+          .eq('producer_id', currentUserId)
+          .order('created_at', ascending: false);
+
+      final List<PromoterConcertItem> supaItems = [];
+      final Set<String> myConcertIds = {};
+      for (final row in response) {
+        try {
+          var parsed = PromoterConcertItem.fromJson(row);
+          final cid = parsed.id;
+          final cachedReason =
+              LocalStorage.getString('livetix_concert_rej_reason_$cid');
+          final cachedAtStr =
+              LocalStorage.getString('livetix_concert_rej_at_$cid');
+          if ((parsed.rejectionReason == null ||
+                  parsed.rejectionReason!.isEmpty) &&
+              cachedReason != null &&
+              cachedReason.isNotEmpty) {
+            parsed = parsed.copyWith(rejectionReason: cachedReason);
+          }
+          if (parsed.rejectedAt == null &&
+              cachedAtStr != null &&
+              cachedAtStr.isNotEmpty) {
+            parsed =
+                parsed.copyWith(rejectedAt: DateTime.tryParse(cachedAtStr));
+          }
+          final cachedHighlights =
+              LocalStorage.getStringList('livetix_concert_highlights_$cid');
+          final cachedHighlightNames = LocalStorage.getStringList(
+              'livetix_concert_highlight_names_$cid');
+          if (cachedHighlights.isNotEmpty) {
+            parsed = parsed.copyWith(
+              highlights: cachedHighlights,
+              highlightNames: cachedHighlightNames,
+            );
+          }
+          supaItems.add(parsed);
+          myConcertIds.add(cid);
+        } catch (e) {
+          debugPrint('Error parse promoter concert row: $e');
+        }
+      }
+
+      final shortNames = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+      final fullNames = [
+        'Senin',
+        'Selasa',
+        'Rabu',
+        'Kamis',
+        'Jumat',
+        'Sabtu',
+        'Minggu',
+      ];
+      final now = DateTime.now();
+
+      // Jika Produser belum memiliki konser apa pun
+      if (myConcertIds.isEmpty) {
+        weeklySalesNotifier.value = List<DailySalesData>.generate(7, (i) {
+          final daysAgo = 6 - i;
+          final d = now.subtract(Duration(days: daysAgo));
+          final wd = d.weekday - 1;
+          return DailySalesData(
+            dayLabel: shortNames[wd],
+            fullDayName: fullNames[wd],
+            valueK: 0,
+            ticketsSold: 0,
+            revenueAmount: 0,
+            isPeak: false,
+          );
+        });
+        final pendingDraft = draftConcertNotifier.value;
+        concertsNotifier.value =
+            pendingDraft != null ? <PromoterConcertItem>[pendingDraft] : [];
+        activeBalanceNotifier.value = 0;
+        pendingBalanceNotifier.value = 0;
+        _rebuildFinanceSummariesFromConcerts();
+        return;
+      }
+
+      // 2. Ambil metrik penjualan aktual HANYA untuk konser milik Produser ini
       final Map<String, int> actualSoldMap = {};
       final Map<String, int> actualRevenueMap = {};
       final Map<int, int> dailySoldMap = {};
       final Map<int, int> dailyRevenueMap = {};
+
       try {
         final paidOrders = await SupabaseService.client
             .from('orders')
             .select(
                 'concert_id, quantity, gross_amount, total_amount, created_at')
-            .eq('payment_status', 'PAID');
+            .eq('payment_status', 'PAID')
+            .inFilter('concert_id', myConcertIds.toList());
+
         for (final o in paidOrders) {
           final cid = o['concert_id']?.toString() ?? '';
           final qty = (o['quantity'] as num?)?.toInt() ?? 1;
@@ -874,72 +1005,22 @@ class PromoterDataService {
             actualRevenueMap[cid] = (actualRevenueMap[cid] ?? 0) + rev;
           }
 
-          // Akumulasi penjualan harian untuk grafik tren 7 hari (sumber sama dengan totalRevenue/ticketsSold)
           final createdAt = o['created_at']?.toString();
           if (createdAt != null && createdAt.isNotEmpty) {
             try {
               final orderDate = DateTime.tryParse(createdAt);
               if (orderDate != null) {
-                final now = DateTime.now();
                 final startOfToday = DateTime(now.year, now.month, now.day);
                 final daysAgo = startOfToday.difference(orderDate).inDays;
                 if (daysAgo >= 0 && daysAgo <= 6) {
                   final dayKey = daysAgo;
-                  final dailyQty = dailySoldMap[dayKey] ?? 0;
-                  final dailyRev = dailyRevenueMap[dayKey] ?? 0;
-                  dailySoldMap[dayKey] = dailyQty + qty;
-                  dailyRevenueMap[dayKey] = dailyRev + rev;
+                  dailySoldMap[dayKey] = (dailySoldMap[dayKey] ?? 0) + qty;
+                  dailyRevenueMap[dayKey] = (dailyRevenueMap[dayKey] ?? 0) + rev;
                 }
               }
             } catch (_) {}
           }
         }
-
-        // Bangun data grafik 7 hari terakhir dari order yang sama dengan totalRevenue/ticketsSold
-        final shortNames = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-        final fullNames = [
-          'Senin',
-          'Selasa',
-          'Rabu',
-          'Kamis',
-          'Jumat',
-          'Sabtu',
-          'Minggu',
-        ];
-        final now = DateTime.now();
-        final weekly = List<DailySalesData>.generate(7, (i) {
-          final daysAgo = 6 - i;
-          final d = now.subtract(Duration(days: daysAgo));
-          final wd = d.weekday - 1;
-          final sold = dailySoldMap[daysAgo] ?? 0;
-          final rev = dailyRevenueMap[daysAgo] ?? 0;
-          return DailySalesData(
-            dayLabel: shortNames[wd],
-            fullDayName: fullNames[wd],
-            valueK: rev / 1000,
-            ticketsSold: sold,
-            revenueAmount: rev,
-          );
-        });
-        double maxK = 0;
-        int peak = -1;
-        for (var i = 0; i < weekly.length; i++) {
-          if (weekly[i].valueK > maxK) {
-            maxK = weekly[i].valueK;
-            peak = i;
-          }
-        }
-        for (var i = 0; i < weekly.length; i++) {
-          weekly[i] = DailySalesData(
-            dayLabel: weekly[i].dayLabel,
-            fullDayName: weekly[i].fullDayName,
-            valueK: weekly[i].valueK,
-            ticketsSold: weekly[i].ticketsSold,
-            revenueAmount: weekly[i].revenueAmount,
-            isPeak: maxK > 0 && i == peak,
-          );
-        }
-        weeklySalesNotifier.value = weekly;
       } catch (errMetrics) {
         debugPrint('Catat order penjualan Supabase: $errMetrics');
       }
@@ -948,7 +1029,8 @@ class PromoterDataService {
         final paidTickets = await SupabaseService.client
             .from('tickets')
             .select('concert_id, qr_scan_quota')
-            .eq('status', 'ACTIVE');
+            .eq('status', 'ACTIVE')
+            .inFilter('concert_id', myConcertIds.toList());
         for (final t in paidTickets) {
           final cid = t['concert_id']?.toString() ?? '';
           if (cid.isNotEmpty && !actualSoldMap.containsKey(cid)) {
@@ -958,72 +1040,82 @@ class PromoterDataService {
         }
       } catch (_) {}
 
-      final response = await SupabaseService.client
-          .from('concerts')
-          .select('*, ticket_tiers(*)')
-          .order('created_at', ascending: false);
+      // Bangun grafik tren 7 hari
+      final weekly = List<DailySalesData>.generate(7, (i) {
+        final daysAgo = 6 - i;
+        final d = now.subtract(Duration(days: daysAgo));
+        final wd = d.weekday - 1;
+        final sold = dailySoldMap[daysAgo] ?? 0;
+        final rev = dailyRevenueMap[daysAgo] ?? 0;
+        return DailySalesData(
+          dayLabel: shortNames[wd],
+          fullDayName: fullNames[wd],
+          valueK: rev / 1000,
+          ticketsSold: sold,
+          revenueAmount: rev,
+        );
+      });
+      double maxK = 0;
+      int peak = -1;
+      for (var i = 0; i < weekly.length; i++) {
+        if (weekly[i].valueK > maxK) {
+          maxK = weekly[i].valueK;
+          peak = i;
+        }
+      }
+      for (var i = 0; i < weekly.length; i++) {
+        weekly[i] = DailySalesData(
+          dayLabel: weekly[i].dayLabel,
+          fullDayName: weekly[i].fullDayName,
+          valueK: weekly[i].valueK,
+          ticketsSold: weekly[i].ticketsSold,
+          revenueAmount: weekly[i].revenueAmount,
+          isPeak: maxK > 0 && i == peak,
+        );
+      }
+      weeklySalesNotifier.value = weekly;
 
-      final List<PromoterConcertItem> supaItems = [];
-      for (final row in response) {
-        try {
-          final rowProducer = row['producer_id']?.toString();
-          if (currentUserId == null ||
-              rowProducer == null ||
-              rowProducer == currentUserId ||
-              row['status'] == 'pending') {
-            var parsed = PromoterConcertItem.fromJson(row);
-            final cid = parsed.id;
+      // Update konser dengan nilai penjualan aktual
+      for (var i = 0; i < supaItems.length; i++) {
+        final cid = supaItems[i].id;
+        final tierSold =
+            supaItems[i].tiers.fold<int>(0, (s, t) => s + t.soldCount);
+        final rawActualSold = actualSoldMap[cid] ?? 0;
+        final actualSold = rawActualSold > tierSold ? rawActualSold : tierSold;
+        final actualRev = actualRevenueMap[cid] ??
+            (actualSold *
+                (supaItems[i].tiers.isNotEmpty
+                    ? supaItems[i].tiers.first.price
+                    : 0));
+        supaItems[i] = supaItems[i].copyWith(
+          ticketsSold: actualSold,
+          grossRevenue: actualRev,
+          totalRefundAmount: actualRev,
+          affectedBuyersCount: actualSold,
+        );
+      }
 
-            // Hubungkan penjualan aktual dari database (gunakan nilai tertinggi antara orders/tickets & tier soldCount)
-            final tierSold =
-                parsed.tiers.fold<int>(0, (s, t) => s + t.soldCount);
-            final rawActualSold = actualSoldMap[cid] ?? 0;
-            final actualSold =
-                rawActualSold > tierSold ? rawActualSold : tierSold;
-            final actualRev = actualRevenueMap[cid] ??
-                (actualSold *
-                    (parsed.tiers.isNotEmpty ? parsed.tiers.first.price : 0));
-            parsed = parsed.copyWith(
-              ticketsSold: actualSold,
-              grossRevenue: actualRev,
-              totalRefundAmount: actualRev,
-              affectedBuyersCount: actualSold,
-            );
-
-            final cachedReason =
-                LocalStorage.getString('livetix_concert_rej_reason_$cid');
-            final cachedAtStr =
-                LocalStorage.getString('livetix_concert_rej_at_$cid');
-            if ((parsed.rejectionReason == null ||
-                    parsed.rejectionReason!.isEmpty) &&
-                cachedReason != null &&
-                cachedReason.isNotEmpty) {
-              parsed = parsed.copyWith(rejectionReason: cachedReason);
-            }
-            if (parsed.rejectedAt == null &&
-                cachedAtStr != null &&
-                cachedAtStr.isNotEmpty) {
-              parsed =
-                  parsed.copyWith(rejectedAt: DateTime.tryParse(cachedAtStr));
-            }
-            final cachedHighlights =
-                LocalStorage.getStringList('livetix_concert_highlights_$cid');
-            final cachedHighlightNames = LocalStorage.getStringList(
-                'livetix_concert_highlight_names_$cid');
-            if (cachedHighlights.isNotEmpty) {
-              parsed = parsed.copyWith(
-                highlights: cachedHighlights,
-                highlightNames: cachedHighlightNames,
-              );
-            }
-            supaItems.add(parsed);
-          }
-        } catch (e) {
-          debugPrint('Error parse promoter concert row: $e');
+      final pendingDraft = draftConcertNotifier.value;
+      if (pendingDraft != null) {
+        // Draft lokal yang barisnya sudah ada di database berarti sudah
+        // diajukan. Status resmi (menunggu/disetujui/ditolak) berasal dari
+        // database, jadi draft lokal tidak boleh menimpanya.
+        if (supaItems.any((c) => c.id == pendingDraft.id)) {
+          await clearConcertDraft();
+        } else {
+          supaItems.insert(0, pendingDraft);
         }
       }
       concertsNotifier.value = supaItems;
       _rebuildFinanceSummariesFromConcerts();
+
+      // Sinkron saldo akun produser
+      PaymentGatewayService().getPromoterBalance(currentUserId).then((bal) {
+        activeBalanceNotifier.value = bal.availableBalance;
+        pendingBalanceNotifier.value = bal.pendingBalance;
+      }).catchError((err) {
+        debugPrint('Error getPromoterBalance: $err');
+      });
     } catch (err) {
       debugPrint('Error fetch promoter concerts: $err');
     }
@@ -1965,20 +2057,11 @@ class PromoterDataService {
 
   Future<({bool success, String? errorMessage})> addConcert(
       PromoterConcertItem newConcert) async {
-    if (quotaRemainingNotifier.value <= 0) {
-      return (
-        success: false,
-        errorMessage: 'Kuota pengajuan konser Anda sudah habis.',
-      );
-    }
-
     final previousList = List<PromoterConcertItem>.from(concertsNotifier.value);
-    final previousQuota = quotaRemainingNotifier.value;
 
     final updatedList = List<PromoterConcertItem>.from(previousList);
     updatedList.insert(0, newConcert);
     concertsNotifier.value = updatedList;
-    quotaRemainingNotifier.value = previousQuota - 1;
 
     if (newConcert.highlights.isNotEmpty) {
       LocalStorage.setStringList(
@@ -1997,7 +2080,6 @@ class PromoterDataService {
       );
       if (!result.success) {
         concertsNotifier.value = previousList;
-        quotaRemainingNotifier.value = previousQuota;
         return result;
       }
     }
@@ -2093,7 +2175,12 @@ class PromoterDataService {
     return (success: true, errorMessage: null);
   }
 
-  void deleteConcert(String id) {
+  Future<void> deleteConcert(String id) async {
+    if (id.startsWith('draft_') || draftConcertNotifier.value?.id == id) {
+      await clearConcertDraft();
+      return;
+    }
+
     final updatedList = List<PromoterConcertItem>.from(concertsNotifier.value);
     updatedList.removeWhere((item) => item.id == id);
     concertsNotifier.value = updatedList;

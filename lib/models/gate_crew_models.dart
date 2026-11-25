@@ -21,7 +21,7 @@ class GateCrewAssignmentModel {
       concertId: (json['concert_id'] ?? json['concertId'] ?? '') as String,
       concertTitle: (json['concert_title'] ??
           json['concertTitle'] ??
-          'Soundwave Fest 2026') as String,
+          '-') as String,
       venue: (json['venue'] ?? 'Stadion Gajayana, Malang') as String,
       gateName: (json['gate_name'] ?? json['gateName'] ?? 'Gate A') as String,
       assignedAt: DateTime.tryParse(json['assigned_at'] as String? ?? '') ??
@@ -77,9 +77,9 @@ class GateCrewMemberModel {
     this.activeAssignment,
     this.approvalStatus = 'approved',
     this.defaultPassword = 'crewgate123',
-    this.producerId = 'producer-1',
-    this.producerName = 'Soundwave Entertainment',
-    this.producerEmail = 'produser@livetix.com',
+    this.producerId = '',
+    this.producerName = '',
+    this.producerEmail = '',
   });
 
   bool get isAssigned => activeAssignment != null;
@@ -124,9 +124,9 @@ class GateCrewMemberModel {
       assignment = GateCrewAssignmentModel(
         id: (json['assignment_id'] ?? '') as String,
         concertId: json['concert_id'] as String,
-        concertTitle: (json['concert_title'] ?? 'Soundwave Fest 2026') as String,
-        venue: (json['venue'] ?? 'Stadion Gajayana, Malang') as String,
-        gateName: (json['gate_name'] ?? 'Gate A') as String,
+        concertTitle: (json['concert_title'] ?? '-') as String,
+        venue: (json['venue'] ?? '-') as String,
+        gateName: (json['gate_name'] ?? '-') as String,
         assignedAt: DateTime.tryParse(json['assigned_at'] as String? ?? '') ??
             DateTime.now(),
       );
@@ -145,13 +145,13 @@ class GateCrewMemberModel {
           (json['default_password'] ?? 'crewgate123') as String,
       producerId: (json['producer_id'] ??
           json['producerId'] ??
-          'producer-1') as String,
+          '') as String,
       producerName: (json['producer_name'] ??
           json['producerName'] ??
-          'Soundwave Entertainment') as String,
+          '') as String,
       producerEmail: (json['producer_email'] ??
           json['producerEmail'] ??
-          'produser@livetix.com') as String,
+          '') as String,
     );
   }
 

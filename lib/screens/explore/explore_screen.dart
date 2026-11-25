@@ -3,6 +3,7 @@ import '../../core/app_colors.dart';
 import '../../models/concert_model.dart';
 import '../../services/ai_backend_service.dart';
 import '../../services/data_service.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/concert_media.dart';
 import '../common/concert_ai_info_modal.dart';
 import '../concert/concert_detail_screen.dart';
@@ -144,6 +145,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       _loadError = null;
     });
     try {
+      await _dataService.fetchConcertsFromSupabase();
       final cities = await _dataService.getCities();
       final genres = await _dataService.getGenres();
       final concerts = await _dataService.getEvents();
@@ -349,9 +351,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      body: SingleChildScrollView(
-        controller: _scrollController,
-        padding: EdgeInsets.only(left: 20, right: 20, top: topSpacing, bottom: 32),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await Future.wait([
+            _loadDataFromService(),
+            _dataService.fetchUserLikesFromSupabase(),
+            NotificationService().load(),
+          ]);
+        },
+        color: AppColors.primary,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          controller: _scrollController,
+          padding: EdgeInsets.only(left: 20, right: 20, top: topSpacing, bottom: 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -527,6 +539,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ],
           ],
         ),
+      ),
       ),
     );
   }

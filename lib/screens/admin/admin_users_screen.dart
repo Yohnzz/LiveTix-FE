@@ -401,8 +401,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               ),
               // Seluruh konten di bawah header (Search, Filter Chips, Action Bar, Pending & List) dalam satu scroll view agar responsif di layar kecil / text scale besar
               Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.only(bottom: 24),
+                child: RefreshIndicator(
+                  color: accent,
+                  onRefresh: () async {
+                    await Future.wait([
+                      AdminService().load(force: true),
+                      gateCrewService.loadTeam(),
+                    ]);
+                  },
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 24),
                   children: [
                     // Search Bar
                     Padding(
@@ -746,8 +755,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   ],
                 ),
               ),
-            ],
-          );
+            ),
+          ],
+        );
         },
       ),
     );
@@ -777,24 +787,8 @@ class _UserCard extends StatelessWidget {
         onTap: onTap,
         child: Row(
           children: [
-            // Avatar Initial
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: roleBg,
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                user.initials,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: roleFg,
-                ),
-              ),
-            ),
+            // Avatar
+            _buildAvatar(context, roleBg, roleFg),
             const SizedBox(width: 12),
             // User Info + Role Badge (wrap agar tidak overflow di 320px)
             Expanded(
@@ -930,6 +924,49 @@ class _UserCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar(BuildContext context, Color roleBg, Color roleFg) {
+    final avatar = user.avatarUrl?.trim();
+    final isValidUrl = avatar != null &&
+        avatar.isNotEmpty &&
+        (avatar.startsWith('http://') || avatar.startsWith('https://'));
+
+    Widget fallback() => Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: roleBg,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            user.initials,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: roleFg,
+            ),
+          ),
+        );
+
+    if (!isValidUrl) {
+      return fallback();
+    }
+
+    return ClipOval(
+      child: Image.network(
+        avatar,
+        width: 44,
+        height: 44,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback(),
+        loadingBuilder: (_, child, progress) {
+          if (progress == null) return child;
+          return fallback();
+        },
       ),
     );
   }

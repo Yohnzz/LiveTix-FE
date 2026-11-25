@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/promoter_models.dart';
+import '../../../services/ai_backend_service.dart';
 import '../../../services/gate_crew_service.dart';
 import '../../../services/promoter_data_service.dart';
 import '../../../services/supabase_service.dart';
@@ -16,11 +18,15 @@ import 'step4_summary_review_screen.dart';
 class AddConcertFlow extends StatefulWidget {
   final int initialStep;
   final PromoterConcertItem? editingConcert;
+  final bool isDraftResume;
+  final Map<String, String>? savedCrewAssignments;
 
   const AddConcertFlow({
     super.key,
     this.initialStep = 1,
     this.editingConcert,
+    this.isDraftResume = false,
+    this.savedCrewAssignments,
   });
 
   @override
@@ -29,6 +35,7 @@ class AddConcertFlow extends StatefulWidget {
 
 class _AddConcertFlowState extends State<AddConcertFlow> {
   late int _currentStep;
+  Timer? _draftDebounce;
 
   // Step 1 Controllers & State (kosong saat tambah konser baru, terisi saat edit)
   late final TextEditingController _nameController;
@@ -40,7 +47,14 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
   String? _squareLogoDataUrl;
   List<String> _highlights = [];
   List<String> _highlightNames = [];
-  List<String> _shortMessages = ['Festival • 17+', 'Seru!'];
+  List<String> _shortMessages = <String>[];
+
+  // Badge banner disimpulkan otomatis oleh AI dari deskripsi konser.
+  // Disimpan deskripsi sumbernya agar badge tidak dibuat ulang setiap kali
+  // pengguna bolak-balik ke step ringkasan, sehingga hasil edit tetap aman.
+  String? _badgesGeneratedForDescription;
+  bool _isGeneratingBadges = false;
+  Future<void>? _badgeGenerationTask;
 
   // Step 2 State
   late String _venueName;
@@ -53,10 +67,23 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
   // Step 3 State
   late List<PromoterTicketTier> _ticketTiers;
 
-  // Step 4 State: Pemilihan Gate Crew
+  // Step 4 State: Pemilihan Gate Crew & Daftar Gate
   Map<String, String> _selectedCrewWithGate = {};
+  List<String> _gates = [];
 
   bool get _isEditMode => widget.editingConcert != null;
+
+  /// Draft lokal belum punya baris di tabel `concerts`. Saat draft ini
+  /// diajukan pertama kali, perlakukan sebagai konser baru (request `create`)
+  /// agar admin menyetujui/menolak lewat alur yang benar, bukan alur edit.
+  bool get _isLocalDraftSubmission =>
+      _isEditMode &&
+      widget.isDraftResume &&
+      (widget.editingConcert?.id.startsWith('draft_') ?? false);
+
+  /// Konser sudah dikirim ke admin, jadi draft lokal tidak boleh ditulis lagi
+  /// saat halaman ditutup (itu yang membuat status kembali menjadi Draft).
+  bool _hasSubmitted = false;
 
   @override
   void initState() {
@@ -85,9 +112,8 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       _squareLogoDataUrl = editing.squareLogoDataUrl;
       _highlights = List<String>.from(editing.highlights);
       _highlightNames = List<String>.from(editing.highlightNames);
-      _shortMessages = editing.shortMessages.isNotEmpty
-          ? List<String>.from(editing.shortMessages)
-          : ['Festival • 17+', 'Seru!'];
+      _shortMessages = List<String>.from(editing.shortMessages);
+      _badgesGeneratedForDescription = editing.description.trim();
       _venueName = editing.venueName;
       _venueAddress = editing.venueAddress;
       _venueSearchQuery = editing.venueName;
@@ -95,6 +121,12 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       _venueLongitude = editing.venueLongitude;
       _venuePlaceId = editing.venuePlaceId;
       _ticketTiers = List<PromoterTicketTier>.from(editing.tiers);
+      _gates = List<String>.from(editing.gates);
+      if (widget.savedCrewAssignments != null &&
+          widget.savedCrewAssignments!.isNotEmpty) {
+        _selectedCrewWithGate =
+            Map<String, String>.from(widget.savedCrewAssignments!);
+      }
     } else {
       _nameController = TextEditingController();
       _dateTimeController = TextEditingController();
@@ -105,7 +137,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       _squareLogoDataUrl = null;
       _highlights = [];
       _highlightNames = [];
-      _shortMessages = ['Festival • 17+', 'Seru!'];
+      _shortMessages = <String>[];
       _venueName = '';
       _venueAddress = '';
       _venueSearchQuery = '';
@@ -113,11 +145,150 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       _venueLongitude = null;
       _venuePlaceId = null;
       _ticketTiers = [];
+      _gates = [];
     }
+
+    _nameController.addListener(_onFormFieldChanged);
+    _dateTimeController.addListener(_onFormFieldChanged);
+    _descriptionController.addListener(_onFormFieldChanged);
+
+    if (_currentStep == 5) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_generateBadgesFromDescription());
+      });
+    }
+  }
+
+  /// Meminta AI menyimpulkan badge banner dari deskripsi konser.
+  /// Dijalankan sekali per versi deskripsi; hasil kosong berarti deskripsi
+  /// dianggap belum punya kata kunci menarik, jadi badge dibiarkan kosong.
+  Future<void> _generateBadgesFromDescription() {
+    if (_isGeneratingBadges) {
+      return _badgeGenerationTask ?? Future.value();
+    }
+    final description = _descriptionController.text.trim();
+    if (description.isEmpty ||
+        _badgesGeneratedForDescription == description) {
+      return Future.value();
+    }
+
+    final task = _requestBadges(description);
+    _badgeGenerationTask = task;
+    return task;
+  }
+
+  Future<void> _requestBadges(String description) async {
+    setState(() => _isGeneratingBadges = true);
+
+    final badges = await AiBackendService().generateBadges(
+      description: description,
+      title: _nameController.text.trim(),
+      date: _dateTimeController.text.trim(),
+      venue: _venueName.trim(),
+    );
+    if (!mounted) return;
+
+    // Jika deskripsi berubah saat AI bekerja, jangan timpa dengan hasil lama.
+    if (_descriptionController.text.trim() != description) {
+      setState(() => _isGeneratingBadges = false);
+      return;
+    }
+
+    setState(() {
+      _shortMessages = badges;
+      _badgesGeneratedForDescription = description;
+      _isGeneratingBadges = false;
+    });
+    _saveDraftLocally();
+  }
+
+  void _onFormFieldChanged() {
+    _draftDebounce?.cancel();
+    _draftDebounce = Timer(const Duration(milliseconds: 600), () {
+      _saveDraftLocally();
+    });
+  }
+
+  void _saveDraftLocally() {
+    if (_hasSubmitted) {
+      return;
+    }
+    if (_isEditMode && !widget.isDraftResume) {
+      return;
+    }
+    final title = _nameController.text.trim();
+    final venue = _venueName.trim();
+    if (title.isEmpty && venue.isEmpty && _currentStep == 1) {
+      return;
+    }
+
+    final rawDateText = _dateTimeController.text.trim();
+    final cleanDate = rawDateText
+        .replaceAll(
+          RegExp(r'(\s*[-–—·•|]\s*\d{1,2}[:.]\d{2}(\s*WIB)?)+',
+              caseSensitive: false),
+          '',
+        )
+        .trim();
+    final timeMatch = RegExp(r'(\d{1,2}[:.]\d{2}\s*WIB)', caseSensitive: false)
+        .firstMatch(rawDateText);
+    final resolvedTime = timeMatch != null ? timeMatch.group(1)! : '19:00 WIB';
+
+    final draftItem = PromoterConcertItem(
+      id: widget.editingConcert?.id ??
+          'draft_${PromoterDataService().currentUserId}',
+      title: title.isNotEmpty ? title : '(Draft) Konser Baru',
+      dateAndVenue:
+          '${cleanDate.isNotEmpty ? cleanDate : "Jadwal Belum Ditentukan"} · ${venue.isNotEmpty ? venue : "Lokasi Belum Dipilih"}',
+      date: cleanDate,
+      time: resolvedTime,
+      venueName: venue,
+      venueAddress: _venueAddress,
+      venueLatitude: _venueLatitude,
+      venueLongitude: _venueLongitude,
+      venuePlaceId: _venuePlaceId,
+      description: _descriptionController.text.trim(),
+      posterFileName: _posterFileName,
+      squareLogoFileName: _squareLogoFileName,
+      posterDataUrl: _posterDataUrl,
+      squareLogoDataUrl: _squareLogoDataUrl,
+      highlights: _highlights,
+      highlightNames: _highlightNames,
+      shortMessages: _shortMessages,
+      status: ConcertStatus.draft,
+      likesCount: '0',
+      tiers: _ticketTiers,
+      gates: _gates.isNotEmpty
+          ? _gates
+          : _selectedCrewWithGate.values.toSet().toList(),
+      cancellationStatus: ConcertCancellationStatus.none,
+      cancellationCategory: '',
+      cancellationReason: '',
+      cancellationSubmissionDate: '',
+      ticketsSold: 0,
+      affectedBuyersCount: 0,
+      totalRefundAmount: 0,
+      refundDoneCount: 0,
+      refundProcessingCount: 0,
+      refundPendingAccountCount: 0,
+      isCompleted: false,
+      grossRevenue: 0,
+    );
+
+    PromoterDataService().saveConcertDraft(
+      draftItem: draftItem,
+      currentStep: _currentStep,
+      selectedCrewWithGate: _selectedCrewWithGate,
+    );
   }
 
   @override
   void dispose() {
+    _draftDebounce?.cancel();
+    _saveDraftLocally();
+    _nameController.removeListener(_onFormFieldChanged);
+    _dateTimeController.removeListener(_onFormFieldChanged);
+    _descriptionController.removeListener(_onFormFieldChanged);
     _nameController.dispose();
     _dateTimeController.dispose();
     _descriptionController.dispose();
@@ -125,6 +296,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
   }
 
   void _onBack() {
+    _saveDraftLocally();
     if (_currentStep > 1) {
       setState(() => _currentStep--);
     } else {
@@ -210,6 +382,10 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
 
     if (_currentStep < 5) {
       setState(() => _currentStep++);
+      _saveDraftLocally();
+      if (_currentStep == 5) {
+        unawaited(_generateBadgesFromDescription());
+      }
     }
   }
 
@@ -395,10 +571,17 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
 
   void _submitConcert([Map<String, String>? invitedCrew]) async {
     if (_isSubmitting) return;
+
+    // Pastikan badge hasil AI sudah selesai sebelum konser disimpan.
+    final badgeTask = _badgeGenerationTask;
+    if (badgeTask != null) {
+      await badgeTask;
+      if (!mounted) return;
+    }
     setState(() => _isSubmitting = true);
     final service = PromoterDataService();
 
-    if (_isEditMode) {
+    if (_isEditMode && !_isLocalDraftSubmission) {
       final proceed = await _showEditConfirmationDialog();
       if (!proceed || !mounted) return;
 
@@ -474,7 +657,9 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
         return;
       }
 
-      if (invitedCrew != null && invitedCrew.isNotEmpty) {
+      await service.clearConcertDraft();
+
+    if (invitedCrew != null && invitedCrew.isNotEmpty) {
         for (final entry in invitedCrew.entries) {
           await GateCrewService().inviteCrewToConcert(
             crewId: entry.key,
@@ -490,7 +675,12 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
         await service.fetchPromoterConcertsFromSupabase();
       }
 
+      if (widget.isDraftResume) {
+        await service.clearConcertDraft();
+      }
+
       if (!mounted) return;
+      _hasSubmitted = true;
       setState(() => _isSubmitting = false);
       Navigator.pushReplacement(
         context,
@@ -499,19 +689,6 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
             concertTitle: updatedConcert.title,
             status: ConcertStatus.menunggu,
           ),
-        ),
-      );
-      return;
-    }
-
-    if (service.quotaRemainingNotifier.value <= 0) {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kuota pengajuan harian Anda telah habis.'),
-          backgroundColor: Colors.redAccent,
         ),
       );
       return;
@@ -538,12 +715,14 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
         newTimeMatch != null ? newTimeMatch.group(1)! : '19:00 WIB';
     final resolvedDate = cleanNewDate.isNotEmpty ? cleanNewDate : rawNewDate;
 
-    final assignedGates = invitedCrew?.values
-            .map((v) => v.trim())
-            .where((v) => v.isNotEmpty)
-            .toSet()
-            .toList() ??
-        const <String>[];
+    final assignedGates = _gates.isNotEmpty
+        ? _gates
+        : (invitedCrew?.values
+                .map((v) => v.trim())
+                .where((v) => v.isNotEmpty)
+                .toSet()
+                .toList() ??
+            const <String>[]);
 
     final newConcert = PromoterConcertItem(
       id: UuidUtils.generateV4(),
@@ -589,6 +768,8 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       return;
     }
 
+    await service.clearConcertDraft();
+
     if (invitedCrew != null && invitedCrew.isNotEmpty) {
       for (final entry in invitedCrew.entries) {
         await GateCrewService().inviteCrewToConcert(
@@ -606,6 +787,7 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
     }
 
     if (!mounted) return;
+    _hasSubmitted = true;
     setState(() => _isSubmitting = false);
 
     Navigator.pushReplacement(
@@ -635,8 +817,6 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
           squareLogoDataUrl: _squareLogoDataUrl,
           highlights: _highlights,
           highlightNames: _highlightNames,
-          shortMessages: _shortMessages,
-          onShortMessagesChanged: (msgs) => setState(() => _shortMessages = msgs),
           onPickPoster: _pickPosterFile,
           onRemovePoster: _removePosterFile,
           onPickSquareLogo: _pickSquareLogoFile,
@@ -687,8 +867,14 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
       case 4:
         activeScreen = Step4SelectGateCrewScreen(
           selectedCrewWithGate: _selectedCrewWithGate,
+          initialGates: _gates,
+          onGatesChanged: (gates) {
+            setState(() => _gates = gates);
+            _saveDraftLocally();
+          },
           onCrewAssignmentsChanged: (updated) {
             setState(() => _selectedCrewWithGate = updated);
+            _saveDraftLocally();
           },
           onNext: _onNext,
           onBack: _onBack,
@@ -709,7 +895,16 @@ class _AddConcertFlowState extends State<AddConcertFlow> {
           venueName: _venueName,
           venueAddress: _venueAddress,
           tiers: _ticketTiers,
+          gateOptions: _gates.isNotEmpty
+              ? _gates
+              : _selectedCrewWithGate.values.toSet().toList(),
           initialInvitedCrew: _selectedCrewWithGate,
+          shortMessages: _shortMessages,
+          isBadgesLoading: _isGeneratingBadges,
+          onShortMessagesChanged: (msgs) {
+            setState(() => _shortMessages = msgs);
+            _saveDraftLocally();
+          },
           onSubmit: _submitConcert,
           onBack: _onBack,
           isEditMode: _isEditMode,

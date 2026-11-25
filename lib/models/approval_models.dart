@@ -745,6 +745,7 @@ class ManagedUserModel {
   final bool hasFavorite;
   final List<UserTransactionModel> transactions;
   final String password;
+  final String? avatarUrl;
 
   ManagedUserModel({
     required this.id,
@@ -761,6 +762,7 @@ class ManagedUserModel {
     this.hasFavorite = false,
     this.transactions = const [],
     this.password = 'password123',
+    this.avatarUrl,
   }) : approvalStatus = approvalStatus ??
             (isActive == null
                 ? AccountStatus.approved
@@ -797,6 +799,7 @@ class ManagedUserModel {
       concertsAttended: (json['concerts_attended'] as num?)?.toInt() ?? 0,
       hasFavorite: (json['has_favorite'] ?? false) as bool,
       password: (json['password'] ?? 'password123') as String,
+      avatarUrl: (json['avatar_url'] ?? json['url_foto']) as String?,
       transactions: rawTx is List
           ? rawTx
               .whereType<Map<String, dynamic>>()
@@ -820,6 +823,8 @@ class ManagedUserModel {
         'concerts_attended': concertsAttended,
         'has_favorite': hasFavorite,
         'password': password,
+        'avatar_url': avatarUrl,
+        'url_foto': avatarUrl,
         'transactions': transactions.map((t) => t.toJson()).toList(),
       };
 
@@ -838,6 +843,7 @@ class ManagedUserModel {
     bool? hasFavorite,
     List<UserTransactionModel>? transactions,
     String? password,
+    String? avatarUrl,
   }) {
     return ManagedUserModel(
       id: id,
@@ -860,6 +866,7 @@ class ManagedUserModel {
       hasFavorite: hasFavorite ?? this.hasFavorite,
       transactions: transactions ?? this.transactions,
       password: password ?? this.password,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
     );
   }
 }

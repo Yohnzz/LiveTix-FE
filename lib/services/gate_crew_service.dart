@@ -62,12 +62,28 @@ class GateCrewService {
   }
 
   static const String defaultSystemCrewPassword = 'crewgate123';
-  static const String _localCacheKey = 'livetix_gate_crews_cache_v2';
+  static String get _localCacheKey {
+    final uid = DataService().currentUser?.id;
+    return 'livetix_gate_crews_${uid ?? "global"}';
+  }
 
+  /// Template CSV: header + 10 baris kosong (3 kolom) untuk diisi manual.
+  /// - \uFEFF (BOM) supaya Excel membaca UTF-8 dengan benar
+  /// - \r\n sebagai pemisah baris standar CSV
+  /// Saat menyimpan file, gunakan:
+  ///   await file.writeAsString(GateCrewService.csvTemplateContent, encoding: utf8);
   static const String csvTemplateContent =
-      'email,nama_opsional,no_hp_opsional\n'
-      'crew1.event@livetix.com,Petugas Gate 1,081234567801\n'
-      'crew2.event@livetix.com,Petugas Gate 2,081234567802\n';
+      '\uFEFFemail,nama_opsional,no_hp_opsional\r\n'
+      ',,\r\n'
+      ',,\r\n'
+      ',,\r\n'
+      ',,\r\n'
+      ',,\r\n'
+      ',,\r\n'
+      ',,\r\n'
+      ',,\r\n'
+      ',,\r\n'
+      ',,\r\n';
 
   final ValueNotifier<List<GateCrewMemberModel>> teamCrewNotifier =
       ValueNotifier<List<GateCrewMemberModel>>([]);
@@ -337,15 +353,15 @@ class GateCrewService {
 
         final rawProducerId = (row['producer_id'] ??
                 cached?.producerId ??
-                'b0000000-0000-0000-0000-000000000002')
+                '')
             .toString();
         final rawProducerName = (row['producer_name'] ??
                 cached?.producerName ??
-                'Soundwave Entertainment')
+                '')
             .toString();
         final rawProducerEmail = (row['producer_email'] ??
                 cached?.producerEmail ??
-                'produser@livetix.com')
+                '')
             .toString();
 
         loaded.add(GateCrewMemberModel(
@@ -392,9 +408,9 @@ class GateCrewService {
           phone: (a['phone'] ?? cached?.phone ?? '-').toString(),
           approvalStatus: cached?.approvalStatus ?? 'approved',
           defaultPassword: defaultSystemCrewPassword,
-          producerId: cached?.producerId ?? 'b0000000-0000-0000-0000-000000000002',
-          producerName: cached?.producerName ?? 'Soundwave Entertainment',
-          producerEmail: cached?.producerEmail ?? 'produser@livetix.com',
+          producerId: cached?.producerId ?? '',
+          producerName: cached?.producerName ?? '',
+          producerEmail: cached?.producerEmail ?? '',
           activeAssignment: assignmentByEmail[crewEmail] ??
               assignmentMap[crewId] ??
               cached?.activeAssignment,
@@ -408,8 +424,32 @@ class GateCrewService {
         }
       }
 
-      teamCrewNotifier.value = loaded;
-      _persistToLocalCache(loaded);
+      final currentUser = DataService().currentUser;
+      final currentUserId = currentUser?.id;
+      final currentUserRole = currentUser?.role.toLowerCase() ?? '';
+      final isAdmin = currentUserRole == 'admin';
+
+      final List<GateCrewMemberModel> filteredLoaded;
+      if (isAdmin) {
+        filteredLoaded = loaded;
+      } else if (currentUserId != null && currentUserId.isNotEmpty) {
+        final myConcertIds = PromoterDataService()
+            .concertsNotifier
+            .value
+            .map((c) => c.id)
+            .toSet();
+        filteredLoaded = loaded.where((m) {
+          final isMyProducer = m.producerId == currentUserId;
+          final isMyConcert = m.activeAssignment != null &&
+              myConcertIds.contains(m.activeAssignment!.concertId);
+          return isMyProducer || isMyConcert;
+        }).toList();
+      } else {
+        filteredLoaded = const [];
+      }
+
+      teamCrewNotifier.value = filteredLoaded;
+      _persistToLocalCache(filteredLoaded);
     } catch (e) {
       debugPrint('Error loadTeam GateCrewService: $e');
     }

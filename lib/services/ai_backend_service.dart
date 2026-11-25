@@ -308,7 +308,7 @@ class AiBackendService {
   // ==========================================================================
   // FITUR 3: AI ASSISTANT DESKRIPSI (SISI PRODUSER)
   // ==========================================================================
-  /// Membantu produser menulis deskripsi konser 2-3 paragraf berdasarkan instruksi
+  /// Membantu produser menulis deskripsi konser singkat 1 paragraf berdasarkan instruksi
   /// dan data form konser yang ada.
   Future<String> generateDescription({
     required String draft,
@@ -354,6 +354,62 @@ class AiBackendService {
       debugPrint('[AiBackendService] generateDescription error: $e');
       if (e is String) rethrow;
       throw 'Gagal terhubung ke backend AI ($baseUrl). Pastikan server backend telah aktif.';
+    }
+  }
+
+  // ==========================================================================
+  // FITUR 4: BADGES BANNER OTOMATIS DARI DESKRIPSI (SISI PRODUSER)
+  // ==========================================================================
+  /// Meminta AI menyimpulkan 0-3 badge singkat dari deskripsi konser.
+  /// Mengembalikan list kosong bila deskripsi belum punya kata kunci kuat,
+  /// backend tidak aktif, atau terjadi kesalahan — badge memang opsional.
+  Future<List<String>> generateBadges({
+    required String description,
+    String? title,
+    String? genre,
+    String? date,
+    String? venue,
+  }) async {
+    final clean = description.trim();
+    if (clean.length < 60) return const [];
+
+    final uri = Uri.parse('$baseUrl/api/ai/generate-badges');
+    try {
+      final res = await _client.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'description': clean,
+          'title': title,
+          'genre': genre,
+          'date': date,
+          'venue': venue,
+        }),
+      ).timeout(const Duration(seconds: 20));
+
+      if (res.statusCode != 200) {
+        debugPrint(
+            '[AiBackendService] generateBadges ← HTTP ${res.statusCode}');
+        return const [];
+      }
+
+      final decoded = jsonDecode(res.body);
+      if (decoded is! Map) return const [];
+      final rawList = decoded['badges'];
+      if (rawList is! List) return const [];
+
+      final badges = <String>[];
+      for (final item in rawList) {
+        final text = item.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+        if (text.isEmpty || text.length > 15) continue;
+        if (badges.any((b) => b.toLowerCase() == text.toLowerCase())) continue;
+        badges.add(text);
+        if (badges.length == 3) break;
+      }
+      return badges;
+    } catch (e) {
+      debugPrint('[AiBackendService] generateBadges error: $e');
+      return const [];
     }
   }
 

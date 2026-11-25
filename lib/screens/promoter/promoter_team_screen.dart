@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/gate_crew_models.dart';
 import '../../models/promoter_models.dart';
-import '../../services/data_service.dart';
 import '../../services/gate_crew_service.dart';
 import '../../services/promoter_data_service.dart';
 import '../../utils/file_picker_helper.dart';
@@ -31,21 +30,10 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
   }
 
   List<({String id, String title, String venue, List<String> gates})> _getAssignableConcerts() {
-    final promoterActive = PromoterDataService()
+    return PromoterDataService()
         .activeConcerts
         .where((c) => c.status == ConcertStatus.disetujui)
         .map((c) => (id: c.id, title: c.title, venue: c.venueName, gates: c.gates))
-        .toList();
-    if (promoterActive.isNotEmpty) return promoterActive;
-
-    return DataService()
-        .rawConcerts
-        .map((c) => (
-              id: c.id,
-              title: c.title,
-              venue: c.venue,
-              gates: const <String>[]
-            ))
         .toList();
   }
 
@@ -73,6 +61,8 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
     String selectedConcertId = concerts.first.id;
     String selectedGate =
         concerts.first.gates.isNotEmpty ? concerts.first.gates.first : '';
+    bool isAddingGate = false;
+    final gateCtrl = TextEditingController();
 
     showDialog<void>(
       context: context,
@@ -189,7 +179,7 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
                   ),
                   const SizedBox(height: 16),
                   Builder(
-                    builder: (context) {
+                    builder: (innerCtx) {
                       final currentConcert = concerts.firstWhere(
                         (item) => item.id == selectedConcertId,
                         orElse: () => concerts.first,
@@ -204,74 +194,116 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Pilih Pos Gate:',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF0F172A),
-                                ),
-                              ),
-                              TextButton.icon(
-                                onPressed: () {
-                                  final gateCtrl = TextEditingController();
-                                  showDialog(
-                                    context: context,
-                                    builder: (gCtx) => AlertDialog(
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(16)),
-                                      title: const Text('Tambah Gate Baru',
-                                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                                      content: TextField(
-                                        controller: gateCtrl,
-                                        decoration: const InputDecoration(
-                                          hintText: 'Cth: Gate VIP / Gate Timur',
-                                          border: OutlineInputBorder(),
-                                        ),
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(gCtx),
-                                          child: const Text('Batal'),
-                                        ),
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            final newGate = gateCtrl.text.trim();
-                                            if (newGate.isNotEmpty && !currentConcert.gates.contains(newGate)) {
-                                              final updatedGates = [...currentConcert.gates, newGate];
-                                              PromoterDataService().updateConcertGates(
-                                                currentConcert.id,
-                                                updatedGates,
-                                              );
-                                              setDialogState(() {
-                                                selectedGate = newGate;
-                                              });
-                                            }
-                                            Navigator.pop(gCtx);
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppColors.primary,
-                                            foregroundColor: Colors.white,
-                                          ),
-                                          child: const Text('Tambah'),
-                                        ),
-                                      ],
+                          if (isAddingGate) ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: gateCtrl,
+                                    autofocus: true,
+                                    style: const TextStyle(fontSize: 13),
+                                    decoration: InputDecoration(
+                                      hintText: 'Cth: Gate VIP / Gate Timur',
+                                      isDense: true,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 10),
+                                      border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8)),
                                     ),
-                                  );
-                                },
-                                icon: const Icon(Icons.add, size: 14),
-                                label: const Text('Tambah Gate', style: TextStyle(fontSize: 11.5)),
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: const Size(50, 30),
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
+                                const SizedBox(width: 6),
+                                InkWell(
+                                  onTap: () {
+                                    final newGate = gateCtrl.text.trim();
+                                    if (newGate.isNotEmpty &&
+                                        !currentConcert.gates.contains(newGate)) {
+                                      final updatedGates = [
+                                        ...currentConcert.gates,
+                                        newGate
+                                      ];
+                                      PromoterDataService().updateConcertGates(
+                                        currentConcert.id,
+                                        updatedGates,
+                                      );
+                                      setDialogState(() {
+                                        selectedGate = newGate;
+                                        isAddingGate = false;
+                                        gateCtrl.clear();
+                                      });
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.check_rounded,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                InkWell(
+                                  onTap: () {
+                                    setDialogState(() {
+                                      isAddingGate = false;
+                                      gateCtrl.clear();
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.close_rounded,
+                                      color: Color(0xFF64748B),
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ] else ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Pilih Pos Gate:',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    setDialogState(() {
+                                      isAddingGate = true;
+                                    });
+                                  },
+                                  icon: const Icon(Icons.add, size: 14),
+                                  label: const Text('Tambah Gate',
+                                      style: TextStyle(fontSize: 11.5)),
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: const Size(50, 30),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                           const SizedBox(height: 8),
                           if (currentGates.isEmpty)
                             Container(
@@ -1011,8 +1043,17 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
               ),
             ],
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+          body: RefreshIndicator(
+            onRefresh: () async {
+              await Future.wait([
+                GateCrewService().loadTeam(),
+                PromoterDataService().refreshAllData(),
+              ]);
+            },
+            color: AppColors.primary,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1491,7 +1532,8 @@ class _PromoterTeamScreenState extends State<PromoterTeamScreen> {
               ],
             ),
           ),
-        );
+        ),
+      );
       },
     );
   }

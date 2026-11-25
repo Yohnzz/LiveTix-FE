@@ -132,6 +132,9 @@ class AdminService {
             DateTime.tryParse((raw['created_at'] ?? '').toString()) ??
                 DateTime.now();
 
+        final rawAvatar = (raw['url_foto'] ?? raw['avatar_url'])?.toString().trim();
+        final avatarUrl = (rawAvatar != null && rawAvatar.isNotEmpty) ? rawAvatar : null;
+
         dbUsers.add(ManagedUserModel(
           id: id,
           name: name,
@@ -145,6 +148,7 @@ class AdminService {
           joinedAt: ApprovalFormat.dayMonthYear(createdAt),
           phone: (raw['phone'] ?? '-').toString(),
           password: '••••••••',
+          avatarUrl: avatarUrl,
         ));
       }
       usersNotifier.value = dbUsers;

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/ai_customer_service.dart';
@@ -1400,12 +1401,52 @@ class _ProducerCustomerServiceScreenState
                               ),
                             ),
                           ),
-                        Text(
-                          msg.message,
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            color: isMine ? Colors.white : textPrimary,
-                            height: 1.45,
+                        MarkdownBody(
+                          data: msg.message,
+                          selectable: true,
+                          styleSheet: MarkdownStyleSheet.fromTheme(
+                            Theme.of(context),
+                          ).copyWith(
+                            p: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: isMine ? Colors.white : textPrimary,
+                              height: 1.45,
+                            ),
+                            strong: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isMine
+                                  ? Colors.white
+                                  : (isDark
+                                      ? Colors.white
+                                      : const Color(0xFF0F172A)),
+                              height: 1.45,
+                            ),
+                            em: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic,
+                              color: isMine ? Colors.white : textPrimary,
+                              height: 1.45,
+                            ),
+                            listBullet: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: isMine ? Colors.white : textPrimary,
+                            ),
+                            h1: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: isMine ? Colors.white : textPrimary,
+                            ),
+                            h2: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: isMine ? Colors.white : textPrimary,
+                            ),
+                            h3: GoogleFonts.poppins(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: isMine ? Colors.white : textPrimary,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 4),

@@ -100,8 +100,17 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
         return MediaQuery.withClampedTextScaling(
           maxScaleFactor: 1.35,
-          child: ListView(
-            padding: EdgeInsets.zero,
+          child: RefreshIndicator(
+            color: accent,
+            onRefresh: () async {
+              await Future.wait([
+                adminService.load(force: true),
+                csService.fetchFromSupabase(),
+              ]);
+            },
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
             children: [
               // 1. Header seragam dengan Beranda Admin
               AdminHeader(
@@ -420,7 +429,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               ),
             ],
           ),
-        );
+        ),
+      );
       },
     );
   }

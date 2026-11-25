@@ -240,20 +240,34 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD0D5DD),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Unggah Dokumen KTP',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF101828),
+                  const Expanded(
+                    child: Text(
+                      'Unggah Dokumen KTP',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF101828),
+                      ),
                     ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close,
                         size: 20, color: Color(0xFF101828)),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     onPressed: () => Navigator.pop(ctx),
                   ),
                 ],
@@ -464,20 +478,34 @@ class _ProducerVerificationFlowState extends State<ProducerVerificationFlow> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD0D5DD),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Unggah Lembar Penanggung Jawab',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF101828),
+                  const Expanded(
+                    child: Text(
+                      'Unggah Lembar Penanggung Jawab',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF101828),
+                      ),
                     ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close,
                         size: 20, color: Color(0xFF101828)),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     onPressed: () => Navigator.pop(ctx),
                   ),
                 ],

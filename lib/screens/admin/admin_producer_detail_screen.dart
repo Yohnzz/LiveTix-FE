@@ -555,7 +555,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                child: const Text('Tolak Pendaftaran'),
+                child: const Text('Tolak'),
               ),
             ),
             const SizedBox(width: 12),
@@ -1209,7 +1209,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
               posterUrl: activeSummaries[i]['posterUrl'],
             ),
           ]
-        else if (SupabaseService.isInitialized)
+        else
           AdminCard(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -1253,22 +1253,7 @@ class _AdminProducerDetailScreenState extends State<AdminProducerDetailScreen> {
                 ),
               ],
             ),
-          )
-        else ...[
-          _buildActiveConcertCard(
-            context,
-            title: 'Soundwave Fest 2026',
-            subtitle: '12 Okt 2026 · Gate B',
-            posterUrl: null,
           ),
-          const SizedBox(height: 10),
-          _buildActiveConcertCard(
-            context,
-            title: 'Jazz Night 2026',
-            subtitle: '15 Nov 2026 · Balai Sarbini',
-            posterUrl: null,
-          ),
-        ],
       ],
     );
   }

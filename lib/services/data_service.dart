@@ -736,21 +736,62 @@ class DataService {
     );
   }
 
-  /// Mengambil daftar konser highlight di Beranda untuk carousel geser & otomatis
+  /// Mengambil total tiket yang terjual untuk suatu konser
+  int getConcertSoldTicketsCount(String concertId) {
+    final idx = _concerts.indexWhere((c) => c.id == concertId);
+    if (idx == -1) return 0;
+    final c = _concerts[idx];
+    final tierSold = c.totalSoldTickets;
+
+    // Cek juga tiket user lokal jika ada pembelian aktif
+    final localCount = userTicketsNotifier.value
+        .where((t) =>
+            (t.concertId == concertId || t.concertTitle == c.title) &&
+            t.status.toLowerCase() != 'direfund' &&
+            t.status.toUpperCase() != 'DIBATALKAN')
+        .length;
+    return tierSold > localCount ? tierSold : localCount;
+  }
+
+  /// Menghitung skor popularitas konser:
+  /// - 1 tiket terjual bernilai 10 poin (faktor penentu utama)
+  /// - 1 like bernilai 1 poin (faktor pendorong/tambahan)
+  int getConcertPopularityScore(ConcertModel concert) {
+    final sold = getConcertSoldTicketsCount(concert.id);
+    final likes = getConcertLikesCount(concert.id) +
+        (isFavorite(concert.id) ? 1 : 0);
+    return (sold * 10) + likes;
+  }
+
+  /// Mengambil daftar konser highlight di Beranda untuk carousel geser & otomatis.
+  /// Jika total konser > 7, mengambil tepat 4 konser dengan skor popularitas tertinggi.
   Future<List<ConcertModel>> getFeaturedEvents() async {
     if (SupabaseService.isInitialized && !_hasFetchedConcertsFromSupabase) {
       await fetchConcertsFromSupabase();
     } else {
       await Future.delayed(const Duration(milliseconds: 50));
     }
+
+    // Jika total konser > 7, pilih Top 4 konser dengan skor popularitas tertinggi
+    if (_concerts.length > 7) {
+      final sorted = List<ConcertModel>.from(_concerts);
+      sorted.sort((a, b) {
+        final scoreA = getConcertPopularityScore(a);
+        final scoreB = getConcertPopularityScore(b);
+        if (scoreB != scoreA) return scoreB.compareTo(scoreA);
+        return b.likesCount.compareTo(a.likesCount);
+      });
+      return sorted.take(4).toList();
+    }
+
     final featured = _concerts
         .where((c) =>
             c.bannerImageUrl != null ||
             c.bannerImageBytes != null ||
             c.status == 'published')
         .toList();
-    if (featured.isNotEmpty) return featured;
-    return _concerts.take(5).toList();
+    if (featured.isNotEmpty) return featured.take(4).toList();
+    return _concerts.take(4).toList();
   }
 
   /// Memperbarui aset gambar konser oleh Produser (banner persegi panjang & logo persegi)
@@ -2023,6 +2064,9 @@ class DataService {
             ? sVenue
             : (sDate.isNotEmpty ? sDate : 'Jadwal Segera Diumumkan'));
 
+    final expAt = order.expiresAt ?? DateTime.now().add(const Duration(minutes: 15));
+    final startAt = order.createdAt ?? DateTime.now();
+
     final pendingTicket = UserTicketModel(
       id: order.orderId,
       bookingCode: bookingCode,
@@ -2038,7 +2082,7 @@ class DataService {
       totalPrice: order.totalAmount,
       status: 'Menunggu Pembayaran',
       isCompleted: false,
-      daysLeft: 14,
+      daysLeft: _getDaysLeftFromConcert(order.concert),
       hasStar: false,
       stripeColor: const Color(0xFFF59E0B),
       iconBgColor: const Color(0xFFFEF3C7),
@@ -2049,9 +2093,13 @@ class DataService {
       qrScanQuota: order.quantity,
       paymentMethod: order.paymentMethod,
       pendingOrder: order,
+      concertId: order.concert.id,
+      logoImageUrl: order.concert.logoImageUrl ?? order.concert.bannerImageUrl,
       buyerName: order.customerName,
       buyerEmail: order.customerEmail,
       buyerNik: currentUser?.nik,
+      paymentStartedAt: startAt,
+      paymentExpiresAt: expAt,
     );
 
     final list = List<UserTicketModel>.from(userTicketsNotifier.value);
@@ -2061,6 +2109,16 @@ class DataService {
       list.insert(0, pendingTicket);
     }
     userTicketsNotifier.value = list;
+    saveUserTicketsToLocalStorage();
+
+    // Kirim notifikasi status pembayaran menunggu ke pengguna
+    unawaited(NotificationService().sendPaymentPendingNotification(
+      orderId: order.orderId,
+      concertTitle: order.concert.title,
+      amount: order.totalAmount,
+      expiresAt: expAt,
+    ));
+
     return pendingTicket;
   }
 
@@ -2148,7 +2206,7 @@ class DataService {
       totalPrice: order.totalAmount,
       status: 'Aktif',
       isCompleted: false,
-      daysLeft: 14,
+      daysLeft: _getDaysLeftFromConcert(order.concert),
       hasStar: true,
       stripeColor: const Color(0xFF1B2A8C),
       iconBgColor: const Color(0xFFE0EAFF),
@@ -2299,6 +2357,60 @@ class DataService {
   }
 
   /// Sinkronisasi tiket resmi pengguna langsung dari tabel tickets Supabase Cloud
+  DateTime? _getConcertDateFromJson(Map<String, dynamic> r) {
+    // Try to get concert date from various fields in the ticket JSON
+    final concertTitle = r['concert_title']?.toString() ?? '';
+    final concertId = r['concert_id']?.toString() ?? '';
+
+    // Look up concert by ID first
+    if (concertId.isNotEmpty) {
+      final cached = cachedConcertById(concertId);
+      if (cached != null && cached.date.isNotEmpty) {
+        return DateTime.tryParse(cached.date);
+      }
+    }
+
+    // Look up concert by title
+    if (concertTitle.isNotEmpty) {
+      final found = _concerts.firstWhere(
+        (c) => c.title.toLowerCase() == concertTitle.toLowerCase(),
+        orElse: () => const ConcertModel(
+          id: '',
+          title: '',
+          date: '',
+          venue: '',
+          price: 0,
+          category: '',
+        ),
+      );
+      if (found.date.isNotEmpty) {
+        return DateTime.tryParse(found.date);
+      }
+    }
+
+    // Fallback: parse date from string if possible
+    final rawDate = r['date']?.toString() ?? r['concert_date']?.toString() ?? '';
+    if (rawDate.isNotEmpty) {
+      return DateTime.tryParse(rawDate);
+    }
+
+    return null;
+  }
+
+  /// Menghitung hari tersisa sampai konser mulai
+  int _getDaysLeftFromConcert(ConcertModel? concert) {
+    if (concert == null) return 0;
+    final concertDate = _getConcertDateFromJson({
+      'concert_id': concert.id,
+      'concert_title': concert.title,
+    });
+    if (concertDate != null) {
+      final diff = concertDate.difference(DateTime.now()).inDays;
+      return diff < 0 ? 0 : diff;
+    }
+    return 0;
+  }
+
   Future<void> fetchUserTicketsFromSupabase() async {
     if (!SupabaseService.isInitialized) return;
     if (_ongoingTicketFetch != null) return _ongoingTicketFetch!;
@@ -2350,6 +2462,11 @@ class DataService {
         }
         return await query.order('issued_at', ascending: false);
       });
+      final List<UserTicketModel> fetched = [];
+      final Map<String, String> concertLogos = {};
+      final Map<String, String> concertStatuses = {};
+      final Map<String, String> concertCancelStatuses = {};
+
       if (rows.isNotEmpty) {
         // Ambil data detail pesanan terkait dari tabel orders
         final Map<String, Map<String, dynamic>> ordersMap = {};
@@ -2373,9 +2490,6 @@ class DataService {
         } catch (_) {}
 
         // Ambil foto logo/poster konser dari tabel concerts
-        final Map<String, String> concertLogos = {};
-        final Map<String, String> concertStatuses = {};
-        final Map<String, String> concertCancelStatuses = {};
         try {
           final concertIds = rows
               .map((r) => r['concert_id']?.toString())
@@ -2401,7 +2515,6 @@ class DataService {
           }
         } catch (_) {}
 
-        final List<UserTicketModel> fetched = [];
         for (final r in rows) {
           final quota = (r['qr_scan_quota'] as num?)?.toInt() ?? 1;
           final scansUsedVal = (r['qr_scans_used'] as num?)?.toInt() ??
@@ -2478,10 +2591,10 @@ class DataService {
           final realPaymentMethod =
               orderData?['payment_method']?.toString() ?? 'QRIS Universal';
 
-          int daysRemaining = 14;
-          final issuedAt = DateTime.tryParse(r['issued_at']?.toString() ?? '');
-          if (issuedAt != null) {
-            final diff = 30 - DateTime.now().difference(issuedAt).inDays;
+          int daysRemaining = 0;
+          final concertDate = _getConcertDateFromJson(r);
+          if (concertDate != null) {
+            final diff = concertDate.difference(DateTime.now()).inDays;
             daysRemaining = diff < 0 ? 0 : diff;
           }
 
@@ -2557,7 +2670,126 @@ class DataService {
             buyerNik: r['customer_nik']?.toString() ?? user.nik,
           ));
         }
+      }
 
+      // Ambil seluruh pesanan berstatus PENDING langsung dari tabel orders di Supabase
+      try {
+        var pQuery = SupabaseService.client
+            .from('orders')
+            .select()
+            .eq('payment_status', 'PENDING');
+        if (validUserId != null && validUserId.isNotEmpty) {
+          if (userEmail.isNotEmpty) {
+            pQuery = pQuery.or('user_id.eq.$validUserId,customer_email.eq.$userEmail');
+          } else {
+            pQuery = pQuery.eq('user_id', validUserId);
+          }
+        } else if (userEmail.isNotEmpty) {
+          pQuery = pQuery.eq('customer_email', userEmail);
+        }
+        final List<dynamic> pendingOrders =
+            await pQuery.order('created_at', ascending: false);
+
+        for (final o in pendingOrders) {
+          if (o is! Map<String, dynamic>) continue;
+          final orderId = o['id'].toString();
+
+          final expStr = o['expires_at']?.toString();
+          final expDate = expStr != null ? DateTime.tryParse(expStr) : null;
+          // Gunakan payment_started_at dari DB jika ada, fallback ke created_at
+          final startedStr = o['payment_started_at']?.toString();
+          final createdStr = o['created_at']?.toString();
+          final createdDate = startedStr != null
+              ? DateTime.tryParse(startedStr)
+              : (createdStr != null ? DateTime.tryParse(createdStr) : null);
+
+          // Periksa waktu expired secara realtime
+          if (expDate != null && DateTime.now().isAfter(expDate.toLocal())) {
+            unawaited(SupabaseService.client
+                .from('orders')
+                .update({'payment_status': 'EXPIRED'})
+                .eq('id', orderId));
+            continue;
+          }
+
+          final cid = o['concert_id']?.toString();
+          final matchedConcert = (cid != null && cid.isNotEmpty)
+              ? cachedConcertById(cid)
+              : _concerts.firstWhere(
+                  (c) => c.id == cid,
+                  orElse: () => const ConcertModel(
+                    id: '',
+                    title: 'Konser LiveTix',
+                    date: '',
+                    venue: '',
+                    price: 0,
+                    category: '',
+                  ),
+                );
+
+          final concertTitle = matchedConcert?.title.isNotEmpty == true
+              ? matchedConcert!.title
+              : 'Konser LiveTix';
+          final sDate = matchedConcert?.shortDate ?? '';
+          final sVenue = matchedConcert?.venue ?? '';
+          final safeSub = (sDate.isNotEmpty && sVenue.isNotEmpty)
+              ? '$sDate · $sVenue'
+              : (sVenue.isNotEmpty
+                  ? sVenue
+                  : (sDate.isNotEmpty ? sDate : 'Jadwal Segera Diumumkan'));
+
+          final tierName = o['tier_name']?.toString() ?? 'Reguler';
+          final qty = (o['quantity'] as num?)?.toInt() ?? 1;
+          final totalAmt = (o['total_amount'] as num?)?.toInt() ??
+              (o['gross_amount'] as num?)?.toInt() ??
+              0;
+          final method = o['payment_method']?.toString() ?? 'QRIS';
+
+          if (fetched.any((f) => f.id == orderId)) continue;
+
+          fetched.insert(
+            0,
+            UserTicketModel(
+              id: orderId,
+              bookingCode: 'PENDING-$orderId',
+              concertTitle: concertTitle,
+              concertSubtitle: safeSub,
+              category: tierName,
+              date: matchedConcert?.date ?? '',
+              time: matchedConcert?.time ?? '19.00 WIB',
+              gate: 'Gate A',
+              block: 'FEST-04',
+              venue: matchedConcert?.venue ?? '',
+              quantity: qty,
+              totalPrice: totalAmt,
+              status: 'Menunggu Pembayaran',
+              isCompleted: false,
+              daysLeft: _getDaysLeftFromConcert(matchedConcert),
+              hasStar: false,
+              stripeColor: const Color(0xFFF59E0B),
+              iconBgColor: const Color(0xFFFEF3C7),
+              iconColor: const Color(0xFFD97706),
+              qrCodeUrl: o['qr_url']?.toString(),
+              qrData: o['qr_string']?.toString(),
+              qrScanQuota: qty,
+              paymentMethod: method,
+              concertId: cid,
+              logoImageUrl: concertLogos[cid] ??
+                  matchedConcert?.logoImageUrl ??
+                  matchedConcert?.bannerImageUrl,
+              buyerName: o['customer_name']?.toString() ?? user.name,
+              buyerEmail: o['customer_email']?.toString() ?? user.email,
+              buyerNik: user.nik,
+              paymentStartedAt: createdDate,
+              paymentExpiresAt: expDate,
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint('Error fetchPendingOrdersFromSupabase: $e');
+      }
+
+      if (fetched.isNotEmpty) {
         // Pertahankan tiket lokal yang memang milik user ini (bukan user lain) dan belum ada di fetched
         final localRetained = userTicketsNotifier.value
             .where((t) {
@@ -2571,11 +2803,11 @@ class DataService {
             })
             .toList();
 
-        final combined = [...localRetained, ...fetched];
+        final combined = [...fetched, ...localRetained];
         userTicketsNotifier.value = combined;
         _saveUserTicketsToLocalStorage();
       } else {
-        // Jika belum ada tiket dari Supabase untuk user ini, pertahankan tiket lokal milik user ini saja
+        // Jika belum ada tiket atau pesanan pending dari Supabase, pertahankan tiket lokal milik user ini saja
         final localRetained = userTicketsNotifier.value
             .where((t) =>
                 (t.buyerEmail == null ||

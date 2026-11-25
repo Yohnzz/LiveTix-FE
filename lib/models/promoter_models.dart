@@ -245,7 +245,7 @@ class PromoterConcertItem {
     this.squareLogoDataUrl,
     this.highlights = const [],
     this.highlightNames = const [],
-    this.shortMessages = const ['Festival • 17+', 'Seru!'],
+    this.shortMessages = const [],
     this.status = ConcertStatus.disetujui,
     this.likesCount = '0',
     this.tiers = const [],
@@ -584,7 +584,7 @@ class PromoterConcertItem {
           (json['shortMessages'] as List?)
               ?.map((e) => e.toString())
               .toList() ??
-          const ['Festival • 17+', 'Seru!'],
+          const [],
       status: resolvedStatus,
       cancellationStatus: cancellationStatus,
       cancellationCategory: json['cancellation_category']?.toString() ?? 'Perizinan',

@@ -5,6 +5,7 @@ import '../../models/ticket_order_model.dart';
 import '../../models/user_model.dart';
 import '../../services/data_service.dart';
 import '../../services/google_auth_service.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
 import '../promoter/producer_customer_service_screen.dart';
@@ -240,8 +241,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Tampilan lengkap khusus User yang sudah login
     return Scaffold(
       backgroundColor: _bgColor,
-      body: SingleChildScrollView(
-        padding: EdgeInsets.only(left: 20, right: 20, top: topSpacing, bottom: 24),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await Future.wait([
+            _dataService.fetchUserLikesFromSupabase(),
+            _dataService.fetchUserTicketsFromSupabase(),
+            NotificationService().load(),
+          ]);
+        },
+        color: AppColors.primary,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.only(left: 20, right: 20, top: topSpacing, bottom: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -433,6 +444,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 32),
           ],
         ),
+      ),
       ),
     );
       },

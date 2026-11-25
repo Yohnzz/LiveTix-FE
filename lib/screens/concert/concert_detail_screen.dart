@@ -301,21 +301,7 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Kartu Informasi Produser (Foto, Badge 👑 Produser, Nama)
-                      _buildProducerCard(),
-                      const SizedBox(height: 20),
-
-                      // Galeri Highlights Panggung (Jika produser menambahkan foto highlight)
-                      if (_currentConcert.highlights.isNotEmpty) ...[
-                        _buildHighlightGallery(),
-                        const SizedBox(height: 24),
-                      ],
-
-                      // Bagian Deskripsi Konser
-                      _buildDescriptionSection(),
-                      const SizedBox(height: 24),
-
-                      // Bagian Kategori Tiket
+                      // 1. Bagian Kategori Tiket
                       const Text(
                         'Kategori tiket',
                         style: TextStyle(
@@ -357,7 +343,20 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
                             child: _buildTicketTierCard(tier, isSelected, index),
                           );
                         }),
+                      const SizedBox(height: 24),
 
+                      // 2. Galeri Highlights Panggung (Jika ada)
+                      if (_currentConcert.highlights.isNotEmpty) ...[
+                        _buildHighlightGallery(),
+                        const SizedBox(height: 24),
+                      ],
+
+                      // 3. Kartu Informasi Produser (Foto, Badge 👑 Produser, Nama)
+                      _buildProducerCard(),
+                      const SizedBox(height: 24),
+
+                      // 4. Bagian Deskripsi Konser
+                      _buildDescriptionSection(),
                       const SizedBox(height: 100),
                     ],
                   ),
@@ -377,9 +376,7 @@ class _ConcertDetailScreenState extends State<ConcertDetailScreen> {
     final viewTop = MediaQuery.of(context).viewPadding.top;
     final topPadding = viewTop > 0 ? viewTop + 12 : 36.0;
 
-    final shortMessages = _currentConcert.shortMessages.isNotEmpty
-        ? _currentConcert.shortMessages
-        : const ['Festival • 17+', 'Seru!'];
+    final shortMessages = _currentConcert.shortMessages;
 
     final rawDate = _currentConcert.date.isNotEmpty
         ? _currentConcert.date

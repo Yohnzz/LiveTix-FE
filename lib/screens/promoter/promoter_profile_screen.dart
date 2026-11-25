@@ -1,4 +1,5 @@
 import '../../models/user_model.dart';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../services/data_service.dart';
@@ -92,9 +93,15 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
                 return ValueListenableBuilder<String?>(
                   valueListenable: service.pendingNameChangeNotifier,
                   builder: (context, pendingName, _) {
-                    return SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        await service.refreshAllData();
+                      },
+                      color: const Color(0xFF1B2A8C),
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -665,9 +672,10 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
                       const SizedBox(height: 24),
                     ],
                   ),
-                );
-              },
-            );
+                ),
+              );
+            },
+          );
           },
         );
           },
@@ -1134,89 +1142,252 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
     );
   }
 
-  void _showBankAccountDialog(BuildContext context) {
+  void _showBankAccountDialog(BuildContext context) async {
+    final shouldEdit = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => const _ProducerBankAccountDialog(),
+    );
+    if (!mounted) return;
+    if (shouldEdit == true) {
+      _showEditBankDialog(this.context);
+    }
+  }
+
+  void _showEditBankDialog(BuildContext context) {
+    final svc = PromoterDataService();
+    String selectedBank = svc.bankNameNotifier.value.trim().isNotEmpty
+        ? svc.bankNameNotifier.value.trim()
+        : 'BCA';
+    final supportedBanks = [
+      'BCA',
+      'Bank Mandiri',
+      'BNI',
+      'BRI',
+      'CIMB Niaga',
+      'Permata Bank',
+      'Bank Syariah Indonesia (BSI)',
+      'Bank Jago',
+      'SeaBank',
+    ];
+    if (!supportedBanks.contains(selectedBank)) {
+      supportedBanks.insert(0, selectedBank);
+    }
+
+    final accNoCtrl =
+        TextEditingController(text: svc.bankAccountNumberNotifier.value);
+    final accHolderCtrl = TextEditingController(
+        text: svc.bankAccountHolderNotifier.value.isNotEmpty
+            ? svc.bankAccountHolderNotifier.value
+            : svc.promoterName);
+    bool isSubmitting = false;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Row(
-          children: [
-            Icon(Icons.account_balance_outlined,
-                color: Color(0xFF1B2A8C), size: 22),
-            SizedBox(width: 8),
-            Text(
-              'Rekening Penerima Dana',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-          ],
-        ),
-        content: Builder(builder: (_) {
-          final svc = PromoterDataService();
-          final hasBank = svc.hasBankAccount;
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Row(
             children: [
-              Text(
-                hasBank
-                    ? 'Pencairan hasil penjualan tiket konser akan dikirim ke rekening berikut:'
-                    : 'Rekening penerima dana belum diisi. Lengkapi saat verifikasi data Produser.',
-                style: const TextStyle(
-                    fontSize: 12.5, color: Color(0xFF475467), height: 1.4),
-              ),
-              if (hasBank) ...[
-                const SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF9FAFB),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE4E7EC)),
+              Icon(Icons.edit_note_rounded,
+                  color: Color(0xFF1B2A8C), size: 24),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Edit Bank Tujuan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pilih bank dan masukkan nomor rekening pencairan dana tiket.',
+                  style: TextStyle(fontSize: 12.5, color: Color(0xFF475467)),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Bank Tujuan:',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: selectedBank,
+                      isExpanded: true,
+                      dropdownColor: Colors.white,
+                      items: supportedBanks.map((b) {
+                        return DropdownMenuItem(
+                          value: b,
+                          child: Text(b,
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF0F172A))),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setDialogState(() => selectedBank = val);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Nomor Rekening:',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: accNoCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: 'Cth: 1234567890',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Nama Pemilik Rekening:',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: accHolderCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Cth: John Doe',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFCD34D)),
+                  ),
+                  child: const Row(
                     children: [
-                      Text('Bank Tujuan: ${svc.bankNameNotifier.value}',
-                          style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F172A))),
-                      const SizedBox(height: 4),
-                      Text('Nomor Rekening: ${svc.bankAccountNumberNotifier.value}',
-                          style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF1B2A8C),
-                              fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      Text(
-                          'Pemilik Rekening: ${svc.bankAccountHolderNotifier.value.isEmpty ? svc.promoterName : svc.bankAccountHolderNotifier.value}',
-                          style: const TextStyle(
-                              fontSize: 12, color: Color(0xFF475467))),
+                      Icon(Icons.info_outline,
+                          size: 16, color: Color(0xFFB45309)),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Perubahan rekening hanya dapat dilakukan 1 kali dalam 7 hari.',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF92400E),
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
-            ],
-          );
-        }),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1B2A8C),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Tutup'),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B2A8C),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      final accNo = accNoCtrl.text.trim();
+                      final holder = accHolderCtrl.text.trim();
+                      if (accNo.isEmpty || holder.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Harap lengkapi nomor rekening dan nama pemilik.'),
+                            backgroundColor: Color(0xFFD92D20),
+                          ),
+                        );
+                        return;
+                      }
+
+                      setDialogState(() => isSubmitting = true);
+                      final res = await svc.updateProducerBankAccount(
+                        bankName: selectedBank,
+                        accountNumber: accNo,
+                        accountHolder: holder,
+                      );
+                      if (!ctx.mounted) return;
+                      Navigator.pop(ctx);
+
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(res.message),
+                            backgroundColor: res.success
+                                ? const Color(0xFF039855)
+                                : const Color(0xFFD92D20),
+                          ),
+                        );
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Simpan Rekening'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1551,5 +1722,226 @@ class _PromoterProfileScreenState extends State<PromoterProfileScreen> {
       if (mounted) setState(() => _isPromoterBindingGoogle = false);
     }
   }
+}
 
+class _ProducerBankAccountDialog extends StatefulWidget {
+  const _ProducerBankAccountDialog();
+
+  @override
+  State<_ProducerBankAccountDialog> createState() =>
+      _ProducerBankAccountDialogState();
+}
+
+class _ProducerBankAccountDialogState
+    extends State<_ProducerBankAccountDialog> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Duration? _getRemainingCooldown() {
+    final lastUpdated = PromoterDataService().bankUpdatedAtNotifier.value;
+    if (lastUpdated == null) return null;
+    final endOfCooldown = lastUpdated.add(const Duration(days: 7));
+    final now = DateTime.now();
+    if (now.isBefore(endOfCooldown)) {
+      return endOfCooldown.difference(now);
+    }
+    return null;
+  }
+
+  String _formatCooldown(Duration d) {
+    final days = d.inDays;
+    final hours = d.inHours % 24;
+    final minutes = d.inMinutes % 60;
+    final seconds = d.inSeconds % 60;
+    return '$days hari $hours jam $minutes menit $seconds detik';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final svc = PromoterDataService();
+    final hasBank = svc.hasBankAccount;
+    final remainingCooldown = _getRemainingCooldown();
+    final isCooldownActive = remainingCooldown != null;
+
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: const Row(
+        children: [
+          Icon(Icons.account_balance_outlined,
+              color: Color(0xFF1B2A8C), size: 22),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Rekening Penerima Dana',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              hasBank
+                  ? 'Pencairan hasil penjualan tiket konser akan dikirim ke rekening berikut:'
+                  : 'Rekening penerima dana belum diisi. Lengkapi untuk menerima pencairan dana tiket.',
+              style: const TextStyle(
+                  fontSize: 12.5, color: Color(0xFF475467), height: 1.4),
+            ),
+            if (hasBank) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9FAFB),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE4E7EC)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Bank Tujuan: ${svc.bankNameNotifier.value}',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A))),
+                    const SizedBox(height: 4),
+                    Text(
+                        'Nomor Rekening: ${svc.bankAccountNumberNotifier.value}',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF1B2A8C),
+                            fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text(
+                        'Pemilik Rekening: ${svc.bankAccountHolderNotifier.value.isEmpty ? svc.promoterName : svc.bankAccountHolderNotifier.value}',
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFF475467))),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            // Status Cooldown 7 Hari
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isCooldownActive
+                    ? const Color(0xFFFFFBEB)
+                    : const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isCooldownActive
+                      ? const Color(0xFFFCD34D)
+                      : const Color(0xFFBBF7D0),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        isCooldownActive
+                            ? Icons.timer_outlined
+                            : Icons.check_circle_outline_rounded,
+                        size: 16,
+                        color: isCooldownActive
+                            ? const Color(0xFFB45309)
+                            : const Color(0xFF15803D),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        isCooldownActive
+                            ? 'Cooldown Perubahan Bank'
+                            : 'Dapat Mengubah Rekening',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: isCooldownActive
+                              ? const Color(0xFFB45309)
+                              : const Color(0xFF15803D),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  if (isCooldownActive) ...[
+                    const Text(
+                      'Perubahan rekening hanya dapat dilakukan 1x dalam 7 hari demi keamanan.',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _formatCooldown(remainingCooldown),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFB45309),
+                      ),
+                    ),
+                  ] else ...[
+                    const Text(
+                      'Anda dapat mengubah rekening bank tujuan sekarang.',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF166534)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Color(0xFFCBD5E1)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Tutup',
+              style: TextStyle(color: Color(0xFF475569))),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isCooldownActive
+                ? const Color(0xFF94A3B8)
+                : const Color(0xFF1B2A8C),
+            foregroundColor: Colors.white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          onPressed: isCooldownActive
+              ? null
+              : () {
+                  Navigator.pop(context, true);
+                },
+          child: const Text('Edit Bank Tujuan'),
+        ),
+      ],
+    );
+  }
 }

@@ -106,7 +106,8 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         qrCodeUrl: chargeResult.qrUrl,
         deeplinkUrl: chargeResult.deeplinkUrl,
         vaNumber: chargeResult.vaNumber,
-        expiresAt: chargeResult.expiresAt,
+        expiresAt: chargeResult.expiresAt ?? widget.order.expiresAt,
+        createdAt: widget.order.createdAt ?? DateTime.now(),
         snapToken: chargeResult.snapToken,
         snapRedirectUrl: chargeResult.snapRedirectUrl,
       );

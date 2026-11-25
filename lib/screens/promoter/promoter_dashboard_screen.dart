@@ -270,524 +270,246 @@ class PromoterDashboardScreen extends StatelessWidget {
                       ),
                     );
 
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Top Brand & Avatar Row (Mepet Kanan)
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        service.promoterName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                          color: textColor,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 7, vertical: 2.5),
-                                      decoration: BoxDecoration(
-                                        color: const Color(
-                                            0xFFF59E0B), // Orange amber pill
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        service.verificationBadge,
-                                        style: const TextStyle(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.white,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              // Matahari / Dark Mode Toggle & Profil Avatar (Mepet Kanan)
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const NotificationBellButton(),
-                                  IconButton(
-                                    visualDensity: VisualDensity.compact,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(
-                                      minWidth: 36,
-                                      minHeight: 36,
-                                    ),
-                                    icon: Icon(
-                                      isDarkMode
-                                          ? Icons.dark_mode_outlined
-                                          : Icons.wb_sunny_outlined,
-                                      size: 22,
-                                      color: textColor,
-                                    ),
-                                    tooltip: 'Ganti Tema',
-                                    onPressed: service.toggleTheme,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  GestureDetector(
-                                    onTap: onNavigateToProfile,
-                                    child: Container(
-                                      width: 38,
-                                      height: 38,
-                                      decoration: const BoxDecoration(
-                                        color: Color(
-                                            0xFFF3E8FF), // Soft purple-pink
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          service.promoterInitials,
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w800,
-                                            color: Color(
-                                                0xFF7E22CE), // Purple/Magenta
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 6),
-
-                          // Headline
-                          Text(
-                            'Malam ini ada apa?',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: textColor,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Pantau performa penjualan tiket & event konser aktif',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: subtextColor,
-                            ),
-                          ),
-
-                          const SizedBox(height: 18),
-
-                          // Responsive Metrics Cards
-                          if (isWide) ...[
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        await service.refreshAllData();
+                      },
+                      color: const Color(0xFF1B2A8C),
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Top Brand & Avatar Row (Mepet Kanan)
                             Row(
-                              children: [
-                                Expanded(child: totalKonserCard),
-                                const SizedBox(width: 12),
-                                Expanded(child: tiketTerjualCard),
-                                const SizedBox(width: 12),
-                                Expanded(child: totalPendapatanCard),
-                              ],
-                            ),
-                          ] else ...[
-                            Row(
-                              children: [
-                                Expanded(child: totalKonserCard),
-                                const SizedBox(width: 12),
-                                Expanded(child: tiketTerjualCard),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            totalPendapatanCard,
-                          ],
-
-                          const SizedBox(height: 12),
-
-                          // Realtime Ticket Stock Monitor Card
-                          Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: cardBg,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: cardBorder),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.bolt_rounded,
-                                      size: 16,
-                                      color: Color(0xFF027A48),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        'MONITORING STOK TIKET (REALTIME)',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w800,
-                                          color: subtextColor,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildRealtimeMetricPill(
-                                        label: 'Tersedia',
-                                        value: PromoterTicketTier.formatNumber(
-                                            service.totalAvailableTickets),
-                                        color: const Color(0xFF027A48),
-                                        bg: const Color(0xFFECFDF3),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _buildRealtimeMetricPill(
-                                        label: 'Pending / Reserve',
-                                        value: PromoterTicketTier.formatNumber(
-                                            service.totalReservedTickets),
-                                        color: const Color(0xFFD97706),
-                                        bg: const Color(0xFFFEF3C7),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _buildRealtimeMetricPill(
-                                        label: 'Terjual (Paid)',
-                                        value: PromoterTicketTier.formatNumber(
-                                            service.totalPaidTickets),
-                                        color: const Color(0xFF1B2A8C),
-                                        bg: const Color(0xFFE0EAFF),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // Section: Tren Penjualan 7 Hari Terakhir (Sesuai Referensi Gambar User)
-                          if (isWide) ...[
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Expanded(
-                                  flex: 3,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(
-                                        'Tren Penjualan (7 Hari Terakhir)',
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w800,
-                                          color: textColor,
-                                          letterSpacing: -0.2,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 14),
-                                      SalesTrendBarChart(
-                                        isDarkMode: isDarkMode,
-                                        salesData: service.weeklySales,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 20),
-                                Expanded(
-                                  flex: 2,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            'Konser Mendatang',
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w800,
-                                              color: textColor,
-                                              letterSpacing: -0.2,
-                                            ),
-                                          ),
-                                          InkWell(
-                                            onTap: onNavigateToConcerts,
-                                            borderRadius:
-                                                BorderRadius.circular(6),
-                                            child: const Padding(
-                                              padding: EdgeInsets.symmetric(
-                                                  horizontal: 4, vertical: 2),
-                                              child: Text(
-                                                'Lihat Semua',
-                                                style: TextStyle(
-                                                  fontSize: 12.5,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: Color(0xFFC2185B),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 14),
-                                      _buildUpcomingConcertCard(
-                                        service: service,
-                                        cardBg: cardBg,
-                                        cardBorder: cardBorder,
-                                        textColor: textColor,
-                                        subtextColor: subtextColor,
-                                        isDarkMode: isDarkMode,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ] else ...[
-                            Text(
-                              'Tren Penjualan (7 Hari Terakhir)',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: textColor,
-                                letterSpacing: -0.2,
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            // Mobile Bar Chart: data nyata dari database (datar di 0 jika belum ada penjualan)
-                            SalesTrendBarChart(
-                              isDarkMode: isDarkMode,
-                              salesData: service.weeklySales,
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Realtime Ticket Stock Monitor Card
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: cardBg,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: cardBorder),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.bolt_rounded,
-                                        size: 16,
-                                        color: Color(0xFF027A48),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Expanded(
+                                      Flexible(
                                         child: Text(
-                                          'MONITORING STOK TIKET (REALTIME)',
+                                          service.promoterName,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            fontSize: 10.5,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                            color: textColor,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 7, vertical: 2.5),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                              0xFFF59E0B), // Orange amber pill
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          service.verificationBadge,
+                                          style: const TextStyle(
+                                            fontSize: 9,
                                             fontWeight: FontWeight.w800,
-                                            color: subtextColor,
+                                            color: Colors.white,
                                             letterSpacing: 0.5,
                                           ),
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: _buildRealtimeMetricPill(
-                                          label: 'Tersedia',
-                                          value:
-                                              PromoterTicketTier.formatNumber(
-                                                  service
-                                                      .totalAvailableTickets),
-                                          color: const Color(0xFF027A48),
-                                          bg: const Color(0xFFECFDF3),
+                                ),
+                                const SizedBox(width: 8),
+                                // Matahari / Dark Mode Toggle & Profil Avatar (Mepet Kanan)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const NotificationBellButton(),
+                                    IconButton(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 36,
+                                        minHeight: 36,
+                                      ),
+                                      icon: Icon(
+                                        isDarkMode
+                                            ? Icons.dark_mode_outlined
+                                            : Icons.wb_sunny_outlined,
+                                        size: 22,
+                                        color: textColor,
+                                      ),
+                                      tooltip: 'Ganti Tema',
+                                      onPressed: service.toggleTheme,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    GestureDetector(
+                                      onTap: onNavigateToProfile,
+                                      child: Container(
+                                        width: 38,
+                                        height: 38,
+                                        decoration: const BoxDecoration(
+                                          color: Color(
+                                              0xFFF3E8FF), // Soft purple-pink
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            service.promoterInitials,
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(
+                                                  0xFF7E22CE), // Purple/Magenta
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: _buildRealtimeMetricPill(
-                                          label: 'Pending / Reserve',
-                                          value:
-                                              PromoterTicketTier.formatNumber(
-                                                  service.totalReservedTickets),
-                                          color: const Color(0xFFD97706),
-                                          bg: const Color(0xFFFEF3C7),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: _buildRealtimeMetricPill(
-                                          label: 'Terjual (Paid)',
-                                          value:
-                                              PromoterTicketTier.formatNumber(
-                                                  service.totalPaidTickets),
-                                          color: const Color(0xFF1B2A8C),
-                                          bg: const Color(0xFFE0EAFF),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 6),
+
+                            // Subtitle Headline
+                            Text(
+                              'Pantau performa penjualan tiket & event konser aktif',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: subtextColor,
                               ),
                             ),
 
-                            const SizedBox(height: 24),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    'Konser Mendatang',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w800,
-                                      color: textColor,
-                                      letterSpacing: -0.2,
-                                    ),
-                                  ),
-                                ),
-                                InkWell(
-                                  onTap: onNavigateToConcerts,
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: const Padding(
-                                    padding: EdgeInsets.symmetric(
-                                        horizontal: 4, vertical: 2),
-                                    child: Text(
-                                      'Lihat Semua',
-                                      style: TextStyle(
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFFC2185B),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            _buildUpcomingConcertCard(
-                              service: service,
-                              cardBg: cardBg,
-                              cardBorder: cardBorder,
-                              textColor: textColor,
-                              subtextColor: subtextColor,
-                              isDarkMode: isDarkMode,
-                            ),
-                          ],
+                            const SizedBox(height: 18),
 
-                          const SizedBox(height: 12),
+                            // Responsive Metrics Cards
+                            if (isWide) ...[
+                              Row(
+                                children: [
+                                  Expanded(child: totalKonserCard),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: tiketTerjualCard),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: totalPendapatanCard),
+                                ],
+                              ),
+                            ] else ...[
+                              Row(
+                                children: [
+                                  Expanded(child: totalKonserCard),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: tiketTerjualCard),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              totalPendapatanCard,
+                            ],
 
-                          // Realtime Ticket Stock Monitor Card
-                          Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: cardBg,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: cardBorder),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.bolt_rounded,
-                                      size: 16,
-                                      color: Color(0xFF027A48),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        'MONITORING STOK TIKET (REALTIME)',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w800,
-                                          color: subtextColor,
-                                          letterSpacing: 0.5,
+                            const SizedBox(height: 12),
+
+                            // Section: Tren Penjualan 7 Hari Terakhir
+                            if (isWide) ...[
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    flex: 3,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Tren Penjualan (7 Hari Terakhir)',
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w800,
+                                            color: textColor,
+                                            letterSpacing: -0.2,
+                                          ),
                                         ),
-                                      ),
+                                        const SizedBox(height: 14),
+                                        SalesTrendBarChart(
+                                          isDarkMode: isDarkMode,
+                                          salesData: service.weeklySales,
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
+                                  const SizedBox(width: 20),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'Konser Mendatang',
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w800,
+                                                color: textColor,
+                                                letterSpacing: -0.2,
+                                              ),
+                                            ),
+                                            InkWell(
+                                              onTap: onNavigateToConcerts,
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                              child: const Padding(
+                                                padding: EdgeInsets.symmetric(
+                                                    horizontal: 4, vertical: 2),
+                                                child: Text(
+                                                  'Lihat Semua',
+                                                  style: TextStyle(
+                                                    fontSize: 12.5,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Color(0xFFC2185B),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 14),
+                                        // Upcoming concert card removed - keeping only the chart
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ] else ...[
+                              Text(
+                                'Tren Penjualan (7 Hari Terakhir)',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: textColor,
+                                  letterSpacing: -0.2,
                                 ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildRealtimeMetricPill(
-                                        label: 'Tersedia',
-                                        value: PromoterTicketTier.formatNumber(
-                                            service.totalAvailableTickets),
-                                        color: const Color(0xFF027A48),
-                                        bg: const Color(0xFFECFDF3),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _buildRealtimeMetricPill(
-                                        label: 'Pending / Reserve',
-                                        value: PromoterTicketTier.formatNumber(
-                                            service.totalReservedTickets),
-                                        color: const Color(0xFFD97706),
-                                        bg: const Color(0xFFFEF3C7),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _buildRealtimeMetricPill(
-                                        label: 'Terjual (Paid)',
-                                        value: PromoterTicketTier.formatNumber(
-                                            service.totalPaidTickets),
-                                        color: const Color(0xFF1B2A8C),
-                                        bg: const Color(0xFFE0EAFF),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
+                              ),
+                              const SizedBox(height: 14),
+                              // Mobile Bar Chart: data nyata dari database (datar di 0 jika belum ada penjualan)
+                              SalesTrendBarChart(
+                                isDarkMode: isDarkMode,
+                                salesData: service.weeklySales,
+                              ),
+                              const SizedBox(height: 12),
+                            ],
 
-                          const SizedBox(height: 24),
-                        ],
+                            const SizedBox(height: 24),
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -799,267 +521,4 @@ class PromoterDashboardScreen extends StatelessWidget {
       },
     );
   }
-
-  Widget _buildUpcomingConcertCard({
-    required PromoterDataService service,
-    required Color cardBg,
-    required Color cardBorder,
-    required Color textColor,
-    required Color subtextColor,
-    required bool isDarkMode,
-  }) {
-    return ValueListenableBuilder<List<PromoterConcertItem>>(
-      valueListenable: service.concertsNotifier,
-      builder: (context, concerts, _) {
-        if (concerts.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: cardBorder),
-            ),
-            child: Center(
-              child: Text(
-                'Belum ada konser aktif di database.',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  color: subtextColor,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          );
-        }
-        final concert = concerts.first;
-
-        return InkWell(
-          onTap: onNavigateToConcerts,
-          borderRadius: BorderRadius.circular(18),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: cardBorder),
-              boxShadow: [
-                BoxShadow(
-                  color:
-                      Colors.black.withValues(alpha: isDarkMode ? 0.25 : 0.04),
-                  blurRadius: 12,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Modern Artwork Container (Menampilkan Poster / Logo Konser)
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: const Color(0xFF1B2A8C).withValues(alpha: 0.15),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF1B2A8C).withValues(alpha: 0.15),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: ConcertImageWidget(
-                    imageSource: (concert.displayPosterSource.isNotEmpty &&
-                            (concert.displayPosterSource
-                                    .startsWith('data:image/') ||
-                                concert.displayPosterSource
-                                    .startsWith('http') ||
-                                concert.displayPosterSource
-                                    .startsWith('assets/')))
-                        ? concert.displayPosterSource
-                        : (concert.displayLogoSource.isNotEmpty
-                            ? concert.displayLogoSource
-                            : concert.displayPosterSource),
-                    width: 58,
-                    height: 58,
-                    fit: BoxFit.cover,
-                    fallbackIcon: Icons.music_note_rounded,
-                    fallbackLabel: concert.title,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                // Title and Metadata
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              concert.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: textColor,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFECFDF3),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'AKTIF',
-                              style: TextStyle(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF027A48),
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.calendar_today_rounded,
-                            size: 12,
-                            color: Color(0xFFC2185B),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              concert.dateAndVenue,
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: subtextColor,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.location_on_rounded,
-                            size: 12,
-                            color: subtextColor,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              concert.venueName,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: subtextColor,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: [
-                          Text(
-                            'Tersedia: ${PromoterTicketTier.formatNumber(concert.remainingTickets)}',
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF027A48),
-                            ),
-                          ),
-                          Text(
-                            '· Pending: ${PromoterTicketTier.formatNumber(concert.totalReservedTickets)}',
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFFD97706),
-                            ),
-                          ),
-                          Text(
-                            '· Terjual: ${PromoterTicketTier.formatNumber(concert.totalSoldTickets)}',
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF1B2A8C),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: Color(0xFF667085),
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildRealtimeMetricPill({
-    required String label,
-    required String value,
-    required Color color,
-    required Color bg,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+}

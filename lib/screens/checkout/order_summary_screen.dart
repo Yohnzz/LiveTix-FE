@@ -185,8 +185,10 @@ class OrderSummaryScreen extends StatelessWidget {
                       const Color(0xFFF0FDF4),
                       const Color(0xFF15803D),
                     ),
-                    _buildPillTag('Gate B', const Color(0xFFF8FAFC), AppColors.textGrey),
-                    _buildPillTag('FEST-04', const Color(0xFFF8FAFC), AppColors.textGrey),
+                    if (order.concert.gates.isNotEmpty)
+                      ...order.concert.gates.map((g) => _buildPillTag(g, const Color(0xFFF8FAFC), AppColors.textGrey))
+                    else
+                      _buildPillTag('Gate A', const Color(0xFFF8FAFC), AppColors.textGrey),
                   ],
                 ),
               ],

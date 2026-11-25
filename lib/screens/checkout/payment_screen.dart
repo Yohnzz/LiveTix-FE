@@ -29,11 +29,15 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  // Batas waktu pembayaran 15 menit (900 detik)
-  static const int _initialExpirySeconds = 900;
+  // Batas waktu pembayaran maksimum 15 menit (900 detik)
+  // Timer selalu dihitung dari expires_at server — TIDAK ada cap ulang ke 900 detik
+  static const int _maxExpirySeconds = 900;
   static const String _expiryWindowLabel = '15 menit';
 
   late int _remainingSeconds;
+  // Simpan waktu server agar tampilan "Dibuat" & "Kadaluarsa" tidak reset
+  DateTime? _serverStartedAt;
+  DateTime? _serverExpiresAt;
   Timer? _timer;
   Timer? _statusPollingTimer;
   bool _isCheckingStatus = false;
@@ -71,20 +75,30 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.order.expiresAt != null) {
-      final diffMs = widget.order.expiresAt!
+    // Gunakan expires_at dari server sebagai sumber waktu yang authoritative.
+    // TIDAK ada cap — jika server mengirim expires_at yang sudah benar (15 menit),
+    // timer langsung memakai sisa waktu tersebut tanpa reset.
+    _serverExpiresAt = widget.order.expiresAt;
+    _serverStartedAt = widget.order.createdAt;
+
+    if (_serverExpiresAt != null) {
+      final diffMs = _serverExpiresAt!
           .toLocal()
           .difference(DateTime.now())
           .inMilliseconds;
       if (diffMs <= 0) {
         _remainingSeconds = 0;
       } else {
+        // Hitung sisa detik dari waktu server, dibatasi maksimum 15 menit
+        // agar tidak mungkin lebih dari window 15 menit yang ditetapkan
         final ceilSecs = (diffMs / 1000).ceil();
-        _remainingSeconds =
-            ceilSecs > _initialExpirySeconds ? _initialExpirySeconds : ceilSecs;
+        _remainingSeconds = ceilSecs.clamp(0, _maxExpirySeconds);
       }
     } else {
-      _remainingSeconds = _initialExpirySeconds;
+      // Fallback: 15 menit dari sekarang jika server tidak mengirim expires_at
+      _serverExpiresAt = DateTime.now().add(const Duration(minutes: 15));
+      _serverStartedAt ??= DateTime.now();
+      _remainingSeconds = _maxExpirySeconds;
     }
 
     if (_remainingSeconds > 0) {
@@ -738,6 +752,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
+  String _formatTimestamp(DateTime? dt) {
+    if (dt == null) return '-';
+    final local = dt.toLocal();
+    final h = local.hour.toString().padLeft(2, '0');
+    final m = local.minute.toString().padLeft(2, '0');
+    final s = local.second.toString().padLeft(2, '0');
+    return '$h:$m:$s';
+  }
+
   Widget _buildCountdownSection(int hours, int minutes, int seconds) {
     final isExpired = _remainingSeconds <= 0;
 
@@ -778,6 +801,71 @@ class _PaymentScreenState extends State<PaymentScreen> {
               _buildTimerBox(_formatNumber(seconds), 'Detik'),
             ],
           ),
+          // Info waktu mulai & kadaluarsa dari server — realtime, tidak reset
+          if (_serverStartedAt != null || _serverExpiresAt != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 10),
+              decoration: BoxDecoration(
+                color: isExpired
+                    ? const Color(0xFFFEF2F2)
+                    : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Pembayaran dimulai',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        _formatTimestamp(_serverStartedAt),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF334155),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Kadaluarsa',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isExpired
+                              ? const Color(0xFFDC2626)
+                              : const Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        _formatTimestamp(_serverExpiresAt),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isExpired
+                              ? const Color(0xFFDC2626)
+                              : const Color(0xFF334155),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

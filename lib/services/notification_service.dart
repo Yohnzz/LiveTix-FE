@@ -286,6 +286,13 @@ class NotificationService {
       if (SupabaseService.client.auth.currentUser?.id != userId) return;
       notificationsNotifier.value = rows
           .whereType<Map<String, dynamic>>()
+          .where((row) {
+            final dedupe = (row['dedupe_key'] ?? '').toString();
+            final title = (row['title'] ?? '').toString().toLowerCase();
+            final isProducerSaleNotif = dedupe.contains(':paid:producer') ||
+                title.contains('tiket konser terjual');
+            return !isProducerSaleNotif;
+          })
           .map(AppNotificationModel.fromJson)
           .toList(growable: false);
       loadState.value = NotificationLoadState.ready;
@@ -360,5 +367,155 @@ class NotificationService {
         iOS: DarwinNotificationDetails(),
       ),
     );
+  }
+
+  // Method untuk menampilkan notifikasi dengan sound kustom (akan digunakan saat file suara siap)
+  // Saat file MP3 ditempatkan di android/app/src/main/res/raw/ dan iOS folder,
+  // bisa digunakan dengan: sound: RawResourceAndroidNotificationSound('nama_file')
+  // Future<void> _showNotificationWithSound(...) async { ... }
+
+  // Method baru untuk notifikasi Customer Service
+  // Method baru untuk notifikasi Customer Service
+  Future<void> sendCustomerServiceNotification({
+    required String message,
+  }) async {
+    const title = 'Notifikasi Customer Service';
+    final body = message;
+
+    try {
+      await _localNotifications.show(
+        DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
+        title,
+        body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _androidChannelId,
+            _androidChannelName,
+            importance: Importance.high,
+            priority: Priority.high,
+            ), 
+          iOS: DarwinNotificationDetails(),
+        ),
+      );
+    } catch (_) {}
+
+    final userId = SupabaseService.client.auth.currentUser?.id;
+    if (userId != null && SupabaseService.isInitialized) {
+      try {
+        await SupabaseService.client.from('notifications').insert({
+          'user_id': userId,
+          'title': title,
+          'body': body,
+          'type': 'CUSTOMER_SERVICE',
+          'data': {
+            'message': message,
+          },
+          'is_read': false,
+        });
+        unawaited(load());
+      } catch (e) {
+        debugPrint('Gagal mencatat notifikasi customer service ke database: $e');
+      }
+    }
+  }
+
+  // Method baru untuk notifikasi konser baru
+  Future<void> sendNewConcertNotification({
+    required String concertTitle,
+  }) async {
+    const title = 'Konser Baru Tersedia';
+    final body = 'Tersedia konser baru: $concertTitle';
+
+    try {
+      await _localNotifications.show(
+        DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
+        title,
+        body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _androidChannelId,
+            _androidChannelName,
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+          iOS: DarwinNotificationDetails(),
+        ),
+      );
+    } catch (_) {}
+
+    final userId = SupabaseService.client.auth.currentUser?.id;
+    if (userId != null && SupabaseService.isInitialized) {
+      try {
+        await SupabaseService.client.from('notifications').insert({
+          'user_id': userId,
+          'title': title,
+          'body': body,
+          'type': 'NEW_CONCERT',
+          'data': {
+            'concert_title': concertTitle,
+          },
+          'is_read': false,
+        });
+        unawaited(load());
+      } catch (e) {
+        debugPrint('Gagal mencatat notifikasi konser baru ke database: $e');
+      }
+    }
+  }
+
+  /// Mengirim notifikasi lokal dan menyimpan ke tabel notifications di Supabase
+  /// saat ada pesanan pembayaran tiket yang masih berstatus menunggu (pending).
+  Future<void> sendPaymentPendingNotification({
+    required String orderId,
+    required String concertTitle,
+    required int amount,
+    required DateTime expiresAt,
+  }) async {
+    final remainingMinutes = expiresAt.difference(DateTime.now()).inMinutes;
+    final minsText =
+        remainingMinutes > 0 ? '$remainingMinutes menit' : 'beberapa saat';
+    const title = 'Selesaikan Pembayaran Tiket!';
+    final body =
+        'Pesanan tiket $concertTitle masih menunggu pembayaran. Selesaikan sebelum batas waktu berakhir ($minsText).';
+
+    try {
+      await _localNotifications.show(
+        DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
+        title,
+        body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _androidChannelId,
+            _androidChannelName,
+            importance: Importance.high,
+            priority: Priority.high,
+            sound: RawResourceAndroidNotificationSound('hmmm'),
+          ),
+          iOS: DarwinNotificationDetails(),
+        ),
+      );
+    } catch (_) {}
+
+    final userId = SupabaseService.client.auth.currentUser?.id;
+    if (userId != null && SupabaseService.isInitialized) {
+      try {
+        await SupabaseService.client.from('notifications').insert({
+          'user_id': userId,
+          'title': title,
+          'body': body,
+          'type': 'PAYMENT_PENDING',
+          'data': {
+            'order_id': orderId,
+            'concert_title': concertTitle,
+            'amount': amount,
+            'expires_at': expiresAt.toIso8601String(),
+          },
+          'is_read': false,
+        });
+        unawaited(load());
+      } catch (e) {
+        debugPrint('Gagal mencatat notifikasi pending payment ke database: $e');
+      }
+    }
   }
 }

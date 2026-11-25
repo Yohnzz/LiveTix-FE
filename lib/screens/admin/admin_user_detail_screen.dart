@@ -243,23 +243,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
             child: Column(
               children: [
                 // Avatar Bulat Besar
-                Container(
-                  width: 68,
-                  height: 68,
-                  decoration: BoxDecoration(
-                    color: roleBg,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    user.initials,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: roleFg,
-                    ),
-                  ),
-                ),
+                _buildUserAvatar(user, roleBg, roleFg),
                 const SizedBox(height: 12),
                 Text(
                   user.name,
@@ -699,6 +683,53 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                 ],
               )
             : toggleButton,
+      ),
+    );
+  }
+
+  Widget _buildUserAvatar(
+    ManagedUserModel user,
+    Color roleBg,
+    Color roleFg,
+  ) {
+    final avatar = user.avatarUrl?.trim();
+    final isValidUrl = avatar != null &&
+        avatar.isNotEmpty &&
+        (avatar.startsWith('http://') || avatar.startsWith('https://'));
+
+    Widget fallback() => Container(
+          width: 68,
+          height: 68,
+          decoration: BoxDecoration(
+            color: roleBg,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            user.initials,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: roleFg,
+            ),
+          ),
+        );
+
+    if (!isValidUrl) {
+      return fallback();
+    }
+
+    return ClipOval(
+      child: Image.network(
+        avatar,
+        width: 68,
+        height: 68,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback(),
+        loadingBuilder: (_, child, progress) {
+          if (progress == null) return child;
+          return fallback();
+        },
       ),
     );
   }

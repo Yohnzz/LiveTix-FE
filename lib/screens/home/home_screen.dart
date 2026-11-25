@@ -4,6 +4,7 @@ import '../../models/concert_model.dart';
 import '../../models/user_model.dart';
 import '../../services/ai_backend_service.dart';
 import '../../services/data_service.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/notification_bell_button.dart';
 import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
@@ -111,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadError = null;
     });
     try {
+      await _dataService.fetchConcertsFromSupabase();
       final featuredList = await _dataService.getFeaturedEvents();
       final events = await _dataService.getEvents();
       if (!mounted) return;
@@ -210,18 +212,63 @@ class _HomeScreenState extends State<HomeScreen> {
     return list;
   }
 
-  /// Menampilkan maksimal 5 konser yang cocok dengan filter aktif pada dashboard Beranda,
-  /// diurutkan berdasarkan jumlah love/suka tertinggi (Trending).
+  /// Mengambil daftar konser highlight di bagian atas dashboard.
+  /// Jika total konser > 7, sistem secara dinamis menyaring Top 4 konser dengan
+  /// skor popularitas tertinggi (berdasarkan kombinasi penjualan tiket aktual & like).
+  /// Jika konser <= 7, menggunakan konser highlight standar/default.
+  List<ConcertModel> get _highlightConcerts {
+    if (_concerts.length > 7) {
+      final sorted = List<ConcertModel>.from(_concerts);
+      sorted.sort((a, b) {
+        final scoreA = _dataService.getConcertPopularityScore(a);
+        final scoreB = _dataService.getConcertPopularityScore(b);
+        if (scoreB != scoreA) return scoreB.compareTo(scoreA);
+        final aLikes = _dataService.getConcertLikesCount(a.id) +
+            (_dataService.isFavorite(a.id) ? 1 : 0);
+        final bLikes = _dataService.getConcertLikesCount(b.id) +
+            (_dataService.isFavorite(b.id) ? 1 : 0);
+        return bLikes.compareTo(aLikes);
+      });
+      return sorted.take(4).toList();
+    }
+
+    if (_featuredConcerts.isNotEmpty) {
+      return _featuredConcerts.take(4).toList();
+    }
+    return _concerts.take(4).toList();
+  }
+
+  /// Menampilkan konser trending yang cocok dengan filter aktif pada dashboard Beranda.
+  /// Jika total konser > 7:
+  /// - Diurutkan berdasarkan skor popularitas (1 tiket terjual bernilai 10 poin, 1 like bernilai 1 poin tambahan).
+  /// - Konser teratas dari Highlight tetap diperbolehkan muncul di Trending.
+  /// Jika total konser <= 7:
+  /// - Diurutkan berdasarkan jumlah suka/like normal.
   List<ConcertModel> get _trendingConcerts {
-    final sorted = List<ConcertModel>.from(_filteredConcerts);
-    sorted.sort((a, b) {
+    final list = List<ConcertModel>.from(_filteredConcerts);
+    if (_concerts.length > 7) {
+      list.sort((a, b) {
+        final scoreA = _dataService.getConcertPopularityScore(a);
+        final scoreB = _dataService.getConcertPopularityScore(b);
+        if (scoreB != scoreA) return scoreB.compareTo(scoreA);
+        final aLikes = _dataService.getConcertLikesCount(a.id) +
+            (_dataService.isFavorite(a.id) ? 1 : 0);
+        final bLikes = _dataService.getConcertLikesCount(b.id) +
+            (_dataService.isFavorite(b.id) ? 1 : 0);
+        return bLikes.compareTo(aLikes);
+      });
+      final maxDisplay = _concerts.length > 7 ? 8 : _maxTrendingDisplayCount;
+      return list.take(maxDisplay).toList();
+    }
+
+    list.sort((a, b) {
       final aLikes = _dataService.getConcertLikesCount(a.id) +
           (_dataService.isFavorite(a.id) ? 1 : 0);
       final bLikes = _dataService.getConcertLikesCount(b.id) +
           (_dataService.isFavorite(b.id) ? 1 : 0);
       return bLikes.compareTo(aLikes);
     });
-    return sorted.take(_maxTrendingDisplayCount).toList();
+    return list.take(_maxTrendingDisplayCount).toList();
   }
 
   @override
@@ -230,6 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
       listenable: Listenable.merge([
         _dataService.isDarkModeNotifier,
         _dataService.favoriteConcertIdsNotifier,
+        _dataService.stockVersionNotifier,
       ]),
       builder: (context, _) {
         return Scaffold(
@@ -284,9 +332,20 @@ class _HomeScreenState extends State<HomeScreen> {
     final topSpacing = viewTop > 0 ? viewTop + 14 : 28.0;
     final trendingList = _trendingConcerts;
 
-    return SingleChildScrollView(
-      padding:
-          EdgeInsets.only(left: 20, right: 20, top: topSpacing, bottom: 20),
+    return RefreshIndicator(
+      onRefresh: () async {
+        await Future.wait([
+          _loadData(),
+          _dataService.fetchUserLikesFromSupabase(),
+          _dataService.fetchUserTicketsFromSupabase(),
+          NotificationService().load(),
+        ]);
+      },
+      color: AppColors.primary,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding:
+            EdgeInsets.only(left: 20, right: 20, top: topSpacing, bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -307,9 +366,9 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
 
             // Carousel Highlight Konser yang bisa digeser manual & bergeser otomatis
-            if (_featuredConcerts.isNotEmpty) ...[
+            if (_highlightConcerts.isNotEmpty) ...[
               FeaturedConcertCarousel(
-                concerts: _featuredConcerts,
+                concerts: _highlightConcerts,
                 onConcertTap: _openDetail,
               ),
               const SizedBox(height: 18),
@@ -502,6 +561,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
         const SizedBox(height: 20),
       ],
+    ),
     ),
   );
 }

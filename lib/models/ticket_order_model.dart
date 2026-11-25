@@ -267,6 +267,10 @@ class UserTicketModel {
   final String? buyerEmail;
   final String? buyerNik;
 
+  /// Waktu mulai pembayaran dan batas waktu kedaluwarsa dari database
+  final DateTime? paymentStartedAt;
+  final DateTime? paymentExpiresAt;
+
   /// Rincian komponen harga transparan sesuai rumus server LiveTix
   TransactionPricing get pricing {
     final unit = quantity > 0 ? (totalPrice ~/ quantity) : totalPrice;
@@ -308,11 +312,27 @@ class UserTicketModel {
     this.buyerName,
     this.buyerEmail,
     this.buyerNik,
+    this.paymentStartedAt,
+    this.paymentExpiresAt,
   }) : qrScanQuota = qrScanQuota ?? quantity;
 
   bool get isPendingPayment =>
       status.toLowerCase().contains('menunggu') ||
       status.toLowerCase().contains('pending');
+
+  /// Apakah batas waktu pembayaran di database sudah terlampaui
+  bool get isPaymentExpired {
+    if (!isPendingPayment) return false;
+    if (paymentExpiresAt == null) return false;
+    return DateTime.now().isAfter(paymentExpiresAt!.toLocal());
+  }
+
+  /// Sisa durasi pembayaran realtime dari waktu database
+  Duration get remainingPaymentDuration {
+    if (paymentExpiresAt == null) return Duration.zero;
+    final diff = paymentExpiresAt!.toLocal().difference(DateTime.now());
+    return diff.isNegative ? Duration.zero : diff;
+  }
 
   /// Menandakan apakah tiket sudah kadaluwarsa (berdasarkan tanggal konser atau status)
   bool get isExpired {
@@ -418,6 +438,8 @@ class UserTicketModel {
     String? buyerName,
     String? buyerEmail,
     String? buyerNik,
+    DateTime? paymentStartedAt,
+    DateTime? paymentExpiresAt,
   }) {
     return UserTicketModel(
       id: id,
@@ -454,6 +476,8 @@ class UserTicketModel {
       buyerName: buyerName ?? this.buyerName,
       buyerEmail: buyerEmail ?? this.buyerEmail,
       buyerNik: buyerNik ?? this.buyerNik,
+      paymentStartedAt: paymentStartedAt ?? this.paymentStartedAt,
+      paymentExpiresAt: paymentExpiresAt ?? this.paymentExpiresAt,
     );
   }
 
@@ -498,6 +522,8 @@ class UserTicketModel {
       'buyerName': buyerName,
       'buyerEmail': buyerEmail,
       'buyerNik': buyerNik,
+      'paymentStartedAt': paymentStartedAt?.toIso8601String(),
+      'paymentExpiresAt': paymentExpiresAt?.toIso8601String(),
     };
   }
 
@@ -534,6 +560,8 @@ class UserTicketModel {
       buyerName: json['buyerName']?.toString() ?? json['customer_name']?.toString(),
       buyerEmail: json['buyerEmail']?.toString() ?? json['customer_email']?.toString(),
       buyerNik: json['buyerNik']?.toString() ?? json['customer_nik']?.toString(),
+      paymentStartedAt: DateTime.tryParse(json['paymentStartedAt']?.toString() ?? json['created_at']?.toString() ?? ''),
+      paymentExpiresAt: DateTime.tryParse(json['paymentExpiresAt']?.toString() ?? json['expires_at']?.toString() ?? ''),
     );
   }
 }
@@ -678,6 +706,9 @@ class OrderModel {
   final String? snapToken;
   final String? snapRedirectUrl;
 
+  /// Waktu pembuatan pesanan di database
+  final DateTime? createdAt;
+
   /// Waktu kedaluwarsa pembayaran dari backend Midtrans
   final DateTime? expiresAt;
 
@@ -719,6 +750,7 @@ class OrderModel {
     this.deeplinkUrl,
     this.snapToken,
     this.snapRedirectUrl,
+    this.createdAt,
     this.expiresAt,
   });
 
@@ -734,10 +766,13 @@ class OrderModel {
     String? snapRedirectUrl,
     String? vaNumber,
     DateTime? expiresAt,
+    DateTime? createdAt,
   }) {
     final activeOrderId = orderId ?? this.orderId;
     final fee = transactionFee ?? this.transactionFee;
     final calculatedTotal = totalAmount + fee;
+    final effectiveCreatedAt = createdAt ?? this.createdAt;
+    final effectiveExpiresAt = expiresAt ?? this.expiresAt;
 
     switch (category) {
       case PaymentCategory.qris:
@@ -769,7 +804,8 @@ class OrderModel {
           deeplinkUrl: deeplinkUrl ?? this.deeplinkUrl,
           snapToken: snapToken ?? this.snapToken,
           snapRedirectUrl: snapRedirectUrl ?? this.snapRedirectUrl,
-          expiresAt: expiresAt ?? this.expiresAt,
+          createdAt: effectiveCreatedAt,
+          expiresAt: effectiveExpiresAt,
         );
       case PaymentCategory.ewallet:
         final rule = EWalletProviderRule.of(provider);
@@ -801,7 +837,8 @@ class OrderModel {
           deeplinkUrl: deeplinkUrl ?? this.deeplinkUrl,
           snapToken: snapToken ?? this.snapToken,
           snapRedirectUrl: snapRedirectUrl ?? this.snapRedirectUrl,
-          expiresAt: expiresAt ?? this.expiresAt,
+          createdAt: effectiveCreatedAt,
+          expiresAt: effectiveExpiresAt,
         );
       case PaymentCategory.bank:
         final bankRule = BankPaymentRule.of(provider);
@@ -836,7 +873,8 @@ class OrderModel {
           deeplinkUrl: deeplinkUrl ?? this.deeplinkUrl,
           snapToken: snapToken ?? this.snapToken,
           snapRedirectUrl: snapRedirectUrl ?? this.snapRedirectUrl,
-          expiresAt: expiresAt ?? this.expiresAt,
+          createdAt: effectiveCreatedAt,
+          expiresAt: effectiveExpiresAt,
         );
     }
   }

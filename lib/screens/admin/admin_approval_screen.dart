@@ -211,7 +211,18 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
           selected: _status,
           onChanged: (value) => setState(() => _status = value),
         ),
-        Expanded(child: _content(kind, state)),
+        Expanded(
+          child: RefreshIndicator(
+            color: AdminColors.accentOf(context),
+            onRefresh: () async {
+              await Future.wait([
+                _service.load(force: true),
+                _gateCrewService.loadTeam(),
+              ]);
+            },
+            child: _content(kind, state),
+          ),
+        ),
       ],
     );
   }
@@ -244,14 +255,20 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
       ..sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
 
     if (items.isEmpty) {
-      return AdminMessageState(
-        icon: Icons.inbox_outlined,
-        title: 'Belum ada data',
-        message:
-            'Tidak ada pengajuan produser dengan status ${_status.label.toLowerCase()}.',
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          AdminMessageState(
+            icon: Icons.inbox_outlined,
+            title: 'Belum ada data',
+            message:
+                'Tidak ada pengajuan produser dengan status ${_status.label.toLowerCase()}.',
+          ),
+        ],
       );
     }
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       itemCount: items.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -267,11 +284,16 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
         .toList();
 
     if (filteredCrews.isEmpty) {
-      return AdminMessageState(
-        icon: Icons.badge_outlined,
-        title: 'Belum ada data Gatecrew',
-        message:
-            'Tidak ada akun Gatecrew dengan status ${_status.label.toLowerCase()}.',
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          AdminMessageState(
+            icon: Icons.badge_outlined,
+            title: 'Belum ada data Gatecrew',
+            message:
+                'Tidak ada akun Gatecrew dengan status ${_status.label.toLowerCase()}.',
+          ),
+        ],
       );
     }
 
@@ -293,12 +315,12 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
           ? prodModel!.companyName
           : (crew.producerName.isNotEmpty
               ? crew.producerName
-              : 'Soundwave Entertainment');
+              : 'Produser');
       final resolvedProdEmail = (prodModel?.email.isNotEmpty == true)
           ? prodModel!.email
           : (crew.producerEmail.isNotEmpty
               ? crew.producerEmail
-              : 'produser@livetix.com');
+              : '-');
       final groupKey = resolvedProdEmail.toLowerCase();
 
       final group = groups.putIfAbsent(
@@ -316,6 +338,7 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
     final groupList = groups.values.toList();
 
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
       itemCount: groupList.length,
       separatorBuilder: (_, __) => const SizedBox(height: 18),
@@ -531,20 +554,26 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
         ),
         Expanded(
           child: items.isEmpty
-              ? AdminMessageState(
-                  icon: _hasConcertFilter
-                      ? Icons.search_off_rounded
-                      : Icons.inbox_outlined,
-                  title: _hasConcertFilter
-                      ? 'Konser tidak ditemukan'
-                      : 'Belum ada data',
-                  message: _hasConcertFilter
-                      ? 'Ubah kata kunci atau bulan yang dipilih.'
-                      : 'Tidak ada pengajuan konser dengan status ${_status.label.toLowerCase()}.',
-                  actionLabel: _hasConcertFilter ? 'Reset filter' : null,
-                  onAction: _hasConcertFilter ? _resetConcertFilter : null,
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    AdminMessageState(
+                      icon: _hasConcertFilter
+                          ? Icons.search_off_rounded
+                          : Icons.inbox_outlined,
+                      title: _hasConcertFilter
+                          ? 'Konser tidak ditemukan'
+                          : 'Belum ada data',
+                      message: _hasConcertFilter
+                          ? 'Ubah kata kunci atau bulan yang dipilih.'
+                          : 'Tidak ada pengajuan konser dengan status ${_status.label.toLowerCase()}.',
+                      actionLabel: _hasConcertFilter ? 'Reset filter' : null,
+                      onAction: _hasConcertFilter ? _resetConcertFilter : null,
+                    ),
+                  ],
                 )
               : ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                   itemCount: items.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),

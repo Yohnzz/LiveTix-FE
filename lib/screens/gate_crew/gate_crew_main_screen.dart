@@ -971,9 +971,13 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
         ],
       ),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+        child: RefreshIndicator(
+          color: const Color(0xFF0284C7),
+          onRefresh: _refreshAssignments,
+          child: Center(
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -1162,8 +1166,9 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildDarkInfoRow(String label, String value) {
     return Row(
@@ -1293,8 +1298,17 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: RefreshIndicator(
+          color: const Color(0xFF38BDF8),
+          onRefresh: () async {
+            await Future.wait([
+              _refreshAssignments(),
+              _loadLiveGateData(assignment),
+            ]);
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1753,6 +1767,7 @@ class _GateCrewMainScreenState extends State<GateCrewMainScreen>
               const SizedBox(height: 24),
             ],
           ),
+        ),
         ),
       ),
     );

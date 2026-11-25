@@ -71,10 +71,13 @@ class _ShareGateQrSheetState extends State<ShareGateQrSheet> {
   }
 
   String get _shareCaption {
+    final codeEnd = widget.ticket.bookingCode.length > 8
+        ? '...${widget.ticket.bookingCode.substring(widget.ticket.bookingCode.length - 8)}'
+        : widget.ticket.bookingCode;
     return 'Tiket Gate ${widget.ticket.concertTitle}\n'
         'Tanggal: ${widget.ticket.date} (${widget.ticket.time})\n'
         'Lokasi: ${widget.ticket.venue} - ${widget.ticket.gate}\n'
-        'Kode Booking: ${widget.ticket.bookingCode}\n'
+        'Kode Booking: ${codeEnd}\n'
         '1 QR Berlaku untuk ${widget.ticket.qrScanQuota}x Scan di Gate (${widget.ticket.quantity} Tiket) · Watermark Resmi LiveTix';
   }
 
@@ -327,7 +330,7 @@ class _ShareGateQrSheetState extends State<ShareGateQrSheet> {
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                '${ticket.gate} · ${ticket.category} · ${ticket.bookingCode}',
+                                '${ticket.gate} · ${ticket.category} · ${ticket.bookingCode.substring(ticket.bookingCode.length - 8)}',
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
                                   fontSize: 12.5,

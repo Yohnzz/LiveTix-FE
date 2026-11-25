@@ -253,14 +253,16 @@ class PaymentGatewayService {
 
     // 1B. Pastikan baris order PENDING tersimpan dan panggil atomic RPC reserve_ticket_stock
     DateTime? authoritativeExpiry = edgeResult.expiresAt;
+    DateTime? authoritativeStartedAt; // Waktu mulai dari server
     if (SupabaseService.isInitialized) {
       final uuidRegex = RegExp(
           r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
       final rawUid = userId ?? SupabaseService.client.auth.currentUser?.id;
       final sanitizedUid =
           (rawUid != null && uuidRegex.hasMatch(rawUid)) ? rawUid : null;
+      final nowUtc = DateTime.now().toUtc();
       final expIso =
-          (authoritativeExpiry ?? DateTime.now().toUtc().add(const Duration(minutes: 15)))
+          (authoritativeExpiry ?? nowUtc.add(const Duration(minutes: 15)))
               .toUtc()
               .toIso8601String();
 
@@ -279,6 +281,7 @@ class PaymentGatewayService {
         'customer_name': customerName,
         'customer_email': customerEmail,
         'expires_at': expIso,
+        'payment_started_at': nowUtc.toIso8601String(),
       };
 
       try {
@@ -324,9 +327,14 @@ class PaymentGatewayService {
                   'Maaf, stok tiket tidak mencukupi.',
             );
           }
+          // Ambil expires_at dan payment_started_at dari RPC — ini adalah waktu server yang authoritative
           final serverExp = rpcRes['expires_at']?.toString();
           if (serverExp != null) {
             authoritativeExpiry = DateTime.tryParse(serverExp) ?? authoritativeExpiry;
+          }
+          final serverStart = rpcRes['payment_started_at']?.toString();
+          if (serverStart != null) {
+            authoritativeStartedAt = DateTime.tryParse(serverStart);
           }
         }
       } catch (e) {
@@ -341,6 +349,16 @@ class PaymentGatewayService {
       tierId,
       reservedDelta: quantity,
     );
+
+    // Pastikan expires_at maksimum 15 menit dari sekarang
+    // Ini safeguard agar display timer tidak melebihi window 15 menit
+    if (authoritativeExpiry != null) {
+      final maxExp = (authoritativeStartedAt ?? DateTime.now().toUtc())
+          .add(const Duration(minutes: 15));
+      if (authoritativeExpiry.isAfter(maxExp)) {
+        authoritativeExpiry = maxExp;
+      }
+    }
 
     return PaymentChargeResult(
       isSuccess: true,
@@ -577,7 +595,16 @@ class PaymentGatewayService {
   Future<PromoterBalanceResult> getPromoterBalance(String producerId) async {
     final validProducerId = producerId.isNotEmpty
         ? producerId
-        : 'b3f25b77-6fb1-4004-90ac-f8e877b2eed4';
+        : (DataService().currentUser?.id ?? '');
+    if (validProducerId.isEmpty) {
+      return const PromoterBalanceResult(
+        pendingBalance: 0,
+        availableBalance: 0,
+        totalSales: 0,
+        totalWithdrawn: 0,
+        hasPendingWithdrawal: false,
+      );
+    }
     if (SupabaseService.isInitialized) {
       try {
         final res = await SupabaseService.client.rpc(
@@ -591,41 +618,48 @@ class PaymentGatewayService {
         }
 
         if (data != null) {
-          final bal = PromoterBalanceResult(
+          return PromoterBalanceResult(
             pendingBalance: ((data['pending_balance'] ?? data['held_balance']) as num?)?.toInt() ?? 0,
             availableBalance: (data['available_balance'] as num?)?.toInt() ?? 0,
             totalSales: ((data['total_sales'] ?? data['total_sales_gross']) as num?)?.toInt() ?? 0,
             totalWithdrawn: (data['total_withdrawn'] as num?)?.toInt() ?? 0,
             hasPendingWithdrawal: data['has_pending_withdrawal'] == true,
           );
-          if (bal.totalSales > 0 || bal.availableBalance > 0 || bal.pendingBalance > 0) return bal;
         }
       } catch (e) {
         debugPrint('Error getPromoterBalance Supabase RPC: $e');
       }
 
-      // Fallback: hitung langsung dari orders yang sudah PAID
+      // Fallback: HANYA hitung dari orders yang dimiliki oleh konser Produser ini
       try {
-        final rows = await SupabaseService.client
-            .from('orders')
-            .select('id, total_amount, bagian_produser, gross_amount')
-            .eq('payment_status', 'PAID');
-        if (rows.isNotEmpty) {
+        final concertRows = await SupabaseService.client
+            .from('concerts')
+            .select('id')
+            .eq('producer_id', validProducerId);
+        final myConcerts = concertRows
+            .map((r) => r['id']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet();
+        if (myConcerts.isNotEmpty) {
+          final rows = await SupabaseService.client
+              .from('orders')
+              .select('id, concert_id, total_amount, bagian_produser, gross_amount')
+              .eq('payment_status', 'PAID');
           int sales = 0;
           for (final r in rows) {
+            final cid = r['concert_id']?.toString() ?? '';
+            if (!myConcerts.contains(cid)) continue;
             final part = (r['bagian_produser'] as num?)?.toInt() ??
                 ((r['total_amount'] ?? r['gross_amount'] ?? 0) as num).toInt();
             sales += part;
           }
-          if (sales > 0) {
-            return PromoterBalanceResult(
-              pendingBalance: 0,
-              availableBalance: sales,
-              totalSales: sales,
-              totalWithdrawn: 0,
-              hasPendingWithdrawal: false,
-            );
-          }
+          return PromoterBalanceResult(
+            pendingBalance: 0,
+            availableBalance: sales,
+            totalSales: sales,
+            totalWithdrawn: 0,
+            hasPendingWithdrawal: false,
+          );
         }
       } catch (_) {}
     }

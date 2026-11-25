@@ -263,7 +263,7 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
                                 child: _buildMiniStat(
                                   context,
                                   'Tiket Terjual',
-                                  '12.450',
+                                  ApprovalFormat.thousands(item.ticketsSold),
                                   valueColor: AdminColors.pinkAccentOf(context),
                                 ),
                               ),
@@ -274,22 +274,66 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
 
                           // 3. Konser Aktif (Image 4 & 5)
                           const AdminSectionTitle('Konser Aktif'),
-                          _buildActiveConcertCard(
-                            context,
-                            title: 'Soundwave Fest 2026',
-                            subtitle: '12 Okt 2026 · Gate B',
-                          ),
-                          const SizedBox(height: 10),
-                          _buildActiveConcertCard(
-                            context,
-                            title: 'Jazz Night 2026',
-                            subtitle: '15 Nov 2026 · Balai Sarbini',
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          // 4. Banner Peringatan Konser (Image 4 & 5)
-                          _buildWarningBanner(context),
+                          if (item.activeConcertSummaries.isNotEmpty) ...[
+                            for (int i = 0;
+                                i < item.activeConcertSummaries.length;
+                                i++) ...[
+                              if (i > 0) const SizedBox(height: 10),
+                              _buildActiveConcertCard(
+                                context,
+                                title: item.activeConcertSummaries[i]['title'] ?? '',
+                                subtitle: item.activeConcertSummaries[i]['subtitle'] ?? '',
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                            // 4. Banner Peringatan Konser (Image 4 & 5)
+                            _buildWarningBanner(context, count: item.activeConcertSummaries.length),
+                          ] else ...[
+                            AdminCard(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: AdminColors.purpleBgOf(context),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(
+                                      Icons.confirmation_number_outlined,
+                                      color: AdminColors.purpleOf(context),
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Belum ada konser aktif',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            color: AdminColors.textPrimaryOf(context),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Produser ini belum memiliki konser aktif di database.',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AdminColors.textSecondaryOf(context),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
 
                           const SizedBox(height: 16),
 
@@ -446,7 +490,7 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
     );
   }
 
-  Widget _buildWarningBanner(BuildContext context) {
+  Widget _buildWarningBanner(BuildContext context, {int count = 1}) {
     final isDark = AdminColors.isDark(context);
     final fg = AdminColors.warningOf(context);
     return Container(
@@ -481,7 +525,7 @@ class _AdminDeactivateUserScreenState extends State<AdminDeactivateUserScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '2 konser aktif akan otomatis dihentikan sementara',
+              '$count konser aktif akan otomatis dihentikan sementara',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,

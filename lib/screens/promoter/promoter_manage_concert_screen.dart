@@ -30,45 +30,18 @@ class _PromoterManageConcertScreenState
   final String _pendingChangeSummary = '';
 
   void _showAddGateDialog(PromoterConcertItem concert, bool isDarkMode) {
-    final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Tambah Pos Gate Baru',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: 'Contoh: Gate VIP, Gate Barat, dll',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final text = controller.text.trim();
-              if (text.isNotEmpty && !concert.gates.contains(text)) {
-                final updatedGates = [...concert.gates, text];
-                await PromoterDataService().updateConcertGates(
-                  concert.id,
-                  updatedGates,
-                );
-              }
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1B2A8C),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Tambah Gate'),
-          ),
-        ],
+      builder: (ctx) => _AddGateManageDialog(
+        onAddGate: (text) async {
+          if (!concert.gates.contains(text)) {
+            final updatedGates = [...concert.gates, text];
+            await PromoterDataService().updateConcertGates(
+              concert.id,
+              updatedGates,
+            );
+          }
+        },
       ),
     );
   }
@@ -2045,4 +2018,76 @@ class _PromoterManageConcertScreenState
   ),
 );
 }
+}
+
+class _AddGateManageDialog extends StatefulWidget {
+  final Future<void> Function(String) onAddGate;
+
+  const _AddGateManageDialog({required this.onAddGate});
+
+  @override
+  State<_AddGateManageDialog> createState() => _AddGateManageDialogState();
+}
+
+class _AddGateManageDialogState extends State<_AddGateManageDialog> {
+  late final TextEditingController _controller;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final text = _controller.text.trim();
+    if (text.isNotEmpty && !_isSubmitting) {
+      setState(() => _isSubmitting = true);
+      await widget.onAddGate(text);
+    }
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'Tambah Pos Gate Baru',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _submit(),
+        decoration: InputDecoration(
+          hintText: 'Contoh: Gate VIP, Gate Barat, dll',
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Batal'),
+        ),
+        ElevatedButton(
+          onPressed: _isSubmitting ? null : _submit,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF1B2A8C),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Tambah Gate'),
+        ),
+      ],
+    );
+  }
 }

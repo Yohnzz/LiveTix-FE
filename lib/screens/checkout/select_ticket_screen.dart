@@ -192,6 +192,7 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
 
     final currentUser = DataService().currentUser;
     final pricing = _pricing;
+    final now = DateTime.now();
     final order = OrderModel(
       orderId: 'ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
       concert: widget.concert.copyWith(ticketTiers: _availableTiers),
@@ -208,6 +209,8 @@ class _SelectTicketScreenState extends State<SelectTicketScreen> {
       rounding: pricing.rounding,
       producerShare: pricing.producerShare,
       adminShare: pricing.adminShare,
+      createdAt: now,
+      expiresAt: now.add(const Duration(minutes: 15)),
     );
 
     Navigator.push(

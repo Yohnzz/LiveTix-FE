@@ -16,9 +16,13 @@ class Step4SummaryReviewScreen extends StatefulWidget {
   final String? squareLogoDataUrl;
   final List<String> highlights;
   final List<String> highlightNames;
+  final List<String> shortMessages;
+  final bool isBadgesLoading;
+  final ValueChanged<List<String>>? onShortMessagesChanged;
   final String venueName;
   final String venueAddress;
   final List<PromoterTicketTier> tiers;
+  final List<String> gateOptions;
   final Map<String, String>? initialInvitedCrew;
   final void Function(Map<String, String> invitedCrew) onSubmit;
   final VoidCallback onBack;
@@ -36,9 +40,13 @@ class Step4SummaryReviewScreen extends StatefulWidget {
     this.squareLogoDataUrl,
     this.highlights = const [],
     this.highlightNames = const [],
+    this.shortMessages = const [],
+    this.isBadgesLoading = false,
+    this.onShortMessagesChanged,
     required this.venueName,
     required this.venueAddress,
     required this.tiers,
+    this.gateOptions = const [],
     this.initialInvitedCrew,
     required this.onSubmit,
     required this.onBack,
@@ -54,25 +62,34 @@ class Step4SummaryReviewScreen extends StatefulWidget {
 class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
   final Map<String, String> _selectedCrewGates = {};
 
-  static const List<String> _gateOptions = [
-    'Gate A (Utama / VIP)',
-    'Gate B (Festival Barat)',
-    'Gate C (Tribun Timur)',
-    'Gate D (Festival Selatan)',
-    'Semua Gate (Supervisor Scan)',
-  ];
+  List<String> get _gateOptions {
+    if (widget.gateOptions.isNotEmpty) {
+      return widget.gateOptions;
+    }
+    if (widget.initialInvitedCrew != null &&
+        widget.initialInvitedCrew!.isNotEmpty) {
+      final list = widget.initialInvitedCrew!.values
+          .map((g) => g.trim())
+          .where((g) => g.isNotEmpty)
+          .toSet()
+          .toList();
+      if (list.isNotEmpty) return list;
+    }
+    return const ['Gate 1 (Utama)', 'Gate 2'];
+  }
 
-  static String _resolveGate(String? current) {
-    if (current == null || current.trim().isEmpty) return _gateOptions.first;
+  String _resolveGate(String? current) {
+    final options = _gateOptions;
+    if (current == null || current.trim().isEmpty) return options.first;
     final trimmed = current.trim();
-    if (_gateOptions.contains(trimmed)) return trimmed;
-    for (final opt in _gateOptions) {
+    if (options.contains(trimmed)) return trimmed;
+    for (final opt in options) {
       if (opt.toLowerCase().startsWith(trimmed.toLowerCase()) ||
           trimmed.toLowerCase().startsWith(opt.toLowerCase())) {
         return opt;
       }
     }
-    return _gateOptions.first;
+    return options.first;
   }
 
   @override
@@ -103,6 +120,44 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
       return '$cleanVenue · 14 Nov 2026';
     }
     return '$cleanVenue · ${widget.concertDate.trim()}';
+  }
+
+  Future<void> _showEditBadgesDialog() async {
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _EditBadgesDialog(initial: widget.shortMessages),
+    );
+    if (result != null) {
+      widget.onShortMessagesChanged?.call(result);
+    }
+  }
+
+  Widget _buildBadgePill(String message, int index) {
+    final icon = index == 0
+        ? Icons.star_rounded
+        : (index == 1 ? Icons.local_fire_department_rounded : Icons.campaign_rounded);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBBF24),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF1E1B4B)),
+          const SizedBox(width: 4),
+          Text(
+            message,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1E1B4B),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -425,6 +480,123 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
 
                     const SizedBox(height: 14),
 
+                    // Card 1b: Badge Banner Otomatis dari Deskripsi (AI)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Pesan Singkat / Badge Banner',
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: textColor,
+                                  ),
+                                ),
+                              ),
+                              if (!widget.isBadgesLoading)
+                                TextButton.icon(
+                                  onPressed: _showEditBadgesDialog,
+                                  icon: const Icon(Icons.edit_rounded, size: 15),
+                                  label: const Text(
+                                    'Edit',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: const Color(0xFF9E1B82),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Dibuat otomatis oleh AI dari deskripsi konser. Badge hanya muncul jika deskripsi memuat kata kunci yang menarik.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: subtextColor,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (widget.isBadgesLoading)
+                            Row(
+                              children: [
+                                const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFF9E1B82),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'AI sedang menyusun badge dari deskripsi...',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: subtextColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          else if (widget.shortMessages.isEmpty)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: isDarkMode
+                                    ? const Color(0xFF141A29)
+                                    : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: cardBorder),
+                              ),
+                              child: Text(
+                                'AI tidak menemukan kata kunci yang cukup kuat, jadi badge dibiarkan kosong. Anda tetap bisa menambahkannya lewat tombol Edit.',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: subtextColor,
+                                  height: 1.4,
+                                ),
+                              ),
+                            )
+                          else
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              children: List.generate(
+                                widget.shortMessages.length,
+                                (idx) => _buildBadgePill(
+                                  widget.shortMessages[idx],
+                                  idx,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
                     // Card 2: Paket Tiket Terpilih
                     Container(
                       width: double.infinity,
@@ -586,48 +758,67 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                             : cardBorder,
                                       ),
                                     ),
-                                    child: Row(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Checkbox(
-                                          value: isSelected,
-                                          activeColor: const Color(0xFFC2185B),
-                                          onChanged: (val) {
-                                            setState(() {
-                                              if (val == true) {
-                                                _selectedCrewGates[crew.id] =
-                                                    _gateOptions.first;
-                                              } else {
-                                                _selectedCrewGates
-                                                    .remove(crew.id);
-                                              }
-                                            });
-                                          },
-                                        ),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                crew.name,
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: textColor,
-                                                ),
+                                        Row(
+                                          children: [
+                                            Checkbox(
+                                              value: isSelected,
+                                              activeColor:
+                                                  const Color(0xFFC2185B),
+                                              onChanged: (val) {
+                                                setState(() {
+                                                  if (val == true) {
+                                                    _selectedCrewGates[
+                                                            crew.id] =
+                                                        _gateOptions.first;
+                                                  } else {
+                                                    _selectedCrewGates
+                                                        .remove(crew.id);
+                                                  }
+                                                });
+                                              },
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    crew.name,
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: textColor,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    crew.email,
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: subtextColor,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ],
                                               ),
-                                              Text(
-                                                crew.email,
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: subtextColor,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                            ),
+                                          ],
                                         ),
-                                        if (isSelected)
+                                        if (isSelected) ...[
+                                          const SizedBox(height: 8),
                                           Container(
+                                            width: double.infinity,
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 10, vertical: 2),
                                             decoration: BoxDecoration(
@@ -643,6 +834,7 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                               child: DropdownButton<String>(
                                                 value: gateName,
                                                 isDense: true,
+                                                isExpanded: true,
                                                 style: TextStyle(
                                                   fontSize: 12,
                                                   fontWeight: FontWeight.w700,
@@ -658,7 +850,8 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                                       gate,
                                                       style: TextStyle(
                                                         fontSize: 12,
-                                                        fontWeight: FontWeight.w600,
+                                                        fontWeight:
+                                                            FontWeight.w600,
                                                         color: textColor,
                                                       ),
                                                     ),
@@ -675,6 +868,7 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
                                               ),
                                             ),
                                           ),
+                                        ],
                                       ],
                                     ),
                                   );
@@ -765,6 +959,168 @@ class _Step4SummaryReviewScreenState extends State<Step4SummaryReviewScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+class _EditBadgesDialog extends StatefulWidget {
+  final List<String> initial;
+
+  const _EditBadgesDialog({required this.initial});
+
+  @override
+  State<_EditBadgesDialog> createState() => _EditBadgesDialogState();
+}
+
+class _EditBadgesDialogState extends State<_EditBadgesDialog> {
+  late List<TextEditingController> _controllers;
+
+  @override
+  void initState() {
+    super.initState();
+    final source = widget.initial.take(3).toList();
+    _controllers = source.map((m) => TextEditingController(text: m)).toList();
+    if (_controllers.isEmpty) {
+      _controllers.add(TextEditingController());
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addMessage() {
+    if (_controllers.length >= 3) return;
+    setState(() => _controllers.add(TextEditingController()));
+  }
+
+  void _removeMessage(int index) {
+    setState(() {
+      _controllers.removeAt(index).dispose();
+      if (_controllers.isEmpty) {
+        _controllers.add(TextEditingController());
+      }
+    });
+  }
+
+  void _save() {
+    final values = _controllers
+        .map((c) => c.text.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    Navigator.pop(context, values);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: const Text(
+        'Edit Badge Banner',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Maksimal 3 badge, 15 karakter per badge. Kosongkan semua jika tidak ingin menampilkan badge.',
+              style: TextStyle(
+                fontSize: 11.5,
+                color: Color(0xFF667085),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...List.generate(_controllers.length, (index) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controllers[index],
+                        maxLength: 15,
+                        style: const TextStyle(fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: index == 0
+                              ? 'Contoh: Festival Musik'
+                              : (index == 1 ? 'Contoh: 17+' : 'Contoh: Outdoor'),
+                          hintStyle: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF98A2B3),
+                          ),
+                          counterText: '',
+                          isDense: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_controllers.length > 1)
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 20,
+                          color: Colors.redAccent,
+                        ),
+                        onPressed: () => _removeMessage(index),
+                        tooltip: 'Hapus badge',
+                      ),
+                  ],
+                ),
+              );
+            }),
+            if (_controllers.length < 3)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _addMessage,
+                  icon: const Icon(
+                    Icons.add_rounded,
+                    size: 18,
+                    color: Color(0xFF9E1B82),
+                  ),
+                  label: Text(
+                    'Tambah Badge (${_controllers.length}/3)',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF9E1B82),
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Batal'),
+        ),
+        ElevatedButton(
+          onPressed: _save,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF9E1B82),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Simpan'),
+        ),
+      ],
     );
   }
 }

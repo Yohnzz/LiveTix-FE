@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:livetix/screens/promoter/promoter_main_screen.dart';
 import 'package:livetix/screens/promoter/promoter_concert_list_screen.dart';
 import 'package:livetix/screens/promoter/promoter_pin_lock_screen.dart';
@@ -11,6 +12,7 @@ import 'package:livetix/services/promoter_data_service.dart';
 
 void main() {
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     final service = PromoterDataService();
     service.verificationStatusNotifier.value = 'approved';
     service.promoterNameNotifier.value = 'Java Promotor';
@@ -25,7 +27,7 @@ void main() {
     );
 
     // Verify Promotor dashboard text
-    expect(find.text('Malam ini ada apa?'), findsOneWidget);
+    expect(find.text('Pantau performa penjualan tiket & event konser aktif'), findsOneWidget);
     expect(find.text('Java Promotor'), findsOneWidget);
     expect(find.text('TERVERIFIKASI'), findsOneWidget);
     expect(find.text('TOTAL KONSER'), findsOneWidget);
@@ -33,7 +35,7 @@ void main() {
     expect(find.text('TOTAL PENDAPATAN'), findsOneWidget);
   });
 
-  testWidgets('PromoterConcertListScreen renders filter tabs and quota banner',
+  testWidgets('PromoterConcertListScreen renders filter tabs',
       (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(
@@ -55,8 +57,6 @@ void main() {
 
   testWidgets('AddConcertFlow steps 3 to 4 starts empty and validates Gate correctly',
       (WidgetTester tester) async {
-    PromoterDataService().quotaRemainingNotifier.value = 5;
-
     await tester.pumpWidget(
       const MaterialApp(
         home: AddConcertFlow(initialStep: 3),
@@ -99,8 +99,6 @@ void main() {
 
   testWidgets('AddConcertFlow step 5 (Ringkasan) submits to Detail Status Konser',
       (WidgetTester tester) async {
-    PromoterDataService().quotaRemainingNotifier.value = 5;
-
     await tester.pumpWidget(
       const MaterialApp(
         home: AddConcertFlow(initialStep: 5),
@@ -114,7 +112,6 @@ void main() {
     expect(find.text('Paket Tiket Terpilih'), findsOneWidget);
     expect(find.text('Kirim untuk Approval Admin'), findsOneWidget);
 
-    PromoterDataService().quotaRemainingNotifier.value = 5;
     await tester.tap(find.text('Kirim untuk Approval Admin'));
     await tester.pumpAndSettle();
 
