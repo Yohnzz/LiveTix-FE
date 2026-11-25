@@ -504,6 +504,93 @@ Tolong buatkan teks deskripsi konser 2-3 paragraf yang menarik berdasarkan data 
   }
 });
 
+// ============================================================================
+// FITUR 4: BADGES BANNER OTOMATIS DARI DESKRIPSI KONSER (SISI PRODUSER)
+// ============================================================================
+/**
+ * Alur:
+ * 1. Produser mengisi deskripsi konser di step 1 form Tambah Konser
+ * 2. Saat masuk step ringkasan, Flutter mengirim deskripsi ke endpoint ini
+ * 3. AI menilai apakah deskripsi memuat kata kunci yang cukup menarik
+ * 4. Jika ada: 1-3 badge singkat (maks 15 karakter). Jika tidak: array kosong.
+ */
+app.post('/api/ai/generate-badges', async (req, res) => {
+  try {
+    const { description, title, genre, date, venue } = req.body || {};
+    const cleanDescription =
+      typeof description === 'string' ? description.trim() : '';
+
+    // Deskripsi terlalu pendek untuk dinilai: badge dibiarkan kosong.
+    if (cleanDescription.length < 60) {
+      return res.json({ success: true, badges: [] });
+    }
+
+    const systemInstruction = `Anda adalah editor copywriting untuk platform promotor konser LiveTix.
+Tugas Anda: menentukan apakah deskripsi konser memiliki kata kunci yang cukup menarik untuk dijadikan badge singkat pada banner konser.
+
+ATURAN KETAT:
+1. Balas HANYA dengan JSON valid berformat {"badges": ["...", "..."]} tanpa teks pembuka, penutup, atau markdown.
+2. Jumlah badge 0 sampai 3. Kosongkan array ({"badges": []}) jika deskripsi generik, tidak spesifik, atau tidak punya kata kunci menarik.
+3. Setiap badge MAKSIMAL 15 karakter, 1-3 kata, tanpa emoji, tanpa tanda kutip, tanpa titik di akhir.
+4. Ambil HANYA fakta yang tertulis di deskripsi: genre/jenis musik, kata "festival", batas usia (mis. "17+"), suasana (mis. "Outdoor", "Akustik", "Intim"), jumlah penampil, atau nama artis utama.
+5. DILARANG mengarang fakta yang tidak ada di deskripsi (harga, gratis, jumlah hari, kota, bintang tamu).
+6. Prioritaskan kata yang memicu rasa penasaran atau keinginan menonton. Hindari kata pasif seperti "Acara", "Konser", atau "Musik" saja.
+7. Contoh badge yang baik: "Festival Musik", "17+", "Outdoor", "Akustik", "Line-up 5 Band", "Satu Malam".`;
+
+    const userPrompt = `DATA KONSER:
+- Judul: ${title || 'Belum diisi'}
+- Tema / Genre: ${genre || 'Tidak disebutkan'}
+- Tanggal: ${date || 'Tidak disebutkan'}
+- Venue: ${venue || 'Tidak disebutkan'}
+
+DESKRIPSI KONSER:
+"""${cleanDescription}"""
+
+Tentukan badge banner yang layak ditampilkan. Jika tidak ada kata kunci yang cukup kuat, kembalikan {"badges": []}.`;
+
+    let raw = await callGemini(systemInstruction, userPrompt, true);
+    raw = String(raw)
+      .trim()
+      .replace(/^```(?:json)?/i, '')
+      .replace(/```$/, '')
+      .trim();
+
+    let parsed = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (_) {
+      parsed = null;
+    }
+
+    let candidates = [];
+    if (Array.isArray(parsed)) {
+      candidates = parsed;
+    } else if (parsed && Array.isArray(parsed.badges)) {
+      candidates = parsed.badges;
+    }
+
+    // Validasi ulang di server: jangan percaya output AI mentah.
+    const badges = [];
+    for (const item of candidates) {
+      const text = String(item ?? '').replace(/\s+/g, ' ').trim();
+      if (!text || text.length > 15) continue;
+      if (badges.some((b) => b.toLowerCase() === text.toLowerCase())) continue;
+      badges.push(text);
+      if (badges.length === 3) break;
+    }
+
+    return res.json({ success: true, badges });
+  } catch (err) {
+    console.error('[Fitur 4] Exception:', err);
+    return res.status(500).json({
+      success: false,
+      badges: [],
+      message: 'Terjadi kesalahan saat membuat badge dengan AI.',
+      error: err.message
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`[LiveTix AI Backend] Berjalan di port ${port}`);
   console.log(`[Supabase] Terhubung ke: ${supabaseUrl}`);
