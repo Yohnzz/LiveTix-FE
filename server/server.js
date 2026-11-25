@@ -451,7 +451,7 @@ ATURAN WAJIB:
  * 1. Produser menulis instruksi/poin singkat di field deskripsi form Tambah Konser
  * 2. Tombol [AI Assistant] ditekan
  * 3. Dikirim ke backend beserta data form lain yang tersedia (judul, tema, tanggal, lokasi, artis)
- * 4. AI menghasilkan deskripsi konser 2-3 paragraf menarik dan profesional (tanpa menambah fakta fiktif)
+ * 4. AI menghasilkan deskripsi konser singkat, padat, dan menarik dalam 1 paragraf (tanpa menambah fakta fiktif)
  * 5. Teks langsung menggantikan field deskripsi di Flutter dengan opsi Undo
  */
 app.post('/api/ai/generate-description', async (req, res) => {
@@ -473,8 +473,9 @@ Tugas Anda adalah membantu produser membuat deskripsi konser yang menarik, profe
 ATURAN KETAT:
 1. Gunakan HANYA informasi dan poin-poin yang diberikan oleh produser (judul, tema/genre, tanggal, lokasi, artis, serta poin-poin instruksi).
 2. DILARANG KERAS menambahkan fakta baru yang TIDAK disebutkan oleh produser (DILARANG mengarang harga tiket, tanggal baru, atau nama artis/bintang tamu yang tidak ada di input).
-3. Buat deskripsi dalam 2-3 paragraf berbahasa Indonesia yang memikat, elegan, dan terstruktur rapi.
-4. Output HANYA berupa teks deskripsi konser saja. DILARANG menyertakan salam pembuka (seperti "Berikut adalah deskripsinya:") dan DILARANG menyertakan penutup atau penjelasan tambahan apa pun.`;
+3. Buat deskripsi SINGKAT dan PADAT: 1 paragraf saja, 3-4 kalimat, maksimal 60 kata, berbahasa Indonesia yang jelas dan memikat.
+4. Langsung sebutkan hal paling menarik (penampil, suasana, pengalaman menonton) di kalimat pertama agar pembaca tertarik sejak awal. Jangan bertele-tele atau mengulang informasi yang sama.
+5. Output HANYA berupa teks deskripsi konser saja. DILARANG menyertakan salam pembuka (seperti "Berikut adalah deskripsinya:") dan DILARANG menyertakan penutup atau penjelasan tambahan apa pun.`;
 
     const userPrompt = `DATA KONSER DARI PRODUSER:
 - Judul Konser: ${title || 'Belum diisi'}
@@ -486,7 +487,7 @@ ATURAN KETAT:
 POIN-POIN / INSTRUKSI PRODUSER DI FIELD DESKRIPSI:
 "${cleanPrompt}"
 
-Tolong buatkan teks deskripsi konser 2-3 paragraf yang menarik berdasarkan data di atas.`;
+Tolong buatkan deskripsi konser singkat (1 paragraf, 3-4 kalimat, maksimal 60 kata) yang padat, jelas, dan langsung membuat orang tertarik berdasarkan data di atas.`;
 
     const generatedDescription = await callGemini(systemInstruction, userPrompt, false);
 
