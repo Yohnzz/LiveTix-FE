@@ -848,13 +848,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         child: TextField(
                           controller: _searchController,
-                          onChanged: _isAiSearchMode
-                              ? null
-                              : (val) {
-                                  setState(() {
-                                    _searchQuery = val;
-                                  });
-                                },
+                          onChanged: (val) {
+                            if (_isAiSearchMode) {
+                              setState(() {});
+                            } else {
+                              setState(() {
+                                _searchQuery = val;
+                              });
+                            }
+                          },
                           onSubmitted: _isAiSearchMode
                               ? _runAiSearch
                               : null,
@@ -1042,18 +1044,24 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildAiSearchResults(bool isDark) {
     if (_isAiSearching) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 48),
+        padding: const EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: Column(
             children: [
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+              const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.8,
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               Text(
                 'AI sedang mencari konser yang sesuai...',
                 style: TextStyle(
                   fontSize: 13,
+                  fontWeight: FontWeight.w500,
                   color: isDark
                       ? AppColors.darkTextSecondary
                       : AppColors.textGrey,

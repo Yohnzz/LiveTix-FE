@@ -6,7 +6,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import '../data/db_dummy.dart';
 import '../core/account_status.dart';
 import '../models/concert_model.dart';
 import '../models/ticket_order_model.dart';
@@ -56,12 +55,12 @@ class DataService {
     'seabank': 2500,
   };
 
-  // In-memory data store derived from DbDummy
+  // In-memory data store (fallback jika Supabase belum terinisialisasi)
   late final List<ConcertModel> _concerts;
   late final List<CityModel> _cities;
   late final List<UserModel> _users;
   final Set<String> _paidOrderIds = <String>{};
-  bool _agreementAccepted = DbDummy.defaultGuestAgreementAccepted;
+  bool _agreementAccepted = false;
 
   static const String _cachedConcertsStorageKey = 'livetix_cached_concerts_v1';
 
@@ -144,11 +143,9 @@ class DataService {
   void _initService() {
     _concerts = SupabaseService.isInitialized
         ? _readCachedConcertsFromLocalStorage()
-        : List.from(DbDummy.concerts);
-    _cities = List.from(DbDummy.cities);
-    _users = SupabaseService.isInitialized
-        ? <UserModel>[]
-        : List.from(DbDummy.users);
+        : <ConcertModel>[];
+    _cities = <CityModel>[];
+    _users = <UserModel>[];
     // Pulihkan tiket tersimpan dari cache lokal jika ada (filter tiket dummy lawas)
     final savedTicketsRaw =
         LocalStorage.getString('livetix_saved_user_tickets');
@@ -170,7 +167,7 @@ class DataService {
     } else {
       userTicketsNotifier.value = <UserTicketModel>[];
     }
-    _agreementAccepted = DbDummy.defaultGuestAgreementAccepted ||
+    _agreementAccepted = false ||
         LocalStorage.getBool(LocalStorage.agreementAcceptedKey);
 
     // Pulihkan rekening refund yang telah didaftarkan pengguna jika ada
@@ -827,12 +824,12 @@ class DataService {
 
   /// Mengambil daftar genre
   Future<List<String>> getGenres() async {
-    return List.unmodifiable(DbDummy.genres);
+    return List.unmodifiable(const <String>[]);
   }
 
   /// Mengambil daftar opsi tanggal
   Future<List<String>> getDates() async {
-    return List.unmodifiable(DbDummy.dates);
+    return List.unmodifiable(const <String>[]);
   }
 
   // --- API Autentikasi & Profil ---
@@ -1974,9 +1971,7 @@ class DataService {
   }
 
   void resetUsersForTesting() {
-    _users
-      ..clear()
-      ..addAll(DbDummy.users);
+    _users.clear();
   }
 
   // --- API Tiket & Pemesanan ---

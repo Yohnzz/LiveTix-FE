@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../models/concert_model.dart';
+import 'data_service.dart';
 
 /// Model filter terstruktur hasil ekstraksi AI (Fitur 2)
 class AiFilterModel {
@@ -234,25 +235,11 @@ class AiBackendService {
         final Map<String, dynamic> data = jsonDecode(res.body);
         return AiConcertInfoResponse.fromJson(data);
       } else {
-        final Map<String, dynamic>? data =
-            tryDecodeJson(res.body);
-        return AiConcertInfoResponse(
-          success: false,
-          matched: false,
-          ambiguous: false,
-          message: data?['message'] ??
-              'Gagal memuat info konser dari server (HTTP ${res.statusCode}).',
-        );
+        return await _fallbackLocalConcertInfo(clean);
       }
     } catch (e) {
       debugPrint('[AiBackendService] askConcertInfo error ($uri): $e');
-      return AiConcertInfoResponse(
-        success: false,
-        matched: false,
-        ambiguous: false,
-        message:
-            'Tidak dapat terhubung ke server AI backend ($baseUrl). Pastikan backend server telah dijalankan.',
-      );
+      return await _fallbackLocalConcertInfo(clean);
     }
   }
 
@@ -282,27 +269,162 @@ class AiBackendService {
 
       if (res.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(res.body);
-        return AiSearchResponse.fromJson(data);
+        final parsed = AiSearchResponse.fromJson(data);
+        if (parsed.results.isEmpty) {
+          return await _fallbackLocalSearch(clean);
+        }
+        return parsed;
       } else {
-        final Map<String, dynamic>? data = tryDecodeJson(res.body);
-        return AiSearchResponse(
-          success: false,
-          total: 0,
-          results: [],
-          message: data?['message'] ??
-              'Gagal melakukan pencarian konser di server (HTTP ${res.statusCode}).',
-        );
+        return await _fallbackLocalSearch(clean);
       }
     } catch (e) {
-      debugPrint('[AiBackendService] searchConcerts error: $e');
-      return AiSearchResponse(
-        success: false,
-        total: 0,
-        results: [],
-        message:
-            'Gagal menghubungi server AI backend ($baseUrl). Pastikan server backend sedang berjalan.',
+      debugPrint('[AiBackendService] searchConcerts error: $e. Running local search fallback.');
+      return await _fallbackLocalSearch(clean);
+    }
+  }
+
+  Future<AiConcertInfoResponse> _fallbackLocalConcertInfo(String query) async {
+    List<ConcertModel> all = DataService().rawConcerts;
+    if (all.isEmpty) {
+      try {
+        all = await DataService().fetchConcertsFromSupabase();
+      } catch (_) {}
+    }
+    final lowerQ = query.toLowerCase();
+    final matched = all.where((c) {
+      final text = '${c.title} ${c.subtitle} ${c.venue} ${c.category}'.toLowerCase();
+      return text.contains(lowerQ) || lowerQ.split(' ').any((w) => w.length > 2 && text.contains(w));
+    }).toList();
+
+    if (matched.isEmpty) {
+      return AiConcertInfoResponse(
+        success: true,
+        matched: false,
+        ambiguous: false,
+        message: 'Tidak ditemukan detail konser spesifik untuk pertanyaan tersebut. Silakan cek daftar konser yang tersedia di menu Jelajah.',
+        matchedConcerts: all.take(3).toList(),
+        concert: all.isNotEmpty ? all.first : null,
       );
     }
+
+    final top = matched.first;
+    return AiConcertInfoResponse(
+      success: true,
+      matched: true,
+      ambiguous: matched.length > 1,
+      message: 'Berikut detail konser "${top.title}" di ${top.venue} pada ${top.date}. Tiket mulai dari ${top.formattedPrice}.',
+      concert: top,
+      matchedConcerts: matched,
+    );
+  }
+
+  Future<AiSearchResponse> _fallbackLocalSearch(String query) async {
+    List<ConcertModel> allConcerts = DataService().rawConcerts;
+    if (allConcerts.isEmpty) {
+      try {
+        allConcerts = await DataService().fetchConcertsFromSupabase();
+      } catch (_) {}
+    }
+    if (allConcerts.isEmpty) {
+      return const AiSearchResponse(
+        success: true,
+        total: 0,
+        results: [],
+        message: 'Belum ada data konser yang tersedia di platform saat ini.',
+      );
+    }
+
+    final lowerQ = query.toLowerCase();
+    final tokens = lowerQ.split(RegExp(r'\s+')).where((t) => t.length > 1).toList();
+
+    // Deteksi genre sederhana
+    String? detectedGenre;
+    for (final g in ['pop', 'rock', 'jazz', 'indie', 'metal', 'dangdut', 'hip hop', 'r&b']) {
+      if (lowerQ.contains(g)) {
+        detectedGenre = g;
+        break;
+      }
+    }
+
+    // Deteksi kota sederhana
+    String? detectedLocation;
+    for (final loc in ['malang', 'jakarta', 'bandung', 'surabaya', 'yogyakarta', 'jogja', 'bali', 'semarang', 'medan']) {
+      if (lowerQ.contains(loc)) {
+        detectedLocation = loc;
+        break;
+      }
+    }
+
+    // Deteksi tahun
+    int? detectedYear;
+    final yearMatch = RegExp(r'\b(202[4-9]|203[0-9])\b').firstMatch(lowerQ);
+    if (yearMatch != null) {
+      detectedYear = int.tryParse(yearMatch.group(0)!);
+    }
+
+    final filter = AiFilterModel(
+      genre: detectedGenre,
+      location: detectedLocation,
+      year: detectedYear,
+      keyword: query,
+    );
+
+    final stopWords = {
+      'konser', 'tiket', 'musik', 'acara', 'event', 'jadwal', 'rekomendasi',
+      'terbaru', 'terdekat', 'ada', 'apa', 'semua', 'dong', 'saja', 'aja',
+      'mau', 'cari', 'lihat', 'info', 'daftar', 'tentang', 'yang', 'hari', 'ini'
+    };
+
+    final meaningfulTokens = tokens.where((t) => !stopWords.contains(t)).toList();
+
+    List<ConcertModel> matches = allConcerts.where((c) {
+      if (detectedGenre != null) {
+        final cat = c.category.toLowerCase();
+        final tag = c.tag.toLowerCase();
+        if (!cat.contains(detectedGenre) && !tag.contains(detectedGenre)) return false;
+      }
+      if (detectedLocation != null) {
+        final venue = c.venue.toLowerCase();
+        final sub = c.subtitle.toLowerCase();
+        if (!venue.contains(detectedLocation) && !sub.contains(detectedLocation)) return false;
+      }
+      if (detectedYear != null) {
+        if (!c.date.toLowerCase().contains(detectedYear.toString())) return false;
+      }
+      if (meaningfulTokens.isNotEmpty) {
+        final fullText = '${c.title} ${c.subtitle} ${c.description} ${c.venue} ${c.category}'.toLowerCase();
+        final hasAny = meaningfulTokens.any((t) => fullText.contains(t));
+        if (!hasAny) return false;
+      }
+      return true;
+    }).toList();
+
+    // Jika filter terlalu spesifik sehingga 0, relaksasikan
+    if (matches.isEmpty && meaningfulTokens.isNotEmpty) {
+      matches = allConcerts.where((c) {
+        final fullText = '${c.title} ${c.subtitle} ${c.venue}'.toLowerCase();
+        return meaningfulTokens.any((t) => fullText.contains(t));
+      }).toList();
+    }
+
+    if (matches.isEmpty) {
+      matches = allConcerts;
+      return AiSearchResponse(
+        success: true,
+        filter: filter,
+        total: matches.length,
+        results: matches,
+        message: 'Menampilkan ${matches.length} konser seru yang tersedia di LiveTix:',
+      );
+    }
+
+    return AiSearchResponse(
+      success: true,
+      filter: filter,
+      total: matches.length,
+      results: matches,
+      message: 'Ditemukan ${matches.length} konser yang sesuai dengan pencarian Anda.',
+    );
   }
 
   // ==========================================================================

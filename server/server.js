@@ -5,67 +5,127 @@ import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
-const app = express();
-const port = process.env.PORT || 3000;
+// ============================================================================
+// KONFIGURASI (semua dari environment variable)
+// ============================================================================
+const csv = (value, fallback = '') =>
+  (value ?? fallback).split(',').map((s) => s.trim()).filter(Boolean);
 
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-}));
-app.options('*', cors());
+const requireEnv = (name) => {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Environment variable ${name} belum diisi`);
+  }
+  return value;
+};
+
+const config = {
+  port: process.env.PORT || 3000,
+
+  supabaseUrl: requireEnv('SUPABASE_URL'),
+  supabaseKey: requireEnv('SUPABASE_ANON_KEY'),
+
+  geminiApiKey: process.env.GEMINI_API_KEY || '',
+  primaryModel: requireEnv('GEMINI_MODEL'),
+  fallbackModels: csv(process.env.GEMINI_FALLBACK_MODELS),
+
+  // Kosongkan ALLOWED_ORIGINS untuk mengizinkan semua origin (hanya untuk development)
+  allowedOrigins: csv(process.env.ALLOWED_ORIGINS),
+
+  // Status konser yang boleh tampil ke user
+  visibleStatuses: csv(process.env.VISIBLE_STATUSES, 'published,approved'),
+
+  // Kata umum yang diabaikan saat mencocokkan nama konser (hanya kata tanya/sapaan,
+  // BUKAN kata yang bisa jadi bagian judul konser seperti "konser" atau "tiket")
+  stopWords: csv(
+    process.env.SEARCH_STOP_WORDS,
+    'jelaskan,tentang,mengenai,info,bagaimana,apa,itu,dong,tolong,min,bisa'
+  ),
+
+  minBadgeDescriptionLength: Number(process.env.MIN_BADGE_DESCRIPTION_LENGTH || 60),
+  maxBadgeLength: Number(process.env.MAX_BADGE_LENGTH || 15),
+  maxBadges: Number(process.env.MAX_BADGES || 3),
+  minPromptLength: Number(process.env.MIN_PROMPT_LENGTH || 10),
+};
+
+const app = express();
+
+app.use(
+  cors({
+    origin: config.allowedOrigins.length > 0 ? config.allowedOrigins : '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  })
+);
 app.use(express.json());
 
-// Inisialisasi Supabase Client
-const supabaseUrl = process.env.SUPABASE_URL || 'https://arvydukozxjvwwhqnbth.supabase.co';
-const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(config.supabaseUrl, config.supabaseKey);
 
-// Inisialisasi Gemini API
-const geminiApiKey = process.env.GEMINI_API_KEY || '';
-const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
-const fallbackModels = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-flash-lite-latest'];
+// ============================================================================
+// HELPER
+// ============================================================================
+
+/**
+ * Ambil semua konser yang boleh tampil beserta kategori tiketnya.
+ * Satu-satunya tempat query ke tabel concerts, jadi kalau skema berubah
+ * cukup edit di sini.
+ */
+async function fetchVisibleConcerts() {
+  const { data, error } = await supabase
+    .from('concerts')
+    .select('*, ticket_tiers(*)')
+    .in('status', config.visibleStatuses)
+    .order('created_at', { ascending: false });
+
+  if (error) throw Object.assign(new Error(error.message), { isDbError: true });
+  return data || [];
+}
+
+const lower = (v) => String(v ?? '').toLowerCase();
 
 /**
  * Helper untuk memanggil Google Generative Language (Gemini) API
  */
 async function callGemini(systemInstruction, userContent, jsonMode = false) {
-  if (!geminiApiKey) {
+  if (!config.geminiApiKey) {
     throw new Error('GEMINI_API_KEY tidak dikonfigurasi di backend');
   }
 
-  const modelsToTry = [primaryModel, ...fallbackModels.filter(m => m !== primaryModel)];
+  const modelsToTry = [
+    config.primaryModel,
+    ...config.fallbackModels.filter((m) => m !== config.primaryModel),
+  ];
   let lastError = null;
 
   for (const model of modelsToTry) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.geminiApiKey}`;
 
       const payload = {
         contents: [
           {
             role: 'user',
-            parts: [{ text: userContent }]
-          }
-        ]
+            parts: [{ text: userContent }],
+          },
+        ],
       };
 
       if (systemInstruction) {
         payload.system_instruction = {
-          parts: [{ text: systemInstruction }]
+          parts: [{ text: systemInstruction }],
         };
       }
 
       if (jsonMode) {
         payload.generationConfig = {
-          responseMimeType: 'application/json'
+          responseMimeType: 'application/json',
         };
       }
 
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -74,9 +134,7 @@ async function callGemini(systemInstruction, userContent, jsonMode = false) {
       }
 
       const data = await res.json();
-      const candidate = data.candidates?.[0];
-      const part = candidate?.content?.parts?.[0];
-      const text = part?.text || '';
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
       if (text) {
         return text;
@@ -97,7 +155,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     message: 'LiveTix AI Backend Service berjalan normal',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -117,59 +175,51 @@ app.post('/api/ai/concert-info', async (req, res) => {
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Pertanyaan pengguna (query) tidak boleh kosong.'
+        message: 'Pertanyaan pengguna (query) tidak boleh kosong.',
       });
     }
 
     const cleanQuery = query.trim();
 
-    // 1. Ambil seluruh data konser berstatus 'published' beserta tiket kategorinya dari database Supabase
-    const { data: rawConcerts, error: dbError } = await supabase
-      .from('concerts')
-      .select('*, ticket_tiers(*)')
-      .in('status', ['published', 'approved'])
-      .order('created_at', { ascending: false });
-
-    if (dbError) {
-      console.error('[Fitur 1] Database error:', dbError);
+    // 1. Ambil data konser dari Supabase
+    let concerts;
+    try {
+      concerts = await fetchVisibleConcerts();
+    } catch (dbErr) {
+      console.error('[Fitur 1] Database error:', dbErr);
       return res.status(500).json({
         success: false,
         message: 'Gagal mengambil data konser dari database.',
-        error: dbError.message
+        error: dbErr.message,
       });
     }
 
-    const concerts = rawConcerts || [];
-
     // 2. Cocokkan query user dengan konser di database
     const qLower = cleanQuery.toLowerCase();
-    // Bersihkan kata-kata umum (stopwords) seperti "jelaskan", "mengenai", "konser", "tentang", "info"
-    const stopWords = ['jelaskan', 'tentang', 'mengenai', 'konser', 'info', 'bagaimana', 'apa', 'itu', 'dong', 'tolong', 'min', 'bisa', 'jadwal', 'tiket', 'harga'];
     const queryTokens = qLower
       .replace(/[^\w\s]/gi, ' ')
       .split(/\s+/)
-      .filter(t => t.length > 1 && !stopWords.includes(t));
+      .filter((t) => t.length > 1 && !config.stopWords.includes(t));
 
-    // Skor kecocokan untuk setiap konser
-    const scored = concerts.map(c => {
-      const title = (c.title || '').toLowerCase();
-      const subtitle = (c.subtitle || '').toLowerCase();
-      const category = (c.category || '').toLowerCase();
-      const venue = (c.venue || '').toLowerCase();
-      const desc = (c.description || '').toLowerCase();
-      const producer = (c.producer_name || '').toLowerCase();
+    const scored = concerts.map((c) => {
+      const title = lower(c.title);
+      const subtitle = lower(c.subtitle);
+      const category = lower(c.category);
+      const venue = lower(c.venue);
+      const desc = lower(c.description);
+      const producer = lower(c.producer_name);
 
       let score = 0;
 
-      // Cek kecocokan langsung dengan substring nama
-      if (qLower.includes(title) || title.includes(qLower)) {
+      // Kecocokan langsung dengan nama
+      if (title && (qLower.includes(title) || title.includes(qLower))) {
         score += 50;
       }
 
       // Cek inisial / akronim (contoh: "HS" untuk "HS Punya Cerita")
-      const titleWords = title.split(/\s+/);
-      const acronym = titleWords.map(w => w[0]).join('');
-      if (queryTokens.some(t => t === acronym || titleWords.includes(t))) {
+      const titleWords = title.split(/\s+/).filter(Boolean);
+      const acronym = titleWords.map((w) => w[0]).join('');
+      if (queryTokens.some((t) => t === acronym || titleWords.includes(t))) {
         score += 35;
       }
 
@@ -186,53 +236,65 @@ app.post('/api/ai/concert-info', async (req, res) => {
       return { concert: c, score };
     });
 
-    const matches = scored.filter(item => item.score > 0).sort((a, b) => b.score - a.score);
+    const matches = scored
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score);
 
-    // KASUS 1: Konser tidak ditemukan di database
+    // KASUS 1: Konser tidak ditemukan
     if (matches.length === 0) {
       return res.json({
         success: true,
         matched: false,
         ambiguous: false,
-        message: 'Maaf, konser yang Anda tanyakan tidak ditemukan di dalam sistem LiveTix. Silakan periksa kembali penulisan nama konser, atau gunakan fitur pencarian di halaman Jelajah untuk mengecek konser yang tersedia.',
-        matchedConcerts: []
+        message:
+          'Maaf, konser yang Anda tanyakan tidak ditemukan di dalam sistem LiveTix. Silakan periksa kembali penulisan nama konser, atau gunakan fitur pencarian di halaman Jelajah untuk mengecek konser yang tersedia.',
+        matchedConcerts: [],
       });
     }
 
-    // KASUS 2: Beberapa konser cocok dengan skor yang sangat berdekatan
+    // KASUS 2: Beberapa konser cocok dengan skor berdekatan
     const topScore = matches[0].score;
-    const closeMatches = matches.filter(m => m.score >= topScore * 0.75 && m.score >= 20);
+    const closeMatches = matches.filter(
+      (m) => m.score >= topScore * 0.75 && m.score >= 20
+    );
 
     if (closeMatches.length > 1 && topScore < 60) {
-      const concertListStr = closeMatches.map((m, idx) => `${idx + 1}. ${m.concert.title} (${m.concert.venue})`).join('\n');
+      const concertListStr = closeMatches
+        .map((m, idx) => `${idx + 1}. ${m.concert.title} (${m.concert.venue})`)
+        .join('\n');
       return res.json({
         success: true,
         matched: true,
         ambiguous: true,
         message: `Ditemukan beberapa konser yang mirip dengan pertanyaan Anda:\n${concertListStr}\n\nKonser mana yang ingin Anda ketahui lebih lanjut?`,
-        matchedConcerts: closeMatches.map(m => m.concert)
+        matchedConcerts: closeMatches.map((m) => m.concert),
       });
     }
 
-    // KASUS 3: Ada satu konser yang paling cocok -> kirim data lengkap ke AI sebagai konteks
+    // KASUS 3: Satu konser paling cocok -> kirim data lengkap ke AI
     const targetConcert = matches[0].concert;
     const tiers = targetConcert.ticket_tiers || [];
-    const tiersText = tiers.length > 0
-      ? tiers.map(t => {
-          const quotaRemain = (t.quota || 0) - (t.sold_count || 0);
-          return `- Kategori ${t.name}: Rp${Number(t.price).toLocaleString('id-ID')} (Sisa kuota: ${quotaRemain > 0 ? quotaRemain : 'Habis'})`;
-        }).join('\n')
-      : `- Harga mulai dari: Rp${Number(targetConcert.price || 0).toLocaleString('id-ID')}`;
+    const tiersText =
+      tiers.length > 0
+        ? tiers
+            .map((t) => {
+              const quotaRemain = (t.quota || 0) - (t.sold_count || 0);
+              return `- Kategori ${t.name}: Rp${Number(t.price).toLocaleString('id-ID')} (Sisa kuota: ${quotaRemain > 0 ? quotaRemain : 'Habis'})`;
+            })
+            .join('\n')
+        : targetConcert.price
+          ? `- Harga mulai dari: Rp${Number(targetConcert.price).toLocaleString('id-ID')}`
+          : '- Harga belum dicantumkan';
 
     const concertContext = `DATA RESMI KONSER DARI DATABASE LIVETIX:
 - Judul Konser: ${targetConcert.title}
 - Artis / Penampil / Subtitle: ${targetConcert.subtitle || 'Belum dicantumkan'}
-- Tema / Kategori Musik: ${targetConcert.category || 'Musik Umum'}
-- Tanggal & Waktu: ${targetConcert.date} ${targetConcert.time ? '· ' + targetConcert.time : ''}
-- Lokasi / Venue: ${targetConcert.venue} ${targetConcert.venue_address ? `(${targetConcert.venue_address})` : ''}
-- Penyelenggara / Produser: ${targetConcert.producer_name || 'Promotor Resmi LiveTix'}
+- Tema / Kategori Musik: ${targetConcert.category || 'Belum dicantumkan'}
+- Tanggal & Waktu: ${targetConcert.date || 'Belum dicantumkan'} ${targetConcert.time ? '· ' + targetConcert.time : ''}
+- Lokasi / Venue: ${targetConcert.venue || 'Belum dicantumkan'} ${targetConcert.venue_address ? `(${targetConcert.venue_address})` : ''}
+- Penyelenggara / Produser: ${targetConcert.producer_name || 'Belum dicantumkan'}
 - Deskripsi Konser: ${targetConcert.description || 'Tidak ada deskripsi tambahan'}
-- Total Daya Tampung: ${targetConcert.total_capacity ? targetConcert.total_capacity + ' penonton' : 'Sesuai kapasitas venue'}
+- Total Daya Tampung: ${targetConcert.total_capacity ? targetConcert.total_capacity + ' penonton' : 'Belum dicantumkan'}
 - Daftar Kategori & Harga Tiket:
 ${tiersText}`;
 
@@ -263,14 +325,14 @@ Tolong jelaskan konser di atas berdasarkan data yang diberikan. Konser ini SUDAH
       ambiguous: false,
       message: aiExplanation.trim(),
       concert: targetConcert,
-      matchedConcerts: [targetConcert]
+      matchedConcerts: [targetConcert],
     });
   } catch (err) {
     console.error('[Fitur 1] Exception:', err);
     return res.status(500).json({
       success: false,
       message: 'Terjadi kendala saat memproses informasi konser dengan AI.',
-      error: err.message
+      error: err.message,
     });
   }
 });
@@ -280,11 +342,10 @@ Tolong jelaskan konser di atas berdasarkan data yang diberikan. Konser ini SUDAH
 // ============================================================================
 /**
  * Alur:
- * 1. AI mengubah kalimat pencarian bahasa alami user menjadi filter terstruktur JSON:
- *    { "genre": "rock", "year": 2027, "location": "Malang", "keyword": null, "min_price": null, "max_price": null }
- * 2. Backend memakai JSON tersebut untuk memfilter data konser di database Supabase
- * 3. Hasil dikembalikan ke aplikasi.
- * 4. Jika kosong, kirim pesan "Konser tidak ditemukan" beserta saran melonggarkan filter.
+ * 1. AI mengubah kalimat pencarian bahasa alami menjadi filter JSON terstruktur
+ * 2. Backend memakai filter tersebut untuk memfilter konser dari Supabase
+ * 3. Hasil dikembalikan ke aplikasi
+ * 4. Jika kosong, kirim pesan dan saran melonggarkan filter
  */
 app.post('/api/ai/search-concerts', async (req, res) => {
   try {
@@ -292,13 +353,12 @@ app.post('/api/ai/search-concerts', async (req, res) => {
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Query pencarian tidak boleh kosong.'
+        message: 'Query pencarian tidak boleh kosong.',
       });
     }
 
     const naturalQuery = query.trim();
 
-    // System prompt ketat untuk mengubah natural query menjadi JSON
     const systemInstruction = `Anda adalah AI parser pencarian konser LiveTix.
 Tugas Anda adalah mengubah kalimat pencarian bahasa alami pengguna menjadi filter terstruktur dalam format JSON MURNI.
 
@@ -318,12 +378,11 @@ ATURAN WAJIB:
 - Ekstrak tahun 4 digit (contoh: 2026, 2027) ke field "year".
 - Ekstrak nama kota atau tempat (contoh: "Malang", "Jakarta", "Bandung", "Surabaya") ke field "location".
 - Ekstrak batasan harga angka numerik rupiah jika ada (misal: "di bawah 100 ribu" -> max_price: 100000; "maksimal 50rb" -> max_price: 50000; "di atas 200rb" -> min_price: 200000).
-- Ekstrak kata kunci nama artis atau judul acara (misal "Slank", "Hindia", "Coldplay") ke field "keyword".`;
+- Ekstrak kata kunci nama artis atau judul acara (misal "Slank", "Hindia", "Coldplay", "Tulus") ke field "keyword". Kata umum seperti "konser", "tiket", "acara", "rekomendasi", "ada", "apa" BUKAN nama artis dan WAJIB diabaikan (set null).`;
 
     const userPrompt = `Kalimat pengguna: "${naturalQuery}"`;
 
     let rawJsonText = await callGemini(systemInstruction, userPrompt, true);
-    // Bersihkan backticks markdown jika AI masih menyertakannya
     rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
 
     let filter = {};
@@ -332,113 +391,140 @@ ATURAN WAJIB:
     } catch (parseErr) {
       console.warn('[Fitur 2] JSON parse error, fallback regex:', parseErr);
       const match = rawJsonText.match(/\{[\s\S]*\}/);
-      if (match) {
-        filter = JSON.parse(match[0]);
-      } else {
+      try {
+        filter = match
+          ? JSON.parse(match[0])
+          : { genre: null, year: null, location: null, keyword: naturalQuery, min_price: null, max_price: null };
+      } catch (_) {
         filter = { genre: null, year: null, location: null, keyword: naturalQuery, min_price: null, max_price: null };
       }
     }
 
-    // Ambil data konser dari database Supabase
-    const { data: rawConcerts, error: dbError } = await supabase
-      .from('concerts')
-      .select('*, ticket_tiers(*)')
-      .in('status', ['published', 'approved'])
-      .order('created_at', { ascending: false });
+    // Pembersihan stop words pada keyword agar tidak memblokir pencarian
+    if (filter.keyword) {
+      const stopWords = [
+        'konser', 'tiket', 'musik', 'acara', 'event', 'jadwal', 'rekomendasi',
+        'terbaru', 'terdekat', 'ada', 'apa', 'semua', 'dong', 'saja', 'aja',
+        'mau', 'cari', 'lihat', 'info', 'daftar', 'tentang', 'yang', 'hari', 'ini'
+      ];
+      let kwClean = filter.keyword.trim().toLowerCase();
+      for (const sw of stopWords) {
+        kwClean = kwClean.replace(new RegExp(`\\b${sw}\\b`, 'gi'), '').trim();
+      }
+      filter.keyword = kwClean.length >= 2 ? kwClean : null;
+    }
 
-    if (dbError) {
+    let concerts;
+    try {
+      concerts = await fetchVisibleConcerts();
+    } catch (dbErr) {
       return res.status(500).json({
         success: false,
         message: 'Gagal mengambil data konser dari database.',
-        error: dbError.message
+        error: dbErr.message,
       });
     }
 
-    const concerts = rawConcerts || [];
-
-    // Filter data konser di backend berdasarkan filter yang diekstrak AI
-    const filtered = concerts.filter(c => {
-      // 1. Filter Genre
-      if (filter.genre) {
-        const g = filter.genre.toLowerCase();
-        const cat = (c.category || '').toLowerCase();
-        const tag = (c.tag || '').toLowerCase();
-        if (!cat.includes(g) && !tag.includes(g)) return false;
+    function matchConcert(c, f) {
+      // 1. Genre
+      if (f.genre) {
+        const g = lower(f.genre);
+        if (!lower(c.category).includes(g) && !lower(c.tag).includes(g)) return false;
       }
 
-      // 2. Filter Tahun
-      if (filter.year) {
-        const yrStr = filter.year.toString();
-        const dateStr = (c.date || '').toLowerCase();
-        const subtitleStr = (c.subtitle || '').toLowerCase();
-        const titleStr = (c.title || '').toLowerCase();
-        const createdStr = (c.created_at || '');
-        if (!dateStr.includes(yrStr) && !subtitleStr.includes(yrStr) && !titleStr.includes(yrStr) && !createdStr.includes(yrStr)) {
+      // 2. Tahun (hanya berdasarkan tanggal pelaksanaan, bukan created_at)
+      if (f.year) {
+        const yrStr = String(f.year);
+        if (!lower(c.date).includes(yrStr)) return false;
+      }
+
+      // 3. Lokasi / Kota
+      if (f.location) {
+        const loc = lower(f.location);
+        if (
+          !lower(c.venue).includes(loc) &&
+          !lower(c.venue_address).includes(loc) &&
+          !lower(c.subtitle).includes(loc)
+        ) {
           return false;
         }
       }
 
-      // 3. Filter Lokasi / Kota
-      if (filter.location) {
-        const loc = filter.location.toLowerCase();
-        const venue = (c.venue || '').toLowerCase();
-        const address = (c.venue_address || '').toLowerCase();
-        const subtitle = (c.subtitle || '').toLowerCase();
-        if (!venue.includes(loc) && !address.includes(loc) && !subtitle.includes(loc)) {
+      // 4. Kata kunci (artis / judul / deskripsi / genre)
+      if (f.keyword) {
+        const kw = lower(f.keyword);
+        const inTitle = lower(c.title).includes(kw);
+        const inSub = lower(c.subtitle).includes(kw);
+        const inDesc = lower(c.description).includes(kw);
+        const inVenue = lower(c.venue).includes(kw);
+        const inCat = lower(c.category).includes(kw);
+        if (!inTitle && !inSub && !inDesc && !inVenue && !inCat) {
           return false;
         }
       }
 
-      // 4. Filter Kata Kunci (Artis / Judul)
-      if (filter.keyword) {
-        const kw = filter.keyword.toLowerCase();
-        const title = (c.title || '').toLowerCase();
-        const subtitle = (c.subtitle || '').toLowerCase();
-        const desc = (c.description || '').toLowerCase();
-        if (!title.includes(kw) && !subtitle.includes(kw) && !desc.includes(kw)) {
-          return false;
-        }
-      }
-
-      // 5. Filter Harga
+      // 5. Harga
       const tiers = c.ticket_tiers || [];
-      const prices = [Number(c.price || 0), ...tiers.map(t => Number(t.price || 0))].filter(p => p > 0);
+      const prices = [Number(c.price || 0), ...tiers.map((t) => Number(t.price || 0))].filter(
+        (p) => p > 0
+      );
       const minAvailable = prices.length > 0 ? Math.min(...prices) : Number(c.price || 0);
       const maxAvailable = prices.length > 0 ? Math.max(...prices) : Number(c.price || 0);
 
-      if (filter.min_price != null && maxAvailable < filter.min_price) {
-        return false;
-      }
-      if (filter.max_price != null && minAvailable > filter.max_price) {
-        return false;
-      }
+      if (f.min_price != null && maxAvailable < f.min_price) return false;
+      if (f.max_price != null && minAvailable > f.max_price) return false;
 
       return true;
-    });
+    }
 
-    if (filtered.length === 0) {
-      return res.json({
-        success: true,
-        filter: filter,
-        total: 0,
-        results: [],
-        message: 'Konser tidak ditemukan. Coba longgarkan filter pencarian Anda (misalnya tanpa batasan tahun atau cari di kota lain).'
-      });
+    let filtered = concerts.filter((c) => matchConcert(c, filter));
+
+    // Relaksasi filter cerdas agar permintaan user selalu menghasilkan data konser yang relevan
+    let resultMessage = '';
+    if (filtered.length > 0) {
+      resultMessage = `Ditemukan ${filtered.length} konser yang sesuai dengan pencarian Anda.`;
+    } else {
+      // 1. Coba cari dengan kata kunci saja
+      if (filter.keyword) {
+        filtered = concerts.filter((c) => matchConcert(c, { keyword: filter.keyword }));
+        if (filtered.length > 0) {
+          resultMessage = `Menemukan ${filtered.length} konser terkait "${filter.keyword}".`;
+        }
+      }
+      // 2. Jika masih 0, coba cari dengan lokasi saja
+      if (filtered.length === 0 && filter.location) {
+        filtered = concerts.filter((c) => matchConcert(c, { location: filter.location }));
+        if (filtered.length > 0) {
+          resultMessage = `Menemukan ${filtered.length} konser di area ${filter.location}.`;
+        }
+      }
+      // 3. Jika masih 0, coba cari dengan genre saja
+      if (filtered.length === 0 && filter.genre) {
+        filtered = concerts.filter((c) => matchConcert(c, { genre: filter.genre }));
+        if (filtered.length > 0) {
+          resultMessage = `Menemukan ${filtered.length} konser genre ${filter.genre}.`;
+        }
+      }
+      // 4. Jika masih 0 sama sekali atau query umum, tampilkan konser yang tersedia di platform
+      if (filtered.length === 0) {
+        filtered = concerts;
+        resultMessage = `Tidak ada konser dengan kriteria persis tersebut. Menampilkan ${concerts.length} konser yang tersedia di LiveTix:`;
+      }
     }
 
     return res.json({
       success: true,
-      filter: filter,
+      filter,
       total: filtered.length,
       results: filtered,
-      message: `Ditemukan ${filtered.length} konser yang sesuai dengan pencarian Anda.`
+      message: resultMessage,
     });
   } catch (err) {
     console.error('[Fitur 2] Exception:', err);
     return res.status(500).json({
       success: false,
       message: 'Terjadi kendala saat memproses pencarian dengan AI.',
-      error: err.message
+      error: err.message,
     });
   }
 });
@@ -448,20 +534,20 @@ ATURAN WAJIB:
 // ============================================================================
 /**
  * Alur:
- * 1. Produser menulis instruksi/poin singkat di field deskripsi form Tambah Konser
+ * 1. Produser menulis poin singkat di field deskripsi form Tambah Konser
  * 2. Tombol [AI Assistant] ditekan
- * 3. Dikirim ke backend beserta data form lain yang tersedia (judul, tema, tanggal, lokasi, artis)
- * 4. AI menghasilkan deskripsi konser singkat, padat, dan menarik dalam 1 paragraf (tanpa menambah fakta fiktif)
- * 5. Teks langsung menggantikan field deskripsi di Flutter dengan opsi Undo
+ * 3. Dikirim ke backend beserta data form lain yang tersedia
+ * 4. AI menghasilkan deskripsi singkat 1 paragraf (tanpa fakta fiktif)
+ * 5. Teks menggantikan field deskripsi di Flutter dengan opsi Undo
  */
 app.post('/api/ai/generate-description', async (req, res) => {
   try {
     const { prompt, title, genre, date, venue, artists } = req.body;
 
-    if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 10) {
+    if (!prompt || typeof prompt !== 'string' || prompt.trim().length < config.minPromptLength) {
       return res.status(400).json({
         success: false,
-        message: 'Tuliskan poin-poin atau instruksi deskripsi minimal 10 karakter terlebih dahulu.'
+        message: `Tuliskan poin-poin atau instruksi deskripsi minimal ${config.minPromptLength} karakter terlebih dahulu.`,
       });
     }
 
@@ -479,10 +565,10 @@ ATURAN KETAT:
 
     const userPrompt = `DATA KONSER DARI PRODUSER:
 - Judul Konser: ${title || 'Belum diisi'}
-- Tema / Genre: ${genre || 'Musik'}
-- Tanggal & Waktu: ${date || 'Segera Diumumkan'}
-- Lokasi / Venue: ${venue || 'Segera Diumumkan'}
-- Daftar Artis / Penampil: ${artists || 'Artis Utama'}
+- Tema / Genre: ${genre || 'Belum diisi'}
+- Tanggal & Waktu: ${date || 'Belum diisi'}
+- Lokasi / Venue: ${venue || 'Belum diisi'}
+- Daftar Artis / Penampil: ${artists || 'Belum diisi'}
 
 POIN-POIN / INSTRUKSI PRODUSER DI FIELD DESKRIPSI:
 "${cleanPrompt}"
@@ -493,14 +579,14 @@ Tolong buatkan deskripsi konser singkat (1 paragraf, 3-4 kalimat, maksimal 60 ka
 
     return res.json({
       success: true,
-      description: generatedDescription.trim()
+      description: generatedDescription.trim(),
     });
   } catch (err) {
     console.error('[Fitur 3] Exception:', err);
     return res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan saat membuat deskripsi dengan AI.',
-      error: err.message
+      error: err.message,
     });
   }
 });
@@ -513,16 +599,15 @@ Tolong buatkan deskripsi konser singkat (1 paragraf, 3-4 kalimat, maksimal 60 ka
  * 1. Produser mengisi deskripsi konser di step 1 form Tambah Konser
  * 2. Saat masuk step ringkasan, Flutter mengirim deskripsi ke endpoint ini
  * 3. AI menilai apakah deskripsi memuat kata kunci yang cukup menarik
- * 4. Jika ada: 1-3 badge singkat (maks 15 karakter). Jika tidak: array kosong.
+ * 4. Jika ada: badge singkat. Jika tidak: array kosong.
  */
 app.post('/api/ai/generate-badges', async (req, res) => {
   try {
     const { description, title, genre, date, venue } = req.body || {};
-    const cleanDescription =
-      typeof description === 'string' ? description.trim() : '';
+    const cleanDescription = typeof description === 'string' ? description.trim() : '';
 
     // Deskripsi terlalu pendek untuk dinilai: badge dibiarkan kosong.
-    if (cleanDescription.length < 60) {
+    if (cleanDescription.length < config.minBadgeDescriptionLength) {
       return res.json({ success: true, badges: [] });
     }
 
@@ -531,8 +616,8 @@ Tugas Anda: menentukan apakah deskripsi konser memiliki kata kunci yang cukup me
 
 ATURAN KETAT:
 1. Balas HANYA dengan JSON valid berformat {"badges": ["...", "..."]} tanpa teks pembuka, penutup, atau markdown.
-2. Jumlah badge 0 sampai 3. Kosongkan array ({"badges": []}) jika deskripsi generik, tidak spesifik, atau tidak punya kata kunci menarik.
-3. Setiap badge MAKSIMAL 15 karakter, 1-3 kata, tanpa emoji, tanpa tanda kutip, tanpa titik di akhir.
+2. Jumlah badge 0 sampai ${config.maxBadges}. Kosongkan array ({"badges": []}) jika deskripsi generik, tidak spesifik, atau tidak punya kata kunci menarik.
+3. Setiap badge MAKSIMAL ${config.maxBadgeLength} karakter, 1-3 kata, tanpa emoji, tanpa tanda kutip, tanpa titik di akhir.
 4. Ambil HANYA fakta yang tertulis di deskripsi: genre/jenis musik, kata "festival", batas usia (mis. "17+"), suasana (mis. "Outdoor", "Akustik", "Intim"), jumlah penampil, atau nama artis utama.
 5. DILARANG mengarang fakta yang tidak ada di deskripsi (harga, gratis, jumlah hari, kota, bintang tamu).
 6. Prioritaskan kata yang memicu rasa penasaran atau keinginan menonton. Hindari kata pasif seperti "Acara", "Konser", atau "Musik" saja.
@@ -574,10 +659,10 @@ Tentukan badge banner yang layak ditampilkan. Jika tidak ada kata kunci yang cuk
     const badges = [];
     for (const item of candidates) {
       const text = String(item ?? '').replace(/\s+/g, ' ').trim();
-      if (!text || text.length > 15) continue;
+      if (!text || text.length > config.maxBadgeLength) continue;
       if (badges.some((b) => b.toLowerCase() === text.toLowerCase())) continue;
       badges.push(text);
-      if (badges.length === 3) break;
+      if (badges.length === config.maxBadges) break;
     }
 
     return res.json({ success: true, badges });
@@ -587,13 +672,14 @@ Tentukan badge banner yang layak ditampilkan. Jika tidak ada kata kunci yang cuk
       success: false,
       badges: [],
       message: 'Terjadi kesalahan saat membuat badge dengan AI.',
-      error: err.message
+      error: err.message,
     });
   }
 });
 
-app.listen(port, () => {
-  console.log(`[LiveTix AI Backend] Berjalan di port ${port}`);
-  console.log(`[Supabase] Terhubung ke: ${supabaseUrl}`);
-  console.log(`[Gemini] Menggunakan model: ${primaryModel}`);
+app.listen(config.port, () => {
+  console.log(`[LiveTix AI Backend] Berjalan di port ${config.port}`);
+  console.log(`[Supabase] Terhubung ke: ${config.supabaseUrl}`);
+  console.log(`[Gemini] Model utama: ${config.primaryModel}`);
+  console.log(`[Gemini] Model fallback: ${config.fallbackModels.join(', ') || '(tidak ada)'}`);
 });

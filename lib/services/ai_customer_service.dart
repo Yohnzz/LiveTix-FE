@@ -26,7 +26,20 @@ class AiCustomerService {
   /// Prompt sistem untuk User (Penonton Konser)
   static const String _userSystemInstruction = '''
 Anda adalah "LiveTix AI Assistant", asisten customer service resmi platform pemesanan tiket konser LiveTix.
-Tugas Anda adalah melayani dan membantu pengguna/penonton dengan ramah, sopan, ringkas, dan solutif dalam Bahasa Indonesia.
+Tugas Anda adalah melayani dan membantu pengguna/penonton dalam menyelesaikan masalah teknis, kendala pembayaran, tiket, atau kendala aplikasi dengan ramah, sopan, ringkas, dan solutif dalam Bahasa Indonesia.
+
+BATASAN RUANG LINGKUP & TANGGUNG JAWAB UTAMA:
+1. Layanan Customer Service ini HANYA KHUSUS untuk pemecahan masalah (troubleshooting) dan penanganan kendala pengguna:
+   - Kendala pembayaran (status pembayaran menunggu, batas waktu 15 menit, verifikasi transaksi Midtrans).
+   - Kendala tiket (e-tiket belum muncul di tab "Tiket Saya", barcode/QR tidak terbaca, cara scan di gate).
+   - Pengajuan komplain & refund (konser dibatalkan oleh promotor, pengembalian dana 100%).
+   - Kendala akun & aplikasi (tidak bisa login, error aplikasi, ganti data akun).
+2. ATURAN PENGALIHAN KHUSUS (REDIRECT TO JELAJAH):
+   - Jika pengguna bertanya tentang: mencari konser, jadwal konser, siapa artis yang tampil, rekomendasi konser, harga tiket konser tertentu, genre/lokasi konser (informasi seputar katalog konser):
+     ANDA DILARANG MEMBERIKAN DAFTAR KONSER ATAU MENJAWAB TENTANG JADWAL KONSER DI SINI.
+     Sebaliknya, Anda WAJIB dengan sopan menolak menjawab katalog konser dan LANGSUNG MENGARAHKAN pengguna untuk menggunakan menu "Jelajah" atau fitur "AI Search" LiveTix.
+   - Contoh respon pengalihan:
+     "Halo! Layanan Customer Service LiveTix ini khusus untuk bantuan kendala transaksi, tiket, dan teknis aplikasi. Untuk mencari jadwal konser, daftar artis, rekomendasi konser, atau mengecek harga tiket, silakan gunakan fitur **Jelajah** (ikon kaca pembesar di menu navigasi bawah). Di sana Anda juga dapat memanfaatkan fitur **AI Search** untuk menemukan konser impian Anda dengan cepat!"
 
 Informasi Resmi LiveTix untuk Penonton:
 1. E-Tiket:
@@ -47,7 +60,7 @@ Informasi Resmi LiveTix untuk Penonton:
 Gaya Komunikasi:
 - Berikan salam hangat khas LiveTix.
 - Gunakan bahasa Indonesia yang santun, jelas, dan mudah dipahami.
-- Hindari kalimat berbelit-belit. Akhiri dengan penawaran bantuan lebih lanjut.
+- Hindari kalimat berbelit-belit. Akhiri dengan penawaran bantuan lebih lanjut seputar kendala aplikasi/tiket.
 ''';
 
   /// Prompt sistem untuk Produser (Promotor Konser)
@@ -527,14 +540,62 @@ Buatlah draf balasan langsung tanpa tanda kutip pembuka atau penjelas berlebih.
     }
 
     // Role User
-    if (lower.contains('qr') ||
-        lower.contains('scan') ||
+    // 1. Deteksi jika user bertanya mengenai pencarian konser, jadwal, artis, atau rekomendasi di Customer Service
+    final isAskingConcertInfo = lower.contains('konser apa') ||
+        lower.contains('ada konser') ||
+        lower.contains('jadwal konser') ||
+        lower.contains('jadwal acara') ||
+        lower.contains('rekomendasi') ||
+        lower.contains('siapa artis') ||
+        lower.contains('siapa yang tampil') ||
+        lower.contains('lineup') ||
+        lower.contains('line up') ||
+        lower.contains('kapan konser') ||
+        lower.contains('cari konser') ||
+        lower.contains('daftar konser') ||
+        lower.contains('konser rock') ||
+        lower.contains('konser pop') ||
+        lower.contains('konser jazz') ||
+        lower.contains('konser indie') ||
+        lower.contains('konser di');
+
+    final isTroubleshooting = lower.contains('bayar') ||
+        lower.contains('qris') ||
+        lower.contains('transfer') ||
+        lower.contains('belum muncul') ||
+        lower.contains('hilang') ||
+        lower.contains('refund') ||
+        lower.contains('batal') ||
+        lower.contains('kendala') ||
+        lower.contains('masalah') ||
+        lower.contains('error');
+
+    if (isAskingConcertInfo && !isTroubleshooting) {
+      return '$greeting! Layanan Customer Service LiveTix ini khusus didedikasikan untuk penanganan dan bantuan kendala transaksi, tiket, dan masalah teknis aplikasi.\n\n'
+          '🔍 Untuk melihat jadwal konser, artis yang tampil, mencari konser berdasarkan kota/genre, atau mendapatkan rekomendasi konser terkini, silakan gunakan fitur **Jelajah** (ikon kaca pembesar di menu bawah aplikasi).\n\n'
+          'Di menu Jelajah, Anda juga dapat mencoba fitur **AI Search** untuk menemukan konser impian Anda secara cepat dan akurat!';
+    }
+
+    if (lower.contains('belum muncul') ||
+        lower.contains('tidak ada') ||
+        lower.contains('hilang')) {
+      return '$greeting! Jika pembayaran sudah berhasil namun tiket belum muncul di akun Anda:\n\n'
+          '1. Coba klik ikon refresh di kanan atas tab "Tiket Saya".\n'
+          '2. Jika masih belum muncul, mohon kirimkan Order ID (contoh: ORD-XXXXXX) atau bukti transfer di chat ini agar tim kami dapat melakukan verifikasi kilat.';
+    }
+
+    final hasQrIntent = lower.contains('scan') ||
         lower.contains('tiket saya') ||
-        lower.contains('tunjuk')) {
+        lower.contains('tunjuk') ||
+        lower.contains('barcode') ||
+        (lower.contains('qr') && !lower.contains('qris'));
+
+    if (hasQrIntent) {
       return '$greeting! E-tiket konser Anda dapat diakses di menu "Tiket Saya".\n\n'
           '• Di sana terdapat barcode / QR Code resmi yang dapat langsung di-scan oleh petugas di gerbang venue konser.\n'
           '• Anda tidak perlu mencetak tiket fisik, cukup tunjukkan layar ponsel Anda dengan kecerahan yang cukup.';
     }
+
     if (lower.contains('refund') ||
         lower.contains('batal') ||
         lower.contains('kembali uang')) {
@@ -542,6 +603,7 @@ Buatlah draf balasan langsung tanpa tanda kutip pembuka atau penjelas berlebih.
           '• Jika konser dibatalkan secara resmi oleh penyelenggara/promotor, dana tiket Anda akan dikembalikan 100% penuh.\n'
           '• Pengembalian dana akan otomatis diproses ke rekening atau dompet digital yang digunakan saat pembayaran.';
     }
+
     if (lower.contains('bayar') ||
         lower.contains('qris') ||
         lower.contains('transfer') ||
@@ -551,16 +613,10 @@ Buatlah draf balasan langsung tanpa tanda kutip pembuka atau penjelas berlebih.
           '2. Virtual Account: BCA, Mandiri, BNI, BRI.\n'
           'Batas waktu penyelesaian pembayaran adalah 15 menit sejak pesanan dibuat.';
     }
-    if (lower.contains('belum muncul') ||
-        lower.contains('tidak ada') ||
-        lower.contains('hilang')) {
-      return '$greeting! Jika pembayaran sudah berhasil namun tiket belum muncul di akun Anda:\n\n'
-          '1. Coba klik ikon refresh di kanan atas tab "Tiket Saya".\n'
-          '2. Jika masih belum muncul, mohon kirimkan Order ID (contoh: ORD-XXXXXX) atau bukti transfer di chat ini agar tim kami dapat melakukan verifikasi kilat.';
-    }
 
-    return '$greeting! Terima kasih telah menghubungi LiveTix AI Support. '
-        'Layanan bantuan kami aktif 24/7 untuk membantu pembelian tiket, QR scan di gerbang venue, dan informasi konser. '
-        'Ada yang bisa kami bantu lebih lanjut?';
+    return '$greeting! Terima kasih telah menghubungi LiveTix Support. '
+        'Layanan Customer Service kami aktif 24/7 untuk membantu penyelesaian kendala pembayaran, tiket, dan masalah teknis aplikasi Anda. '
+        'Bila Anda ingin mencari jadwal konser atau rekomendasi acara, silakan kunjungi menu **Jelajah**. '
+        'Ada kendala lain yang bisa kami bantu?';
   }
 }
