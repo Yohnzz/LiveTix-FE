@@ -167,7 +167,7 @@ class DataService {
     } else {
       userTicketsNotifier.value = <UserTicketModel>[];
     }
-    _agreementAccepted = false ||
+    _agreementAccepted =
         LocalStorage.getBool(LocalStorage.agreementAcceptedKey);
 
     // Pulihkan rekening refund yang telah didaftarkan pengguna jika ada

@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../data/admin_dummy.dart';
 import '../models/approval_models.dart';
 import '../models/app_notification_model.dart';
 import '../models/promoter_models.dart';
@@ -701,39 +700,24 @@ class AdminService {
   }
 
   void _seed() {
-    producersNotifier.value =
-        AdminDummy.producers.map(ProducerApplicationModel.fromJson).toList();
-    concertsNotifier.value =
-        AdminDummy.concerts.map(ConcertSubmissionModel.fromJson).toList();
-    final seededUsers =
-        AdminDummy.users.map(ManagedUserModel.fromJson).toList();
-    final existingEmails =
-        seededUsers.map((u) => u.email.trim().toLowerCase()).toSet();
-    for (final crew in GateCrewService().teamCrewNotifier.value) {
-      if (crew.isApproved &&
-          !existingEmails.contains(crew.email.trim().toLowerCase())) {
-        seededUsers.add(
-          ManagedUserModel(
-            id: crew.id,
-            name: crew.name,
-            email: crew.email,
-            role: 'Gatecrew',
-            phone: crew.phone,
-            joinedAt: 'Terdaftar',
-            isActive: true,
-            password: crew.defaultPassword,
-          ),
-        );
-      }
-    }
-    usersNotifier.value = seededUsers;
+    // Project sudah terintegrasi penuh ke Supabase, seed data dummy tidak diperlukan
+    // Saat Supabase tidak tersedia, tampilkan data kosong
+    producersNotifier.value = const [];
+    concertsNotifier.value = const [];
+    usersNotifier.value = const [];
     notificationsNotifier.value = const [];
     refundOverviewNotifier.value =
-        RefundOverviewModel.fromJson(AdminDummy.refundOverview);
-    refundMonitoringNotifier.value = AdminDummy.refundMonitoring
-        .map(RefundMonitoringModel.fromJson)
-        .toList();
-    statsNotifier.value = AdminOverviewStats.fromJson(AdminDummy.stats);
+        const RefundOverviewModel(
+      totalRefundedLabel: 'Rp0',
+      totalRefundedAmount: 0,
+      actionNeededCount: 0,
+    );
+    refundMonitoringNotifier.value = const [];
+    statsNotifier.value = const AdminOverviewStats(
+      totalUsers: 0,
+      activeProducers: 0,
+      activeConcerts: 0,
+    );
     _hasData = true;
   }
 
